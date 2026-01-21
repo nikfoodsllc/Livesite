@@ -1,0 +1,671 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import {
+  Dialog,
+  DialogContent,
+  Box,
+  Typography,
+  IconButton,
+  Checkbox,
+  FormControlLabel,
+  Button,
+  useMediaQuery,
+  useTheme,
+} from '@mui/material';
+import Image from 'next/image';
+import { FoodItem } from '@/types/food';
+import { DayType, SpiceLevel } from '@/types/cart';
+import { CartCustomizations } from '@/types/localCart';
+import VegIndicator from '@/components/common/VegIndicator';
+import * as localCart from '@/lib/localStorageCart';
+import { generateAvailableDatesFromAPI, DayOption } from '@/lib/dayAvailabilityClient';
+import { IconX, IconMinus, IconPlus } from '@tabler/icons-react';
+import PortionSelector from './PortionSelector';
+import SpiceLevelSelector from './SpiceLevelSelector';
+import ComboSectionComponent from './ComboSectionComponent';
+import { useNotifications, showSuccessNotification, showErrorNotification } from '@/components/common/NotificationSystem';
+
+// Define types for the category display structure (matching main page)
+interface CategoryDisplay {
+  _id: string;
+  name: string;
+  description: string;
+  url: string;
+  listingType: 'flat' | 'day-wise';
+  foodItems: FoodItem[];
+  dayWiseItems: { [dayName: string]: FoodItem[] } | null;
+  dayGroups: Array<{
+    day: string;
+    displayName: string;
+    foodItems: FoodItem[];
+  }>;
+}
+
+interface FoodDetailsDialogProps {
+  open: boolean;
+  onClose: () => void;
+  foodItem: FoodItem | null;
+  currentQuantity?: number;
+  selectedDay?: DayType | string;
+  selectedDate?: string;
+  onAddToCart?: (item: FoodItem, quantity: number, customizations: CartCustomizations, day: DayType | string, date: string) => void;
+  onOpenDaySelection?: (customizations: CartCustomizations) => void;
+  refreshCart?: () => void;
+  foodItemsByCategory?: CategoryDisplay[];
+  dayGroup?: any; // Add dayGroup to receive the correct day context from the parent
+  availableDates?: DayOption[];
+}
+
+export default function FoodDetailsDialog({
+  open,
+  onClose,
+  foodItem,
+  currentQuantity = 0,
+  selectedDay = '',
+  selectedDate = '',
+  onAddToCart,
+  onOpenDaySelection,
+  refreshCart,
+  foodItemsByCategory = [],
+  dayGroup,
+  availableDates = [],
+}: FoodDetailsDialogProps) {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const { showNotification } = useNotifications();
+
+  const [quantity, setQuantity] = useState(currentQuantity);
+  const [selectedPortion, setSelectedPortion] = useState(0);
+  const [selectedSpiceLevel, setSelectedSpiceLevel] = useState('normal');
+  const [useEcoContainer, setUseEcoContainer] = useState(false);
+
+  const [comboSelections, setComboSelections] = useState<Record<string, string>>({});
+
+  // Sync quantity with cart when dialog opens or currentQuantity changes
+  useEffect(() => {
+    if (quantity !== currentQuantity) {
+      // Use setTimeout to avoid synchronous setState in useEffect
+      setTimeout(() => {
+        setQuantity(currentQuantity);
+      }, 0);
+    }
+  }, [currentQuantity, foodItem?._id, quantity]);
+
+  // Load existing combo selections from cart when dialog opens for an item already in cart
+  useEffect(() => {
+    if (open && foodItem && currentQuantity > 0) {
+      const existingDays = localCart.findDaysWithItem(foodItem._id);
+      if (existingDays.length > 0) {
+        // Get the cart to find the existing item and its customizations
+        const cart = localCart.getCart();
+        const firstDay = existingDays[0];
+        const dayData = cart.days[firstDay.day];
+
+        if (dayData && dayData.items) {
+          // Find the cart item (using the foodItemId as key)
+          const cartItem = Object.values(dayData.items).find(item => item.foodItemId === foodItem._id);
+
+          if (cartItem && cartItem.comboSelections) {
+            // Load existing selections from cart
+            setComboSelections(cartItem.comboSelections);
+            return;
+          }
+        }
+      }
+    }
+  }, [open, foodItem, currentQuantity]);
+
+  // Re-initialize combo selections when foodItem changes (for new items)
+  useEffect(() => {
+    if (foodItem && currentQuantity === 0) {
+      // This is a new item, reset combo selections to initial defaults
+      const defaults: Record<string, string> = {};
+      if (foodItem.sections && Array.isArray(foodItem.sections)) {
+        foodItem.sections.forEach((section) => {
+          // Defensive check for section validity
+          if (section && section._id && section.selectedItems && Array.isArray(section.selectedItems)) {
+            // Count items with isDefault=true
+            const defaultItems = section.selectedItems.filter(item => item.isDefault);
+
+            if (defaultItems.length === 1 && defaultItems[0]._id) {
+              // Exactly one default: select it
+              defaults[section._id] = defaultItems[0]._id;
+            } else if (defaultItems.length > 1) {
+              // Multiple defaults: select the first one
+              if (defaultItems[0]._id) {
+                defaults[section._id] = defaultItems[0]._id;
+              }
+            } else if (section.selectedItems.length === 1 && section.selectedItems[0]._id) {
+              // No defaults: auto-select single item section
+              defaults[section._id] = section.selectedItems[0]._id;
+            } else if (section.selectedItems.length > 0 && section.selectedItems[0]._id) {
+              // No defaults and multiple items: select the first item
+              defaults[section._id] = section.selectedItems[0]._id;
+            }
+          }
+        });
+      }
+      setComboSelections(defaults);
+    }
+  }, [foodItem, currentQuantity]);
+
+  // Helper function to find which category a food item belongs to and its listing type
+  const getCategoryForItem = (foodItemId: string): { category: CategoryDisplay | null; dayGroup?: any } => {
+    if (!foodItemsByCategory || foodItemsByCategory.length === 0) {
+      return { category: null };
+    }
+
+    for (const category of foodItemsByCategory) {
+      if (category.listingType === 'flat') {
+        // For flat categories, check if the item is in the foodItems array
+        const item = category.foodItems.find(item => item._id === foodItemId);
+        if (item) {
+          return { category };
+        }
+      } else if (category.listingType === 'day-wise') {
+        // For day-wise categories, check each day group
+        for (const dayGroup of category.dayGroups) {
+          const item = dayGroup.foodItems.find(item => item._id === foodItemId);
+          if (item) {
+            return { category, dayGroup };
+          }
+        }
+      }
+    }
+    return { category: null };
+  };
+
+  const handleComboSelection = (sectionId: string, itemId: string) => {
+    // Defensive checks for invalid inputs
+    if (!sectionId || !itemId) {
+      console.warn('[FoodDetailsDialog] Invalid combo selection:', { sectionId, itemId });
+      return;
+    }
+
+    setComboSelections(prev => {
+      // Ensure prev state is valid
+      const currentSelections = prev || {};
+      return {
+        ...currentSelections,
+        [sectionId]: itemId,
+      };
+    });
+  };
+
+  const handleQuantityChange = (newQuantity: number) => {
+    if (!foodItem) return;
+
+    setQuantity(newQuantity);
+
+    // Check if this item already exists in cart
+    const existingDays = localCart.findDaysWithItem(foodItem._id);
+
+    if (existingDays.length > 0 && newQuantity > 0) {
+      // Item exists in cart, update the quantity on the first day it was added to
+      const customizations: CartCustomizations = {
+        selectedPortion: foodItem.portions?.[selectedPortion] || '',
+        selectedPortionPrice: foodItem.portions?.[selectedPortion] ? foodItem.portionPrices?.[selectedPortion] : undefined,
+        selectedSpiceLevel: selectedSpiceLevel as SpiceLevel,
+        isEcoFriendlyContainer: useEcoContainer,
+        ecoContainerCharge: useEcoContainer ? foodItem.ecoContainerCharge : undefined,
+        comboSelections,
+      };
+
+      const firstDay = existingDays[0];
+      onAddToCart?.(foodItem, newQuantity, customizations, firstDay.day, firstDay.date);
+
+      // Show feedback for quantity update
+      const action = newQuantity > currentQuantity ? 'increased' : 'decreased';
+      showSuccessNotification(
+        showNotification,
+        `${foodItem.name} quantity ${action} to ${newQuantity} for ${firstDay.day}`,
+        'Cart Updated'
+      );
+    } else if (newQuantity === 0 && existingDays.length > 0) {
+      // Remove item from all days it exists in
+      existingDays.forEach(({ day }) => {
+        localCart.removeItem(day, foodItem._id);
+      });
+      refreshCart?.();
+
+      // Show feedback for item removal
+      showSuccessNotification(
+        showNotification,
+        `${foodItem.name} has been removed from your cart`,
+        'Item Removed'
+      );
+    }
+    // If item doesn't exist in cart or quantity is 0, don't do anything - let user use "Add to Cart" button
+  };
+
+  // Handle auto-add for day-wise categories
+  const handleAddToDayWiseCategory = async (foodItem: FoodItem, dayGroup: any, customizations: CartCustomizations) => {
+    console.log('[FoodDetailsDialog] handleAddToDayWiseCategory called with:', {
+      foodItemId: foodItem._id,
+      foodItemName: foodItem.name,
+      dayGroup,
+      customizations
+    });
+
+    // Fetch all available dates and find the matching date option for this date
+    // IMPORTANT: Search by date string (YYYY-MM-DD) not by day type to avoid date shifting
+    const availableDates = await generateAvailableDatesFromAPI(false); // Only enabled dates
+    const dayOption = availableDates.find(d => d.date === dayGroup.date);
+
+    // Use dayOption.day (from API) instead of dayGroup.day (calculated incorrectly)
+    const dayName = dayOption?.day || dayGroup.day;
+    const dayType = dayName as DayType;
+
+    if (!dayOption || !dayOption.enabled) {
+      // Day is not available, show error message
+      showErrorNotification(
+        showNotification,
+        `${dayName} is not available for ordering. Please choose a different item.`,
+        'Day Unavailable'
+      );
+      return;
+    }
+
+    try {
+      console.log('[FoodDetailsDialog] Calling onAddToCart with:', {
+        foodItem,
+        quantity: 1,
+        customizations,
+        dayType,
+        date: dayOption?.date || ''
+      });
+
+      // Add item to cart for the designated day
+      onAddToCart?.(
+        foodItem,
+        1, // Default quantity of 1
+        customizations,
+        dayType,
+        dayOption?.date || ''
+      );
+
+      // Show success message with formatted date
+      showSuccessNotification(
+        showNotification,
+        `${foodItem.name} has been added to your cart for ${dayOption.formattedDate}`,
+        'Added to Cart'
+      );
+
+      // Close dialog
+      onClose();
+    } catch (error) {
+      console.error('Error adding item to cart:', error);
+      showErrorNotification(
+        showNotification,
+        'Failed to add item to cart. Please try again.',
+        'Error'
+      );
+    }
+  };
+
+  const handleAddToCart = () => {
+    if (!foodItem) return;
+
+    // Ensure combo selections are initialized (defensive check)
+    let finalComboSelections = comboSelections;
+    if (foodItem.hasCombo && foodItem.sections && Object.keys(comboSelections).length === 0) {
+      // Initialize defaults if not already set
+      const defaults: Record<string, string> = {};
+      foodItem.sections.forEach((section) => {
+        // Count items with isDefault=true
+        const defaultItems = section.selectedItems.filter(item => item.isDefault);
+
+        if (defaultItems.length === 1 && defaultItems[0]._id) {
+          // Exactly one default: select it
+          defaults[section._id] = defaultItems[0]._id;
+        } else if (defaultItems.length > 1) {
+          // Multiple defaults: select the first one
+          if (defaultItems[0]._id) {
+            defaults[section._id] = defaultItems[0]._id;
+          }
+        } else if (section.selectedItems.length === 1 && section.selectedItems[0]._id) {
+          // No defaults: auto-select single item section
+          defaults[section._id] = section.selectedItems[0]._id;
+        } else if (section.selectedItems.length > 0 && section.selectedItems[0]._id) {
+          // No defaults and multiple items: select the first item
+          defaults[section._id] = section.selectedItems[0]._id;
+        }
+      });
+      finalComboSelections = defaults;
+    }
+
+    // Validate combo selections for required sections
+    if (foodItem.hasCombo && foodItem.sections) {
+      for (const section of foodItem.sections) {
+        // Check if section is required or has minimum selection requirement
+        const isRequired = section.isRequired || (section.minSelection !== undefined && section.minSelection > 0);
+
+        // Only validate multi-item sections that are required
+        if (isRequired && section.selectedItems.length > 1) {
+          // Check if user has made a selection for this section
+          const hasSelection = finalComboSelections[section._id] &&
+                             finalComboSelections[section._id] !== '' &&
+                             section.selectedItems.some(item => item._id === finalComboSelections[section._id]);
+
+          if (!hasSelection) {
+            // Show error for first missing required selection
+            showErrorNotification(
+              showNotification,
+              `Please select an item from ${section.title}`,
+              'Selection Required'
+            );
+            return; // Early return to prevent adding to cart
+          }
+        }
+      }
+    }
+
+    // Use the dayGroup passed from props if available (from day-wise category section)
+    // Otherwise, search for it in the categories (fallback for flat categories)
+    let targetDayGroup = dayGroup;
+    if (!targetDayGroup) {
+      const { category, dayGroup: foundDayGroup } = getCategoryForItem(foodItem._id);
+      targetDayGroup = foundDayGroup;
+    }
+
+    const customizations: CartCustomizations = {
+      selectedPortion: foodItem.portions?.[selectedPortion] || '',
+      selectedPortionPrice: foodItem.portions?.[selectedPortion] ? foodItem.portionPrices?.[selectedPortion] : undefined,
+      selectedSpiceLevel: selectedSpiceLevel as SpiceLevel,
+      isEcoFriendlyContainer: useEcoContainer,
+      ecoContainerCharge: useEcoContainer ? foodItem.ecoContainerCharge : undefined,
+      comboSelections: finalComboSelections,
+    };
+
+    console.log('[FoodDetailsDialog] Created customizations:', {
+      customizations,
+      selectedPortionIndex: selectedPortion,
+      portions: foodItem.portions,
+      portionPrices: foodItem.portionPrices
+    });
+
+    if (targetDayGroup) {
+      // For day-wise categories, auto-add to the designated day
+      handleAddToDayWiseCategory(foodItem, targetDayGroup, customizations);
+    } else {
+      // For flat categories or when no dayGroup is found, show day selection popup
+      // The popup will handle adding the item with the customizations
+      onOpenDaySelection?.(customizations);
+      onClose();
+    }
+  };
+
+  const handleClose = () => {
+    setQuantity(currentQuantity);
+    setSelectedPortion(0);
+    setSelectedSpiceLevel('normal');
+    setUseEcoContainer(false);
+    setComboSelections({});
+    onClose();
+  };
+
+  // Reset portion to default (index 0) when dialog opens with a new item
+  useEffect(() => {
+    if (open && foodItem) {
+      // Ensure portion is reset to 0 when dialog opens
+      setSelectedPortion(0);
+    }
+  }, [open, foodItem]);
+
+  if (!foodItem) return null;
+
+  return (
+    <Dialog
+      open={open}
+      onClose={handleClose}
+      maxWidth={false}
+      fullScreen={isMobile}
+      PaperProps={{
+        sx: {
+          width: isMobile ? '100%' : '700px',
+          maxWidth: '100vw',
+          maxHeight: '85vh',
+          borderRadius: isMobile ? 0 : 2,
+          m: 0,
+        },
+      }}
+    >
+      <DialogContent
+        sx={{
+          p: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100%',
+          overflow: 'hidden',
+        }}
+      >
+        {/* Close Button */}
+        <IconButton
+          onClick={handleClose}
+          sx={{
+            position: 'absolute',
+            top: 20,
+            right: 16,
+            zIndex: 10,
+            backgroundColor: 'white',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+            '&:hover': {
+              backgroundColor: '#f3f4f6',
+            },
+          }}
+        >
+          <IconX size={20} />
+        </IconButton>
+
+        {/* Food Image */}
+        <Box
+          sx={{
+            position: 'relative',
+            width: '100%',
+            height: { xs: 120, sm: 140 },
+            flexShrink: 0,
+            overflow: 'hidden',
+          }}
+        >
+          <Image
+            src={foodItem.url}
+            alt={foodItem.name}
+            fill
+            style={{
+              objectFit: 'cover',
+            }}
+          />
+        </Box>
+
+        {/* Scrollable Content */}
+        <Box
+          sx={{
+            flex: 1,
+            overflowY: 'auto',
+            pt: 1.25,
+            px: { xs: 2, sm: 5.25 },
+            pb: 10,
+          }}
+        >
+          {/* Title and Price */}
+          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, mb: 1.5 }}>
+            <VegIndicator isVeg={foodItem.veg} size={18} />
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="h5" sx={{ fontWeight: 600, mb: 0.5, fontSize: '1.25rem' }}>
+                {foodItem.name}
+              </Typography>
+              <Typography variant="h6" sx={{ color: '#f89c35', fontWeight: 600, fontSize: '1.125rem' }}>
+                {foodItem.portions && foodItem.portions.length > 0 ? 'Starting at ' : ''}
+                {foodItem.price != null ? `$${foodItem.price.toFixed(2)}` : 'Price not available'}
+              </Typography>
+            </Box>
+          </Box>
+
+          {/* Description */}
+          {foodItem.description && (
+            <Typography
+              variant="body1"
+              sx={{ color: '#374151', mb: 2.5, mt: 1, lineHeight: 1.6 }}
+            >
+              {foodItem.description}
+            </Typography>
+          )}
+
+          {/* Portion Selector */}
+          {foodItem.portions && foodItem.portionPrices && (
+            <PortionSelector
+              portions={foodItem.portions}
+              portionPrices={foodItem.portionPrices}
+              selectedPortion={selectedPortion}
+              onPortionChange={setSelectedPortion}
+            />
+          )}
+
+          {/* Spice Level Selector */}
+          {foodItem.hasSpiceLevel && (
+            <SpiceLevelSelector
+              spiceLevels={foodItem.spiceLevel}
+              selectedSpiceLevel={selectedSpiceLevel}
+              onSpiceLevelChange={setSelectedSpiceLevel}
+            />
+          )}
+
+          {/* Eco-Friendly Container */}
+          {foodItem.isEcoFriendlyContainer && (
+            <Box sx={{ mb: 3 }}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={useEcoContainer}
+                    onChange={(e) => setUseEcoContainer(e.target.checked)}
+                    sx={{
+                      color: '#d1d5db',
+                      '&.Mui-checked': {
+                        color: '#f89c35',
+                      },
+                    }}
+                  />
+                }
+                label={
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography>Use Eco-Friendly Container</Typography>
+                    {foodItem.ecoContainerCharge && (
+                      <Typography sx={{ color: '#f89c35', fontWeight: 600 }}>
+                        +${foodItem.ecoContainerCharge.toFixed(2)}
+                      </Typography>
+                    )}
+                  </Box>
+                }
+              />
+            </Box>
+          )}
+
+          {/* Combo Sections */}
+          {foodItem.hasCombo && foodItem.sections && foodItem.sections.length > 0 && (
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+                Customize Your Combo
+              </Typography>
+              {foodItem.sections.map((section) => {
+                // Ensure selectedValue is always a string, never undefined/null
+                const selectedValue = comboSelections?.[section._id] || '';
+                return (
+                  <ComboSectionComponent
+                    key={section._id}
+                    section={section}
+                    selectedValue={selectedValue}
+                    onSelect={handleComboSelection}
+                  />
+                );
+              })}
+            </Box>
+          )}
+        </Box>
+
+        {/* Bottom Bar */}
+        <Box
+          sx={{
+            flexShrink: 0,
+            backgroundColor: 'white',
+            borderTop: '1px solid #F0F0F0',
+            pt: 1.5,
+            px: { xs: 2, sm: 5.25 },
+            pb: 2,
+            display: 'flex',
+            justifyContent: 'flex-end',
+            alignItems: 'center',
+            gap: 2,
+            boxShadow: '0 -2px 4px rgba(0,0,0,0.05)',
+          }}
+        >
+          {quantity === 0 ? (
+            <Button
+              variant="contained"
+              onClick={handleAddToCart}
+              sx={{
+                backgroundColor: '#f89c35',
+                color: 'white',
+                textTransform: 'none',
+                fontWeight: 600,
+                px: 4,
+                py: 1.5,
+                borderRadius: 2,
+                '&:hover': {
+                  backgroundColor: '#e08929',
+                },
+              }}
+            >
+              Add to Cart
+            </Button>
+          ) : (
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1.5,
+                backgroundColor: '#f89c35',
+                borderRadius: 2,
+                px: 2,
+                py: 1,
+              }}
+            >
+              <IconButton
+                onClick={() => handleQuantityChange(Math.max(0, quantity - 1))}
+                sx={{
+                  color: 'white',
+                  '&:hover': {
+                    backgroundColor: 'rgba(255,255,255,0.1)',
+                  },
+                }}
+              >
+                <IconMinus size={20} />
+              </IconButton>
+              <Typography
+                sx={{
+                  color: 'white',
+                  fontWeight: 600,
+                  minWidth: '40px',
+                  textAlign: 'center',
+                }}
+              >
+                {quantity}
+              </Typography>
+              <IconButton
+                onClick={() => handleQuantityChange(quantity + 1)}
+                sx={{
+                  color: 'white',
+                  '&:hover': {
+                    backgroundColor: 'rgba(255,255,255,0.1)',
+                  },
+                }}
+              >
+                <IconPlus size={20} />
+              </IconButton>
+            </Box>
+          )}
+        </Box>
+      </DialogContent>
+    </Dialog>
+  );
+}
