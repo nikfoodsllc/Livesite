@@ -208,6 +208,7 @@ export default function CartPreviewSidebar({
                 key={day._id}
                 cartDay={day}
                 hasAddress={!!cart.selectedAddress}
+                onClose={onClose}
               />
             ))}
 
@@ -235,7 +236,7 @@ export default function CartPreviewSidebar({
                 Order Summary
               </Typography>
 
-              {/* Subtotal */}
+              {/* Item Total */}
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                 <Typography
                   variant="body2"
@@ -244,7 +245,7 @@ export default function CartPreviewSidebar({
                     color: theme.palette.text.primary,
                   }}
                 >
-                  Subtotal
+                  Item Total
                 </Typography>
                 <Typography
                   variant="body2"
@@ -255,75 +256,6 @@ export default function CartPreviewSidebar({
                   }}
                 >
                   ${summary.subtotal.toFixed(2)}
-                </Typography>
-              </Box>
-
-              {/* Platform Fee */}
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                <Typography
-                  variant="body2"
-                  sx={{
-                    fontSize: '0.9rem',
-                    color: theme.palette.text.primary,
-                  }}
-                >
-                  Service Fee
-                </Typography>
-                <Typography
-                  variant="body2"
-                  sx={{
-                    fontWeight: 600,
-                    fontSize: '0.9rem',
-                    color: theme.palette.text.primary,
-                  }}
-                >
-                  ${summary.platformFee.toFixed(2)}
-                </Typography>
-              </Box>
-
-              {/* Delivery Fee */}
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                <Typography
-                  variant="body2"
-                  sx={{
-                    fontSize: '0.9rem',
-                    color: theme.palette.text.primary,
-                  }}
-                >
-                  Delivery Fee
-                </Typography>
-                <Typography
-                  variant="body2"
-                  sx={{
-                    fontWeight: 600,
-                    fontSize: '0.9rem',
-                    color: theme.palette.success.main,
-                  }}
-                >
-                  Free
-                </Typography>
-              </Box>
-
-              {/* Tax */}
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                <Typography
-                  variant="body2"
-                  sx={{
-                    fontSize: '0.9rem',
-                    color: theme.palette.text.primary,
-                  }}
-                >
-                  Tax ({(summary.taxRate * 100).toFixed(0)}%)
-                </Typography>
-                <Typography
-                  variant="body2"
-                  sx={{
-                    fontWeight: 600,
-                    fontSize: '0.9rem',
-                    color: theme.palette.text.primary,
-                  }}
-                >
-                  ${summary.tax.toFixed(2)}
                 </Typography>
               </Box>
 
@@ -351,32 +283,6 @@ export default function CartPreviewSidebar({
                   </Typography>
                 </Box>
               )}
-
-              <Divider sx={{ my: 1.5 }} />
-
-              {/* Total */}
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-                <Typography
-                  variant="h6"
-                  sx={{
-                    fontWeight: 600,
-                    fontSize: '1rem',
-                    color: theme.palette.text.primary,
-                  }}
-                >
-                  Total
-                </Typography>
-                <Typography
-                  variant="h6"
-                  sx={{
-                    fontWeight: 700,
-                    fontSize: '1.1rem',
-                    color: theme.palette.text.primary,
-                  }}
-                >
-                  ${summary.total.toFixed(2)}
-                </Typography>
-              </Box>
 
               {/* Item Count */}
               <Typography
@@ -480,7 +386,7 @@ export default function CartPreviewSidebar({
                 fontWeight: 500,
               }}
             >
-              Minimum order value not met for some days
+              Minimum order value not met for this order
             </Typography>
           )}
         </Box>

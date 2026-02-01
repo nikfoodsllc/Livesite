@@ -57,7 +57,7 @@ export default function CartSummary({
         Order Summary
       </Typography>
 
-      {/* Subtotal */}
+      {/* Item Total */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1.5 }}>
         <Typography
           variant="body1"
@@ -66,7 +66,7 @@ export default function CartSummary({
             color: theme.palette.text.primary,
           }}
         >
-          Subtotal
+          Item Total
         </Typography>
         <Typography
           variant="body1"
@@ -77,75 +77,6 @@ export default function CartSummary({
           }}
         >
           ${summary.subtotal.toFixed(2)}
-        </Typography>
-      </Box>
-
-      {/* Platform Fee */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1.5 }}>
-        <Typography
-          variant="body1"
-          sx={{
-            fontSize: isMobile ? '0.95rem' : '1rem',
-            color: theme.palette.text.primary,
-          }}
-        >
-          Service Fee
-        </Typography>
-        <Typography
-          variant="body1"
-          sx={{
-            fontWeight: 600,
-            fontSize: isMobile ? '0.95rem' : '1rem',
-            color: theme.palette.text.primary,
-          }}
-        >
-          ${summary.platformFee.toFixed(2)}
-        </Typography>
-      </Box>
-
-      {/* Delivery Fee */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1.5 }}>
-        <Typography
-          variant="body1"
-          sx={{
-            fontSize: isMobile ? '0.95rem' : '1rem',
-            color: theme.palette.text.primary,
-          }}
-        >
-          Delivery Fee
-        </Typography>
-        <Typography
-          variant="body1"
-          sx={{
-            fontWeight: 600,
-            fontSize: isMobile ? '0.95rem' : '1rem',
-            color: theme.palette.success.main,
-          }}
-        >
-          Free
-        </Typography>
-      </Box>
-
-      {/* Tax */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1.5 }}>
-        <Typography
-          variant="body1"
-          sx={{
-            fontSize: isMobile ? '0.95rem' : '1rem',
-            color: theme.palette.text.primary,
-          }}
-        >
-          Tax ({(summary.taxRate * 100).toFixed(0)}%)
-        </Typography>
-        <Typography
-          variant="body1"
-          sx={{
-            fontWeight: 600,
-            fontSize: isMobile ? '0.95rem' : '1rem',
-            color: theme.palette.text.primary,
-          }}
-        >
-          ${summary.tax.toFixed(2)}
         </Typography>
       </Box>
 
@@ -173,33 +104,6 @@ export default function CartSummary({
           </Typography>
         </Box>
       )}
-
-      {/* Divider */}
-      <Divider sx={{ my: 2 }} />
-
-      {/* Total */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
-        <Typography
-          variant="h6"
-          sx={{
-            fontWeight: 600,
-            fontSize: isMobile ? '1rem' : '1.15rem',
-            color: theme.palette.text.primary,
-          }}
-        >
-          Total
-        </Typography>
-        <Typography
-          variant="h5"
-          sx={{
-            fontWeight: 700,
-            fontSize: isMobile ? '1.4rem' : '1.75rem',
-            color: theme.palette.text.primary,
-          }}
-        >
-          ${summary.total.toFixed(2)}
-        </Typography>
-      </Box>
 
       {/* Item Count */}
       <Typography

@@ -181,10 +181,7 @@ export default function UpdateItemDialog({ open, order, onClose }: UpdateItemDia
           </Typography>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
             <Typography sx={{ fontSize: '13px', color: '#374151' }}>
-              <strong>Phone:</strong> 1-800-NIKFOODS
-            </Typography>
-            <Typography sx={{ fontSize: '13px', color: '#374151' }}>
-              <strong>Email:</strong> support@nikfoods.com
+              <strong>Email:</strong> nikfoodsllc@gmail.com
             </Typography>
           </Box>
         </Box>

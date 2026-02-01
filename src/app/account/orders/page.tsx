@@ -4,7 +4,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Typography, CircularProgress, IconButton } from '@mui/material';
 import { IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
 import AccountPageHeader from '@/components/account/AccountPageHeader';
-import OrderFilters, { OrderFilterType } from '@/components/orders/OrderFilters';
 import OrderCard from '@/components/orders/OrderCard';
 import OrderDetailsDialog from '@/components/orders/OrderDetailsDialog';
 import TrackOrderDialog from '@/components/orders/TrackOrderDialog';
@@ -29,7 +28,6 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedFilter, setSelectedFilter] = useState<OrderFilterType>('all');
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState<Omit<OrdersResponse, 'items'> | null>(null);
 
@@ -47,7 +45,7 @@ export default function OrdersPage() {
 
     try {
       const response = await authenticatedFetch(
-        `/api/orders?page=${page}&status=${selectedFilter}&limit=10`
+        `/api/orders?page=${page}&status=all&limit=10`
       );
 
       if (!response.ok) {
@@ -75,16 +73,11 @@ export default function OrdersPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, selectedFilter, authenticatedFetch]);
+  }, [page, authenticatedFetch]);
 
   useEffect(() => {
     fetchOrders();
-  }, [selectedFilter, page, fetchOrders]);
-
-  const handleFilterChange = (filter: OrderFilterType) => {
-    setSelectedFilter(filter);
-    setPage(1); // Reset to first page when filter changes
-  };
+  }, [page, fetchOrders]);
 
   const handlePageChange = (newPage: number) => {
     setPage(newPage);
@@ -125,9 +118,6 @@ export default function OrdersPage() {
     <Box>
       {/* Page Header */}
       <AccountPageHeader />
-
-      {/* Filters */}
-      <OrderFilters selectedFilter={selectedFilter} onFilterChange={handleFilterChange} />
 
       {/* Loading State */}
       {loading && (
@@ -180,9 +170,7 @@ export default function OrdersPage() {
             No orders found
           </Typography>
           <Typography sx={{ fontSize: '14px', color: '#6B7280' }}>
-            {selectedFilter === 'all'
-              ? "You haven't placed any orders yet."
-              : `No ${selectedFilter} orders found.`}
+            You haven&apos;t placed any orders yet.
           </Typography>
         </Box>
       )}

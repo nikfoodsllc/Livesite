@@ -338,6 +338,7 @@ export async function POST(request: NextRequest) {
         status: 'confirmed',
         paymentStatus: 'paid',
         paymentMethod: 'Credit Card',
+        minOrderValue: 15.99,
         createdAt: new Date(),
         updatedAt: new Date(),
       };

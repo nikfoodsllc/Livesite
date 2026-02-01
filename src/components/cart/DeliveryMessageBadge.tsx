@@ -1,14 +1,24 @@
 'use client';
 
-import { Box, Typography } from '@mui/material';
+import { Box, Typography, Link } from '@mui/material';
 import { IconInfoCircle, IconCheck, IconAlertTriangle, IconAlertCircle } from '@tabler/icons-react';
+import { useRouter } from 'next/navigation';
 import { DeliveryMessage } from '@/types/cart';
 
 interface DeliveryMessageBadgeProps {
   message: DeliveryMessage;
+  onClose?: () => void;
 }
 
-export default function DeliveryMessageBadge({ message }: DeliveryMessageBadgeProps) {
+export default function DeliveryMessageBadge({ message, onClose }: DeliveryMessageBadgeProps) {
+  const router = useRouter();
+
+  const handleContinueShopping = () => {
+    router.push('/');
+    if (onClose) {
+      onClose();
+    }
+  };
 
   const getConfig = () => {
     switch (message.type) {
@@ -71,17 +81,41 @@ export default function DeliveryMessageBadge({ message }: DeliveryMessageBadgePr
           marginTop: 2,
         }}
       />
-      <Typography
-        variant="body2"
-        sx={{
-          color: config.textColor,
-          fontSize: '0.875rem',
-          lineHeight: 1.5,
-          fontWeight: 500,
-        }}
-      >
-        {message.message}
-      </Typography>
+      <Box sx={{ flex: 1 }}>
+        <Typography
+          variant="body2"
+          sx={{
+            color: config.textColor,
+            fontSize: '0.875rem',
+            lineHeight: 1.5,
+            fontWeight: 500,
+          }}
+        >
+          {message.message}
+        </Typography>
+
+        {/* Continue Shopping Link - Show when there's a shortfall */}
+        {message.hasShortfall && (
+          <Link
+            component="button"
+            onClick={handleContinueShopping}
+            sx={{
+              color: config.textColor,
+              fontWeight: 600,
+              fontSize: '0.875rem',
+              mt: 1,
+              display: 'inline-block',
+              textDecoration: 'underline',
+              cursor: 'pointer',
+              '&:hover': {
+                textDecoration: 'underline',
+              },
+            }}
+          >
+            Continue Shopping
+          </Link>
+        )}
+      </Box>
     </Box>
   );
 }

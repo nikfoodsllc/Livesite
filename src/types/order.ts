@@ -61,7 +61,7 @@ export interface OrderDayItem {
   portions?: number; // Portion index for backwards compatibility
   isEcoFriendlyContainer?: boolean;
   ecoContainerCharge?: number;
-  comboSelections?: Record<string, string>; // { sectionId: itemId }
+  comboSelections?: Record<string, string[]>; // { sectionId: itemId[] }
   notes?: string;
 }
 
@@ -107,6 +107,7 @@ export interface Order {
   taxes: number; // 10% of subtotal
   tip: number; // User selected tip
   discount?: DiscountInfo;
+  minOrderValue: number; // Minimum order value required for delivery
   totalPaid: number;
   currency: string; // 'usd' | 'inr'
   status: OrderStatus;

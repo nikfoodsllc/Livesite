@@ -6,8 +6,24 @@ import { PST_TIMEZONE } from '@/lib/timezone';
  */
 export function getOrderConfirmationEmailTemplate(order: Order): string {
   const formatDate = (date: Date | string) => {
-    const d = new Date(date);
-    return d.toLocaleDateString('en-US', {
+    // Handle string dates by creating at noon PST to avoid boundary issues
+    // This matches the approach in orderHelpers.ts to ensure consistency
+    if (typeof date === 'string') {
+      // Parse YYYY-MM-DD format
+      const [year, month, day] = date.split('-').map(Number);
+      // Create date at noon PST (20:00 UTC) to avoid DST boundary issues
+      const d = new Date(Date.UTC(year, month - 1, day, 20));
+      return d.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        timeZone: PST_TIMEZONE
+      });
+    }
+
+    // Handle Date objects - format with PST timezone
+    return date.toLocaleDateString('en-US', {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
@@ -149,7 +165,7 @@ export function getOrderConfirmationEmailTemplate(order: Order): string {
                               <td>
                                 <h4 style="margin: 0; color: #1A1106; font-size: 18px; font-weight: 700;">${day.day}</h4>
                                 <p style="margin: 4px 0 0 0; color: #6B7280; font-size: 14px;">
-                                  ${formatDate(day.deliveryDate)}
+                                  ${formatDate(day.actualDeliveryDate || day.deliveryDate)}
                                 </p>
                               </td>
                               <td align="right" style="color: #1A1106; font-size: 18px; font-weight: 700;">
@@ -183,11 +199,13 @@ export function getOrderConfirmationEmailTemplate(order: Order): string {
                                         ${item.comboSelections && item.food.sections && Object.keys(item.comboSelections).length > 0 ? `
                                           <div style="margin: 4px 0;">
                                             ${item.food.sections.map(section => {
-                                              const selectedItemId = item.comboSelections?.[section._id];
-                                              if (!selectedItemId) return '';
-                                              const selectedItem = section.selectedItems.find(si => si._id === selectedItemId);
-                                              if (!selectedItem) return '';
-                                              return `<p style="margin: 0 0 2px 0; color: #6B7280; font-size: 12px;">• ${section.title}: ${selectedItem.item.name}${selectedItem.price > 0 ? ` (+${formatCurrency(selectedItem.price, order.currency)})` : ''}</p>`;
+                                              const selectedItemIds = item.comboSelections?.[section._id];
+                                              if (!selectedItemIds || selectedItemIds.length === 0) return '';
+                                              return selectedItemIds.map(selectedItemId => {
+                                                const selectedItem = section.selectedItems.find(si => si._id === selectedItemId);
+                                                if (!selectedItem) return '';
+                                                return `<p style="margin: 0 0 2px 0; color: #6B7280; font-size: 12px;">• ${section.title}: ${selectedItem.item.name}${selectedItem.price > 0 ? ` (+${formatCurrency(selectedItem.price, order.currency)})` : ''}</p>`;
+                                              }).join('');
                                             }).join('')}
                                           </div>
                                         ` : ''}
@@ -319,32 +337,11 @@ export function getOrderConfirmationEmailTemplate(order: Order): string {
                               <p style="margin: 0; color: #1A1106; font-size: 16px; font-weight: 600;">${order.customerInfo.email}</p>
                             </td>
                           </tr>
-                          <tr>
-                            <td colspan="2" style="padding-top: 16px;">
-                              <p style="margin: 0 0 8px 0; color: #6B7280; font-size: 14px;">Phone</p>
-                              <p style="margin: 0; color: #1A1106; font-size: 16px; font-weight: 600;">${formatPhone(order.customerInfo.phone)}</p>
-                            </td>
-                          </tr>
                         </table>
                       </td>
                     </tr>
                   </table>
 
-                  <!-- Delivery Messages -->
-                  ${order.deliveryMessages && order.deliveryMessages.length > 0 ? `
-                    <h3 style="margin: 30px 0 20px 0; color: #1A1106; font-size: 20px; font-weight: 700;">Special Delivery Instructions</h3>
-                    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 30px; background-color: #FFF4E4; border-left: 4px solid #FFB82E; border-radius: 8px;">
-                      <tr>
-                        <td style="padding: 20px;">
-                          ${order.deliveryMessages.map((message, index) => `
-                            <p style="margin: ${index > 0 ? '12px' : '0'} 0 0 0; color: #996B00; font-size: 14px; line-height: 1.5;">
-                              ${message}
-                            </p>
-                          `).join('')}
-                        </td>
-                      </tr>
-                    </table>
-                  ` : ''}
 
                   <!-- Support Information -->
                   <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0; background-color: #F0F9FF; border-left: 4px solid #2196F3; border-radius: 8px;">
@@ -354,8 +351,7 @@ export function getOrderConfirmationEmailTemplate(order: Order): string {
                           Need Help?
                         </p>
                         <ul style="margin: 0; padding-left: 20px; color: #0066B2; font-size: 14px; line-height: 1.8;">
-                          <li>Contact our support team at support@nikfoods.com</li>
-                          <li>Call us at +1 (555) 123-4567</li>
+                          <li>Contact our support team at nikfoodsllc@gmail.com</li>
                           <li>Visit our website at www.nikfoods.com</li>
                           <li>Track your order status in real-time through our app</li>
                         </ul>
@@ -372,8 +368,6 @@ export function getOrderConfirmationEmailTemplate(order: Order): string {
                         </p>
                         <ul style="margin: 0; padding-left: 20px; color: #996B00; font-size: 14px; line-height: 1.8;">
                           <li>Please have the exact amount ready for Cash on Delivery orders</li>
-                          <li>Our delivery partner will call you upon arrival</li>
-                          <li>Keep your phone accessible for delivery updates</li>
                           <li>Food is prepared fresh and delivered at optimal temperature</li>
                         </ul>
                       </td>

@@ -2,6 +2,7 @@ import { FoodItem } from '@/types/food';
 import { DayType } from '@/types/cart';
 import { LocalCart, LocalCartItem, LocalCartDay, CartCustomizations } from '@/types/localCart';
 import { generateAvailableDatesFromAPI } from './dayAvailabilityClient';
+import { getPSTDateString } from './timezone';
 
 const CART_STORAGE_KEY = 'nikfoods_guest_cart';
 const CART_VERSION = '1.0';
@@ -15,6 +16,44 @@ function getEmptyCart(): LocalCart {
     version: CART_VERSION,
     lastUpdated: new Date().toISOString(),
   };
+}
+
+/**
+ * Migrate cart data from old format to new format
+ * Converts comboSelections from Record<string, string> to Record<string, string[]>
+ */
+function migrateCartData(cart: LocalCart): LocalCart {
+  let migrated = false;
+
+  Object.values(cart.days).forEach((day) => {
+    Object.values(day.items).forEach((item) => {
+      if (item.comboSelections) {
+        // Check if any values are strings (old format)
+        const hasOldFormat = Object.values(item.comboSelections).some(
+          (value) => typeof value === 'string'
+        );
+
+        if (hasOldFormat) {
+          const newSelections: Record<string, string[]> = {};
+          Object.entries(item.comboSelections).forEach(([sectionId, itemId]) => {
+            if (typeof itemId === 'string') {
+              newSelections[sectionId] = [itemId];
+            } else {
+              newSelections[sectionId] = itemId;
+            }
+          });
+          item.comboSelections = newSelections;
+          migrated = true;
+        }
+      }
+    });
+  });
+
+  if (migrated) {
+    console.log('[localStorageCart] Cart data migrated to new format');
+  }
+
+  return cart;
 }
 
 /**
@@ -40,7 +79,15 @@ export function getCart(): LocalCart {
       return getEmptyCart();
     }
 
-    return cart;
+    // Migrate cart data to new format if needed
+    const migratedCart = migrateCartData(cart);
+
+    // Save migrated cart back to storage
+    if (migratedCart !== cart) {
+      saveCart(migratedCart);
+    }
+
+    return migratedCart;
   } catch (error) {
     console.error('Error reading cart from localStorage:', error);
     return getEmptyCart();
@@ -84,15 +131,18 @@ function calculateUnitPrice(
 
   // Add combo selections pricing
   if (customizations.comboSelections && foodItem.sections) {
-    Object.entries(customizations.comboSelections).forEach(([sectionId, selectedItemId]) => {
-      // Find the section
+    Object.entries(customizations.comboSelections).forEach(([sectionId, selectedItems]) => {
       const section = foodItem.sections?.find((s) => s._id === sectionId);
       if (section) {
-        // Find the selected item in this section
-        const selectedItem = section.selectedItems.find((item) => item._id === selectedItemId);
-        if (selectedItem && selectedItem.price > 0) {
-          price += selectedItem.price;
-        }
+        // Handle both string (single) and array (multi) selections
+        const itemIds = Array.isArray(selectedItems) ? selectedItems : [selectedItems];
+
+        itemIds.forEach((itemId) => {
+          const selectedItem = section.selectedItems.find((item) => item._id === itemId);
+          if (selectedItem && selectedItem.price > 0) {
+            price += selectedItem.price;
+          }
+        });
       }
     });
   }
@@ -317,6 +367,9 @@ export function clearDay(day: DayType): LocalCart {
  * Fetches enabled dates from API to determine sort order dynamically
  */
 export async function getAllDays(): Promise<LocalCartDay[]> {
+  // First, remove items from past dates (before today)
+  await removePastDateItems();
+
   const cart = getCart();
   const days = Object.values(cart.days);
 
@@ -360,7 +413,7 @@ export function prepareForAPIMigration(): Array<{
   selectedSpiceLevel?: string;
   selectedPortion?: string;
   isEcoFriendlyContainer?: boolean;
-  comboSelections?: Record<string, string>;
+  comboSelections?: Record<string, string[]>;
   notes?: string;
 }> {
   const cart = getCart();
@@ -372,7 +425,7 @@ export function prepareForAPIMigration(): Array<{
     selectedSpiceLevel?: string;
     selectedPortion?: string;
     isEcoFriendlyContainer?: boolean;
-    comboSelections?: Record<string, string>;
+    comboSelections?: Record<string, string[]>;
     notes?: string;
   }> = [];
 
@@ -434,6 +487,47 @@ export async function removeDisabledDayItems(): Promise<{ removedDays: DayType[]
   if (removedDays.length > 0) {
     saveCart(cart);
     console.log(`Auto-removed cart items for disabled days: ${removedDays.join(', ')}`);
+  }
+
+  return { removedDays, cart };
+}
+
+/**
+ * Remove cart items for past dates (dates before today)
+ * This should be called when cart is loaded to clean up items from previous days
+ *
+ * Uses PST timezone for date comparison to ensure consistency with the application's
+ * canonical timezone.
+ *
+ * @returns Promise containing removed days and the updated cart
+ */
+export async function removePastDateItems(): Promise<{ removedDays: DayType[]; cart: LocalCart }> {
+  const cart = getCart();
+  const removedDays: DayType[] = [];
+
+  // Get today's date in PST timezone
+  const todayDate = getPSTDateString();
+
+  // Iterate through cart days and remove past dates
+  const cartDayKeys = Object.keys(cart.days) as DayType[];
+
+  for (const dayKey of cartDayKeys) {
+    const dayData = cart.days[dayKey];
+
+    // Compare the day's date with today's date
+    // If the day's date is before today, remove it from cart
+    if (dayData.date < todayDate) {
+      // This day is in the past, remove it from cart
+      delete cart.days[dayKey];
+      removedDays.push(dayKey);
+      console.log(`[removePastDateItems] Removed past date: ${dayKey} (${dayData.date})`);
+    }
+  }
+
+  // Save the updated cart if any days were removed
+  if (removedDays.length > 0) {
+    saveCart(cart);
+    console.log(`[removePastDateItems] Auto-removed cart items for past dates: ${removedDays.join(', ')}`);
   }
 
   return { removedDays, cart };

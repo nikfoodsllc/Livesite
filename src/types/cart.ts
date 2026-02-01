@@ -26,6 +26,7 @@ export interface DeliveryMessage {
   type: 'success' | 'warning' | 'error';
   message: string;
   deliveryDay?: DayType;
+  hasShortfall?: boolean;
 }
 
 /**
@@ -52,7 +53,7 @@ export interface CartItem {
   selectedPortionPrice?: number;
   isEcoFriendlyContainer?: boolean;
   ecoContainerCharge?: number;
-  comboSelections?: Record<string, string>; // { sectionId: itemId }
+  comboSelections?: Record<string, string[]>; // { sectionId: itemId[] }
   notes?: string;
   price: number;
   subtotal: number;
@@ -163,7 +164,7 @@ export interface AddToCartRequest {
   selectedSpiceLevel?: SpiceLevel;
   selectedPortion?: string;
   isEcoFriendlyContainer?: boolean;
-  comboSelections?: Record<string, string>; // { sectionId: itemId }
+  comboSelections?: Record<string, string[]>; // { sectionId: itemId[] }
   notes?: string;
 }
 
@@ -176,7 +177,7 @@ export interface UpdateCartItemRequest {
   selectedSpiceLevel?: SpiceLevel;
   selectedPortion?: string;
   isEcoFriendlyContainer?: boolean;
-  comboSelections?: Record<string, string>; // { sectionId: itemId }
+  comboSelections?: Record<string, string[]>; // { sectionId: itemId[] }
   notes?: string;
 }
 

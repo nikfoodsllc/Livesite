@@ -453,7 +453,7 @@ export default function AddressDialog({
                 />
                 <TextField
                   fullWidth
-                  label="Entrance"
+                  label="Gate Code"
                   value={formData.entrance}
                   onChange={handleChange('entrance')}
                 />

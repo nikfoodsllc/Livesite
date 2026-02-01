@@ -138,7 +138,7 @@ export default function AddressCard({ address, onEdit, onDelete }: AddressCardPr
           )}
           {address.entrance && (
             <Chip
-              label={`Entrance: ${address.entrance}`}
+              label={`Gate Code: ${address.entrance}`}
               size="small"
               sx={{
                 backgroundColor: '#FFF5E6',

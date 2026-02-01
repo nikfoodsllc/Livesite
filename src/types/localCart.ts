@@ -14,7 +14,7 @@ export interface LocalCartItem {
   selectedSpiceLevel?: SpiceLevel;
   isEcoFriendlyContainer?: boolean;
   ecoContainerCharge?: number;
-  comboSelections?: Record<string, string>; // { sectionId: itemId }
+  comboSelections?: Record<string, string[]>; // { sectionId: itemId[] }
   notes?: string;
   unitPrice: number; // Price per single item with customizations
   totalPrice: number; // unitPrice × quantity
@@ -54,6 +54,6 @@ export interface CartCustomizations {
   selectedSpiceLevel?: SpiceLevel;
   isEcoFriendlyContainer?: boolean;
   ecoContainerCharge?: number;
-  comboSelections?: Record<string, string>;
+  comboSelections?: Record<string, string[]>;
   notes?: string;
 }

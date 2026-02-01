@@ -223,12 +223,29 @@ export function formatOrderDate(date: Date | string): string {
  * Formats delivery date (in PST timezone)
  * Example: "Monday, Aug 05, 2025"
  *
- * @param date - The date to format
+ * @param date - The date to format (Date object or YYYY-MM-DD string)
  * @returns Formatted date string in PST
  */
 export function formatDeliveryDate(date: Date | string): string {
-  const d = typeof date === 'string' ? new Date(date) : date;
-  return d.toLocaleString('en-US', {
+  // Handle string dates by creating at noon PST to avoid boundary issues
+  // This matches the approach in deliveryCalculator.ts to ensure consistency
+  if (typeof date === 'string') {
+    // Parse YYYY-MM-DD format
+    const [year, month, day] = date.split('-').map(Number);
+    // Create date at noon PST (20:00 UTC) to avoid DST boundary issues
+    const d = new Date(Date.UTC(year, month - 1, day, 20));
+    const options: Intl.DateTimeFormatOptions = {
+      weekday: 'long',
+      month: 'short',
+      day: '2-digit',
+      year: 'numeric',
+      timeZone: PST_TIMEZONE,
+    };
+    return new Intl.DateTimeFormat('en-US', options).format(d);
+  }
+
+  // Handle Date objects - format with PST timezone
+  return date.toLocaleString('en-US', {
     weekday: 'long',
     month: 'short',
     day: '2-digit',

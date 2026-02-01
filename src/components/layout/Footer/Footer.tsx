@@ -11,16 +11,11 @@ import {
 
 const quickLinks = [
   { label: 'Home', href: '/' },
-  { label: 'Menu', href: '/menu' },
-  { label: 'About', href: '/about' },
-  { label: 'Help', href: '/help' },
   { label: 'FAQs', href: '/faqs' },
 ];
 
 const accountLinks = [
   { label: 'My Account', href: '/account' },
-  { label: 'Orders', href: '/orders' },
-  { label: 'Payment Methods', href: '/payment-methods' },
 ];
 
 export default function Footer() {
@@ -68,21 +63,11 @@ export default function Footer() {
               />
             </Box>
             <Typography variant="body2" sx={{ mb: 2, lineHeight: 1.7 }}>
-              Authentic Indian food delivered to your doorstep across the United States.
+              Authentic Indian food delivered to your doorstep.
             </Typography>
             <Box sx={{ display: 'flex', gap: 1 }}>
               <IconButton
-                href="https://twitter.com"
-                target="_blank"
-                sx={{
-                  color: '#E0E0E0',
-                  '&:hover': { color: theme.palette.primary.main },
-                }}
-              >
-                <IconBrandTwitter size={20} />
-              </IconButton>
-              <IconButton
-                href="https://facebook.com"
+                href="https://facebook.com/nikfoodsllc"
                 target="_blank"
                 sx={{
                   color: '#E0E0E0',
@@ -92,7 +77,7 @@ export default function Footer() {
                 <IconBrandFacebook size={20} />
               </IconButton>
               <IconButton
-                href="https://instagram.com"
+                href="https://instagram.com/Nikfoods_IndianOrganic"
                 target="_blank"
                 sx={{
                   color: '#E0E0E0',
@@ -101,16 +86,7 @@ export default function Footer() {
               >
                 <IconBrandInstagram size={20} />
               </IconButton>
-              <IconButton
-                href="https://youtube.com"
-                target="_blank"
-                sx={{
-                  color: '#E0E0E0',
-                  '&:hover': { color: theme.palette.primary.main },
-                }}
-              >
-                <IconBrandYoutube size={20} />
-              </IconButton>
+              
             </Box>
           </Box>
 
@@ -158,33 +134,19 @@ export default function Footer() {
                 fontSize: '1rem',
               }}
             >
-              Contact Us
+              Support
             </Typography>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
               <Typography variant="body2">
-                Website:{' '}
                 <Link
-                  href="https://nikfoods.com"
+                  href="mailto:nikfoodsllc@gmail.com"
                   sx={{
                     color: theme.palette.primary.main,
                     textDecoration: 'none',
                     '&:hover': { textDecoration: 'underline' },
                   }}
                 >
-                  nikfoods.com
-                </Link>
-              </Typography>
-              <Typography variant="body2">
-                Phone:{' '}
-                <Link
-                  href="tel:+11234567890"
-                  sx={{
-                    color: theme.palette.primary.main,
-                    textDecoration: 'none',
-                    '&:hover': { textDecoration: 'underline' },
-                  }}
-                >
-                  +1 (123) 456-7890
+                  nikfoodsllc@gmail.com
                 </Link>
               </Typography>
             </Box>
@@ -252,19 +214,6 @@ export default function Footer() {
               }}
             >
               Privacy Policy
-            </Link>
-            <Link
-              href="/terms"
-              underline="none"
-              sx={{
-                color: '#B0B0B0',
-                fontSize: '0.875rem',
-                '&:hover': {
-                  color: theme.palette.primary.main,
-                },
-              }}
-            >
-              Terms of Service
             </Link>
           </Box>
         </Box>

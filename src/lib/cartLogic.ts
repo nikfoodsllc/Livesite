@@ -1,5 +1,13 @@
 import { CartDay, CartItem, DeliveryMessage } from '@/types/cart';
 import { ZipcodeConfig } from '@/types/zipcode';
+import { getPSTWeekday } from './timezone';
+
+// Helper function to create timezone-safe date for day name extraction
+// Creates date at noon PST (20:00 UTC) to avoid DST boundary issues
+const getDateForDayName = (dateString: string): Date => {
+  const [year, month, day] = dateString.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day, 20)); // noon PST
+};
 
 /**
  * Business-defined pricing constants for cart calculations
@@ -136,11 +144,16 @@ export function calculateCartClubbing(
           ...day,
         });
 
-        // Store message for this day
+        // Get day name for the current day
+        const currentDayName = getPSTWeekday(getDateForDayName(day.date));
+        const deliveryDayName = getPSTWeekday(getDateForDayName(lastDayOfWeek.date));
+
+        // Store message for this day with day name and consequence
         deliveryMessagesMap.set(dayId, {
           type: 'warning',
-          message: `Add $${day.shortfall.toFixed(2)} to meet minimum value.`,
+          message: `Add $${day.shortfall.toFixed(2)} more to ${currentDayName} to meet minimum value. Items will be delivered on ${deliveryDayName}.`,
           deliveryDay: lastDayOfWeek.day,
+          hasShortfall: true,
         });
       }
     });
@@ -163,11 +176,15 @@ export function calculateCartClubbing(
           // Last day of week - no success message needed
           deliveryMessagesMap.set(dayId, undefined);
         } else {
-          // Store message for this day
+          // Store message for this day with day name and consequence
+          const currentDayName = getPSTWeekday(getDateForDayName(day.date));
+          const deliveryDayName = getPSTWeekday(getDateForDayName(lastDayOfWeek.date));
+
           deliveryMessagesMap.set(dayId, {
             type: 'warning',
-            message: `Add $${day.shortfall.toFixed(2)} to meet minimum value.`,
+            message: `Add $${day.shortfall.toFixed(2)} more to ${currentDayName} to meet minimum value. Items will be delivered on ${deliveryDayName}.`,
             deliveryDay: lastDayOfWeek.day,
+            hasShortfall: true,
           });
         }
       });
@@ -183,10 +200,13 @@ export function calculateCartClubbing(
           ...day,
         });
 
-        // For the error case, add individual shortfall message to each day
+        // For the error case, add individual shortfall message to each day with day name
+        const currentDayName = getPSTWeekday(getDateForDayName(day.date));
+
         deliveryMessagesMap.set(dayId, {
           type: 'error',
-          message: `Min order value not met. Add $${day.shortfall.toFixed(2)} worth of items to proceed.`,
+          message: `Min order value not met for ${currentDayName}. Add $${day.shortfall.toFixed(2)} worth of items to proceed.`,
+          hasShortfall: true,
         });
       });
     }

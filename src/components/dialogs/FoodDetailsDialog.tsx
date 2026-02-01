@@ -80,7 +80,7 @@ export default function FoodDetailsDialog({
   const [selectedSpiceLevel, setSelectedSpiceLevel] = useState('normal');
   const [useEcoContainer, setUseEcoContainer] = useState(false);
 
-  const [comboSelections, setComboSelections] = useState<Record<string, string>>({});
+  const [comboSelections, setComboSelections] = useState<Record<string, string[]>>({});
 
   // Sync quantity with cart when dialog opens or currentQuantity changes
   useEffect(() => {
@@ -120,7 +120,7 @@ export default function FoodDetailsDialog({
   useEffect(() => {
     if (foodItem && currentQuantity === 0) {
       // This is a new item, reset combo selections to initial defaults
-      const defaults: Record<string, string> = {};
+      const defaults: Record<string, string[]> = {};
       if (foodItem.sections && Array.isArray(foodItem.sections)) {
         foodItem.sections.forEach((section) => {
           // Defensive check for section validity
@@ -128,20 +128,37 @@ export default function FoodDetailsDialog({
             // Count items with isDefault=true
             const defaultItems = section.selectedItems.filter(item => item.isDefault);
 
-            if (defaultItems.length === 1 && defaultItems[0]._id) {
-              // Exactly one default: select it
-              defaults[section._id] = defaultItems[0]._id;
-            } else if (defaultItems.length > 1) {
-              // Multiple defaults: select the first one
-              if (defaultItems[0]._id) {
-                defaults[section._id] = defaultItems[0]._id;
+            // Determine if this section uses checkboxes (multi-select) or radio buttons (single-select)
+            const useCheckboxes = !section.isRequired || (section.maxSelection !== undefined && section.maxSelection > 1);
+
+            if (useCheckboxes) {
+              // Multi-select: use array
+              if (defaultItems.length > 0) {
+                defaults[section._id] = defaultItems.map(item => item._id);
+              } else if (section.isRequired && section.minSelection && section.minSelection > 0) {
+                // Required multi-select: select minimum number of items
+                defaults[section._id] = section.selectedItems.slice(0, section.minSelection).map(item => item._id);
+              } else {
+                // Optional multi-select: start with empty array
+                defaults[section._id] = [];
               }
-            } else if (section.selectedItems.length === 1 && section.selectedItems[0]._id) {
-              // No defaults: auto-select single item section
-              defaults[section._id] = section.selectedItems[0]._id;
-            } else if (section.selectedItems.length > 0 && section.selectedItems[0]._id) {
-              // No defaults and multiple items: select the first item
-              defaults[section._id] = section.selectedItems[0]._id;
+            } else {
+              // Single-select: use array with single element
+              if (defaultItems.length === 1 && defaultItems[0]._id) {
+                // Exactly one default: select it
+                defaults[section._id] = [defaultItems[0]._id];
+              } else if (defaultItems.length > 1) {
+                // Multiple defaults: select the first one
+                if (defaultItems[0]._id) {
+                  defaults[section._id] = [defaultItems[0]._id];
+                }
+              } else if (section.selectedItems.length === 1 && section.selectedItems[0]._id) {
+                // No defaults: auto-select single item section
+                defaults[section._id] = [section.selectedItems[0]._id];
+              } else if (section.selectedItems.length > 0 && section.selectedItems[0]._id) {
+                // No defaults and multiple items: select the first item
+                defaults[section._id] = [section.selectedItems[0]._id];
+              }
             }
           }
         });
@@ -176,19 +193,21 @@ export default function FoodDetailsDialog({
     return { category: null };
   };
 
-  const handleComboSelection = (sectionId: string, itemId: string) => {
+  const handleComboSelection = (sectionId: string, itemIds: string | string[]) => {
     // Defensive checks for invalid inputs
-    if (!sectionId || !itemId) {
-      console.warn('[FoodDetailsDialog] Invalid combo selection:', { sectionId, itemId });
+    if (!sectionId) {
+      console.warn('[FoodDetailsDialog] Invalid combo selection:', { sectionId, itemIds });
       return;
     }
 
     setComboSelections(prev => {
       // Ensure prev state is valid
       const currentSelections = prev || {};
+      // Always ensure itemIds is an array
+      const normalizedItemIds = Array.isArray(itemIds) ? itemIds : [itemIds];
       return {
         ...currentSelections,
-        [sectionId]: itemId,
+        [sectionId]: normalizedItemIds,
       };
     });
   };
@@ -311,52 +330,71 @@ export default function FoodDetailsDialog({
     let finalComboSelections = comboSelections;
     if (foodItem.hasCombo && foodItem.sections && Object.keys(comboSelections).length === 0) {
       // Initialize defaults if not already set
-      const defaults: Record<string, string> = {};
+      const defaults: Record<string, string[]> = {};
       foodItem.sections.forEach((section) => {
         // Count items with isDefault=true
         const defaultItems = section.selectedItems.filter(item => item.isDefault);
 
-        if (defaultItems.length === 1 && defaultItems[0]._id) {
-          // Exactly one default: select it
-          defaults[section._id] = defaultItems[0]._id;
-        } else if (defaultItems.length > 1) {
-          // Multiple defaults: select the first one
-          if (defaultItems[0]._id) {
-            defaults[section._id] = defaultItems[0]._id;
+        // Determine if this section uses checkboxes (multi-select) or radio buttons (single-select)
+        const useCheckboxes = !section.isRequired || (section.maxSelection !== undefined && section.maxSelection > 1);
+
+        if (useCheckboxes) {
+          // Multi-select: use array
+          if (defaultItems.length > 0) {
+            defaults[section._id] = defaultItems.map(item => item._id);
+          } else if (section.isRequired && section.minSelection && section.minSelection > 0) {
+            // Required multi-select: select minimum number of items
+            defaults[section._id] = section.selectedItems.slice(0, section.minSelection).map(item => item._id);
+          } else {
+            // Optional multi-select: start with empty array
+            defaults[section._id] = [];
           }
-        } else if (section.selectedItems.length === 1 && section.selectedItems[0]._id) {
-          // No defaults: auto-select single item section
-          defaults[section._id] = section.selectedItems[0]._id;
-        } else if (section.selectedItems.length > 0 && section.selectedItems[0]._id) {
-          // No defaults and multiple items: select the first item
-          defaults[section._id] = section.selectedItems[0]._id;
+        } else {
+          // Single-select: use array with single element
+          if (defaultItems.length === 1 && defaultItems[0]._id) {
+            // Exactly one default: select it
+            defaults[section._id] = [defaultItems[0]._id];
+          } else if (defaultItems.length > 1) {
+            // Multiple defaults: select the first one
+            if (defaultItems[0]._id) {
+              defaults[section._id] = [defaultItems[0]._id];
+            }
+          } else if (section.selectedItems.length === 1 && section.selectedItems[0]._id) {
+            // No defaults: auto-select single item section
+            defaults[section._id] = [section.selectedItems[0]._id];
+          } else if (section.selectedItems.length > 0 && section.selectedItems[0]._id) {
+            // No defaults and multiple items: select the first item
+            defaults[section._id] = [section.selectedItems[0]._id];
+          }
         }
       });
       finalComboSelections = defaults;
     }
 
-    // Validate combo selections for required sections
+    // Validate combo selections for all sections
     if (foodItem.hasCombo && foodItem.sections) {
       for (const section of foodItem.sections) {
-        // Check if section is required or has minimum selection requirement
-        const isRequired = section.isRequired || (section.minSelection !== undefined && section.minSelection > 0);
+        const selection = finalComboSelections[section._id];
+        const selectedCount = Array.isArray(selection) ? selection.length : (selection ? 1 : 0);
 
-        // Only validate multi-item sections that are required
-        if (isRequired && section.selectedItems.length > 1) {
-          // Check if user has made a selection for this section
-          const hasSelection = finalComboSelections[section._id] &&
-                             finalComboSelections[section._id] !== '' &&
-                             section.selectedItems.some(item => item._id === finalComboSelections[section._id]);
+        // Check minimum selection
+        if (section.minSelection && selectedCount < section.minSelection) {
+          showErrorNotification(
+            showNotification,
+            `Please select at least ${section.minSelection} item(s) from ${section.title}`,
+            'Selection Required'
+          );
+          return; // Early return to prevent adding to cart
+        }
 
-          if (!hasSelection) {
-            // Show error for first missing required selection
-            showErrorNotification(
-              showNotification,
-              `Please select an item from ${section.title}`,
-              'Selection Required'
-            );
-            return; // Early return to prevent adding to cart
-          }
+        // Check maximum selection
+        if (section.maxSelection && selectedCount > section.maxSelection) {
+          showErrorNotification(
+            showNotification,
+            `Please select no more than ${section.maxSelection} item(s) from ${section.title}`,
+            'Too Many Selections'
+          );
+          return; // Early return to prevent adding to cart
         }
       }
     }

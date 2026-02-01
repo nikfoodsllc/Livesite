@@ -269,29 +269,34 @@ export default function CartItemCard({ item }: CartItemCardProps) {
                   Combo Selections:
                 </Typography>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                  {Object.entries(item.comboSelections).map(([sectionId, itemId]) => {
+                  {Object.entries(item.comboSelections).map(([sectionId, itemIds]) => {
                     const section = item.foodItem.sections?.find((s) => s._id === sectionId);
                     if (!section) return null;
 
-                    const selectedItem = section.selectedItems.find((si) => si._id === itemId);
-                    if (!selectedItem) return null;
+                    // Handle both string (single) and array (multi) selections
+                    const selectedIds = Array.isArray(itemIds) ? itemIds : [itemIds];
 
-                    const itemPrice = selectedItem.price && selectedItem.price > 0 ? ` (+$${selectedItem.price.toFixed(2)})` : '';
-                    const portionText = selectedItem.portion ? ` (${selectedItem.portion})` : '';
+                    return selectedIds.map((itemId) => {
+                      const selectedItem = section.selectedItems.find((si) => si._id === itemId);
+                      if (!selectedItem) return null;
 
-                    return (
-                      <Typography
-                        key={sectionId}
-                        variant="caption"
-                        sx={{
-                          color: theme.palette.text.primary,
-                          fontSize: '0.75rem',
-                          pl: 1,
-                        }}
-                      >
-                        • <strong>{section.title}:</strong> {selectedItem.item.name}{portionText}{itemPrice}
-                      </Typography>
-                    );
+                      const itemPrice = selectedItem.price && selectedItem.price > 0 ? ` (+$${selectedItem.price.toFixed(2)})` : '';
+                      const portionText = selectedItem.portion ? ` (${selectedItem.portion})` : '';
+
+                      return (
+                        <Typography
+                          key={`${sectionId}-${itemId}`}
+                          variant="caption"
+                          sx={{
+                            color: theme.palette.text.primary,
+                            fontSize: '0.75rem',
+                            pl: 1,
+                          }}
+                        >
+                          • <strong>{section.title}:</strong> {selectedItem.item.name}{portionText}{itemPrice}
+                        </Typography>
+                      );
+                    });
                   })}
                 </Box>
               </Box>
