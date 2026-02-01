@@ -50,7 +50,7 @@ class DatabaseHandler {
         this.client = new MongoClient(uri, {
           maxPoolSize: 5,
           minPoolSize: 1,
-          serverSelectionTimeoutMS: 5000,
+          serverSelectionTimeoutMS: 60000,
           maxIdleTimeMS: 30000,
         });
 

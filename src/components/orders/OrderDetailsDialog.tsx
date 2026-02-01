@@ -9,7 +9,7 @@ import {
   Button,
   Divider,
 } from '@mui/material';
-import { IconX, IconMapPin, IconHome } from '@tabler/icons-react';
+import { IconX, IconMapPin } from '@tabler/icons-react';
 import { Order } from '@/types/order';
 import { formatOrderDate, formatDeliveryDate, formatCurrency } from '@/lib/orderHelpers';
 import StatusBadge from './StatusBadge';
@@ -64,20 +64,8 @@ export default function OrderDetailsDialog({ open, order, onClose }: OrderDetail
           Placed on {formatOrderDate(order.createdAt!)}
         </Typography>
 
-        {/* Store & Address Section */}
+        {/* Address Section */}
         <Box sx={{ mb: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, mb: 2 }}>
-            <IconHome size={20} color="#6B7280" style={{ marginTop: '2px' }} />
-            <Box>
-              <Typography sx={{ fontSize: '16px', fontWeight: 600, color: '#111827', mb: 0.5 }}>
-                Nikfoods
-              </Typography>
-              <Typography sx={{ fontSize: '14px', color: '#6B7280' }}>
-                San Francisco
-              </Typography>
-            </Box>
-          </Box>
-
           <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
             <IconMapPin size={20} color="#6B7280" style={{ marginTop: '2px' }} />
             <Box>
@@ -191,24 +179,26 @@ export default function OrderDetailsDialog({ open, order, onClose }: OrderDetail
                         {item.comboSelections && item.food.sections && Object.keys(item.comboSelections).length > 0 && (
                           <Box sx={{ mt: 0.5 }}>
                             {item.food.sections.map((section) => {
-                              const selectedItemId = item.comboSelections?.[section._id];
-                              if (!selectedItemId) return null;
+                              const selectedItemIds = item.comboSelections?.[section._id];
+                              if (!selectedItemIds || selectedItemIds.length === 0) return null;
 
-                              const selectedItem = section.selectedItems.find(
-                                (si) => si._id === selectedItemId
-                              );
+                              return selectedItemIds.map((selectedItemId) => {
+                                const selectedItem = section.selectedItems.find(
+                                  (si) => si._id === selectedItemId
+                                );
 
-                              if (!selectedItem) return null;
+                                if (!selectedItem) return null;
 
-                              return (
-                                <Typography
-                                  key={section._id}
-                                  sx={{ fontSize: '11px', color: '#6B7280', display: 'block', lineHeight: 1.4 }}
-                                >
-                                  {section.title}: {selectedItem.item.name}
-                                  {selectedItem.price > 0 && ` (+${formatCurrency(selectedItem.price, order.currency)})`}
-                                </Typography>
-                              );
+                                return (
+                                  <Typography
+                                    key={selectedItemId}
+                                    sx={{ fontSize: '11px', color: '#6B7280', display: 'block', lineHeight: 1.4 }}
+                                  >
+                                    {section.title}: {selectedItem.item.name}
+                                    {selectedItem.price > 0 && ` (+${formatCurrency(selectedItem.price, order.currency)})`}
+                                  </Typography>
+                                );
+                              });
                             })}
                           </Box>
                         )}
@@ -223,17 +213,27 @@ export default function OrderDetailsDialog({ open, order, onClose }: OrderDetail
                     </Box>
 
                     {/* Item Price */}
-                    <Typography
-                      sx={{
-                        fontSize: '14px',
-                        fontWeight: 600,
-                        color: '#111827',
-                        ml: 2,
-                        flexShrink: 0,
-                      }}
-                    >
-                      {formatCurrency(item.price * item.quantity, order.currency)}
-                    </Typography>
+                    <Box sx={{ ml: 2, flexShrink: 0, textAlign: 'right' }}>
+                      <Typography
+                        sx={{
+                          fontSize: '13px',
+                          fontWeight: 500,
+                          color: '#6B7280',
+                        }}
+                      >
+                        {formatCurrency(item.price, order.currency)} each
+                      </Typography>
+                      <Typography
+                        sx={{
+                          fontSize: '14px',
+                          fontWeight: 600,
+                          color: '#111827',
+                          mt: 0.25,
+                        }}
+                      >
+                        {formatCurrency(item.price * item.quantity, order.currency)}
+                      </Typography>
+                    </Box>
                   </Box>
                 ))}
               </Box>

@@ -11,6 +11,7 @@ import {
   IconButton,
   Button,
   Divider,
+  Chip,
 } from '@mui/material';
 import {
   IconCircleCheck,
@@ -102,7 +103,7 @@ export default function OrderConfirmationDialog({
           }}
         >
           <Typography sx={{ fontSize: '14px', color: '#6B7280', mb: 0.5 }}>
-            Thank you for your order. We&apos;ll start preparing your delicious food!
+            Thank you for your order. 
           </Typography>
           <Typography sx={{ fontSize: '18px', fontWeight: 700, color: '#FF9F0D', mt: 1 }}>
             Order ID: #{order.orderId}
@@ -144,9 +145,22 @@ export default function OrderConfirmationDialog({
                       color: '#6B7280',
                     }}
                   >
-                    {dayOrder.day} -{' '}
-                    {formatDeliveryDate(dayOrder.deliveryDate)}
+                    {dayOrder.day}&apos;s Item
                   </Typography>
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, pl: 3 }}>
+                  <Chip
+                    label={`Delivery on ${formatDeliveryDate(dayOrder.actualDeliveryDate || dayOrder.deliveryDate)}`}
+                    size="small"
+                    sx={{
+                      backgroundColor: '#FFF5E6',
+                      color: '#FF9F0D',
+                      fontWeight: 500,
+                      fontSize: '0.7rem',
+                      height: '22px',
+                      borderRadius: '6px',
+                    }}
+                  />
                 </Box>
 
                 {dayOrder.items.map((item, itemIndex) => (
@@ -184,34 +198,40 @@ export default function OrderConfirmationDialog({
                       item.food.sections && (
                         <Box sx={{ mt: 0.5, pl: 1 }}>
                           {Object.entries(item.comboSelections).map(
-                            ([sectionId, itemId]) => {
+                            ([sectionId, itemIds]) => {
                               const section = item.food.sections?.find(
                                 (s) => s._id === sectionId
                               ) as unknown as ComboSection | undefined;
                               if (!section) return null;
 
-                              const selectedItem = section.selectedItems?.find(
-                                (si) => si._id === itemId
-                              ) as SelectedComboItem | undefined;
-                              if (!selectedItem) return null;
-
-                              const portionText = selectedItem.portion
-                                ? ` (${selectedItem.portion})`
-                                : '';
-
                               return (
-                                <Typography
-                                  key={sectionId}
-                                  sx={{
-                                    fontSize: '11px',
-                                    color: '#9CA3AF',
-                                    display: 'block',
-                                  }}
-                                >
-                                  • {section.title}:{' '}
-                                  {selectedItem.item.name}
-                                  {portionText}
-                                </Typography>
+                                <React.Fragment key={sectionId}>
+                                  {itemIds.map((itemId) => {
+                                    const selectedItem = section.selectedItems?.find(
+                                      (si) => si._id === itemId
+                                    ) as SelectedComboItem | undefined;
+                                    if (!selectedItem) return null;
+
+                                    const portionText = selectedItem.portion
+                                      ? ` (${selectedItem.portion})`
+                                      : '';
+
+                                    return (
+                                      <Typography
+                                        key={itemId}
+                                        sx={{
+                                          fontSize: '11px',
+                                          color: '#9CA3AF',
+                                          display: 'block',
+                                        }}
+                                      >
+                                        • {section.title}:{' '}
+                                        {selectedItem.item.name}
+                                        {portionText}
+                                      </Typography>
+                                    );
+                                  })}
+                                </React.Fragment>
                               );
                             }
                           )}

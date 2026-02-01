@@ -28,8 +28,10 @@ import CheckoutOrderSummary from '@/components/checkout/CheckoutOrderSummary';
 import { PaymentMethod } from '@/types/order';
 import { Cart } from '@/types/cart';
 import { IAddress } from '@/types/auth';
+import { ZipcodeConfig } from '@/types/zipcode';
 import * as localCart from '@/lib/localStorageCart';
 import { calculateDeliveryDates, type DayDeliveryInfo } from '@/lib/deliveryCalculator';
+import { DEFAULT_MIN_CART_VALUE } from '@/lib/cartLogic';
 
 /**
  * Interface for error summary items
@@ -76,6 +78,7 @@ interface CheckoutFormContentProps {
   isAuthenticated: boolean;
   onLoginClick: () => void;
   onSignupClick: () => void;
+  zipcodeConfig: ZipcodeConfig | null;
 }
 
 function CheckoutFormContent({
@@ -104,6 +107,7 @@ function CheckoutFormContent({
   isAuthenticated,
   onLoginClick,
   onSignupClick,
+  zipcodeConfig,
 }: CheckoutFormContentProps) {
   const stripe = useStripe();
   const elements = useElements();
@@ -141,7 +145,7 @@ function CheckoutFormContent({
     itemsCount: d.items.length
   })));
 
-  const deliveryCalculation = calculateDeliveryDates(cart.days);
+  const deliveryCalculation = calculateDeliveryDates(cart.days, zipcodeConfig?.minCartValue || DEFAULT_MIN_CART_VALUE);
   console.log('Raw delivery calculation result:', deliveryCalculation);
 
   const deliveryCalculations: DayDeliveryInfo[] = deliveryCalculation.deliveryDays;
@@ -256,7 +260,7 @@ function CheckoutFormContent({
       </Box>
 
       {/* Right column - Order Summary */}
-      <Box sx={{ display: { xs: 'none', md: 'block' } }}>
+      <Box>
         <CheckoutOrderSummary
           cartDays={cart.days}
           subtotal={totals.subtotal}
@@ -266,10 +270,8 @@ function CheckoutFormContent({
           tip={totals.tip}
           discount={totals.discount}
           total={totals.total}
-          deliveryMessages={cart.days
-            .filter((day) => day.deliveryMessage)
-            .map((day) => day.deliveryMessage!)}
           deliveryCalculations={deliveryCalculations}
+          discountCode={cart.appliedCoupon?.code}
         />
 
         {/* Place Order Button (Desktop) */}
@@ -327,7 +329,7 @@ function CheckoutFormContent({
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { cart, isLoading: cartLoading, refreshCart, updateAddress } = useCart();
+  const { cart, isLoading: cartLoading, refreshCart, updateAddress, zipcodeConfig, selectedAddressId } = useCart();
   const { user, isLoading: authLoading } = useAuth();
   const { openLoginDialog, closeLoginDialog, openSignupDialog, closeSignupDialog, openForgotPasswordDialog, closeForgotPasswordDialog } = useHeader();
   const { authenticatedFetch } = useApiClient();
@@ -936,6 +938,7 @@ export default function CheckoutPage() {
               isAuthenticated={!!user}
               onLoginClick={openLoginDialog}
               onSignupClick={openSignupDialog}
+              zipcodeConfig={zipcodeConfig}
             />
           </Elements>
         </Box>
@@ -946,7 +949,7 @@ export default function CheckoutPage() {
         open={showAddressDialog}
         onClose={handleCloseAddressDialog}
         addresses={userAddresses}
-        selectedAddressId={cart?.selectedAddress?._id}
+        selectedAddressId={selectedAddressId}
         onConfirm={handleAddressSelect}
         isLoading={addressesLoading}
         authenticatedFetch={authenticatedFetch}

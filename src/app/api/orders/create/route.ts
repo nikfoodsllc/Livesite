@@ -12,6 +12,7 @@ import {
   formatOrderForDatabase,
 } from '@/lib/orderHelpers';
 import { calculateDeliveryDates } from '@/lib/deliveryCalculator';
+import { DEFAULT_MIN_CART_VALUE } from '@/lib/cartLogic';
 import { sendOrderConfirmationEmail } from '@/lib/email';
 import Stripe from 'stripe';
 
@@ -34,6 +35,21 @@ interface CreateOrderRequest {
   tipPercentage: number;
   paymentMethod: PaymentMethod;
   currency: string;
+}
+
+/**
+ * Fetches zipcode configuration from database
+ * @param zipcode - The zipcode to look up
+ * @returns Zipcode configuration with minCartValue or null if not found
+ */
+async function getZipcodeConfigFromDb(zipcode: string): Promise<{ minCartValue?: number } | null> {
+  const result = await db.readOne('zincodes', { zipcode });
+  if (result.success && result.data) {
+    return {
+      minCartValue: result.data.minCartValue,
+    };
+  }
+  return null;
 }
 
 /**
@@ -118,8 +134,16 @@ export async function POST(request: NextRequest) {
     // Generate order ID
     const orderId = generateOrderId();
 
-    // Calculate delivery dates based on minimum order value
-    const deliveryCalculationResults = calculateDeliveryDates(cart.days);
+    // Calculate delivery dates based on location-specific minimum order value
+    const zipcode = cart.selectedAddress?.zipCode;
+    let minOrderValue = DEFAULT_MIN_CART_VALUE;
+
+    if (zipcode) {
+      const zipcodeConfig = await getZipcodeConfigFromDb(zipcode);
+      minOrderValue = zipcodeConfig?.minCartValue || DEFAULT_MIN_CART_VALUE;
+    }
+
+    const deliveryCalculationResults = calculateDeliveryDates(cart.days, minOrderValue);
 
     // Convert cart to order items with delivery date calculations
     const orderItems = convertCartToOrderItems(cart.days, deliveryCalculationResults);
@@ -163,6 +187,7 @@ export async function POST(request: NextRequest) {
             code: cart.appliedCoupon.code,
           }
         : undefined,
+      minOrderValue,
       totalPaid: Number(totalPaid.toFixed(2)),
       currency: currency || 'usd',
       status: paymentMethod === 'Cash on Delivery' ? 'confirmed' : 'pending',

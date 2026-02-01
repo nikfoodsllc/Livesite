@@ -8,20 +8,30 @@ interface SpiceLevelSelectorProps {
 }
 
 const spiceLevelConfig: Record<string, { dots: number; colors: string[] }> = {
+  // Original keys
   'mild': { dots: 1, colors: ['#22c55e'] },
   'normal': { dots: 2, colors: ['#22c55e', '#84cc16'] },
   'medium': { dots: 3, colors: ['#22c55e', '#84cc16', '#eab308'] },
   'semi-spicy': { dots: 4, colors: ['#22c55e', '#84cc16', '#eab308', '#f97316'] },
   'super-spicy': { dots: 5, colors: ['#22c55e', '#84cc16', '#eab308', '#f97316', '#ef4444'] },
+  // Admin project variations
+  'mild (kid friendly)': { dots: 1, colors: ['#22c55e'] },
+  'medium spice': { dots: 3, colors: ['#22c55e', '#84cc16', '#eab308'] },
+  'spicy': { dots: 4, colors: ['#22c55e', '#84cc16', '#eab308', '#f97316'] },
+  // Additional common variations
+  'semi spicy': { dots: 4, colors: ['#22c55e', '#84cc16', '#eab308', '#f97316'] },
+  'super spicy': { dots: 5, colors: ['#22c55e', '#84cc16', '#eab308', '#f97316', '#ef4444'] },
+  'extra spicy': { dots: 5, colors: ['#22c55e', '#84cc16', '#eab308', '#f97316', '#ef4444'] },
 };
 
 /**
  * Gets the spice config for a given level, handling case-insensitive lookup
  * and normalizing underscores to hyphens.
+ * Returns a fallback config with no colored dots if the level is not recognized.
  */
 function getSpiceConfig(level: string) {
   const normalizedKey = normalizeSpiceLevelKey(level);
-  return spiceLevelConfig[normalizedKey];
+  return spiceLevelConfig[normalizedKey] || { dots: 0, colors: [] };
 }
 
 export default function SpiceLevelSelector({
@@ -58,7 +68,7 @@ export default function SpiceLevelSelector({
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
                   <Typography>{formatSpiceLevel(level)}</Typography>
                   <Box sx={{ display: 'flex', gap: 0.5, ml: 2 }}>
-                    {config && Array.from({ length: 5 }).map((_, index) => (
+                    {Array.from({ length: 5 }).map((_, index) => (
                       <Box
                         key={index}
                         sx={{

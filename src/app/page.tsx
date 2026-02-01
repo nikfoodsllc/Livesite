@@ -17,9 +17,11 @@ import { CartCustomizations } from '@/types/localCart';
 import * as localCart from '@/lib/localStorageCart';
 import { useCart } from '@/contexts/CartContext';
 import { useHeader } from '@/contexts/HeaderContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { generateAvailableDatesFromAPI, DayOption } from '@/lib/dayAvailabilityClient';
 import { useNotifications, showSuccessNotification, showErrorNotification } from '@/components/common/NotificationSystem';
 import { PST_TIMEZONE, getPSTWeekday, createPSTDate } from '@/lib/timezone';
+import MenuSubscriptionSection from '@/components/home/MenuSubscriptionSection';
 
 // Define types for the new API response structure
 interface CategoryDisplay {
@@ -78,6 +80,7 @@ export default function Home() {
   const { refreshCart } = useCart();
   const { showNotification } = useNotifications();
   const { vegOnly, setVegOnly } = useHeader();
+  const { user } = useAuth();
 
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [loadingStates, setLoadingStates] = useState<{
@@ -881,6 +884,9 @@ export default function Home() {
 
         {/* Hero Banner */}
         <HeroBanner />
+
+        {/* Menu Subscription Section */}
+        <MenuSubscriptionSection user={user} />
 
         {/* Delivery Location Bar */}
         <Container maxWidth="lg" sx={{ mt: { xs: 3, md: 1.5 }, mb: { xs: 2, md: 2.5 } }}>

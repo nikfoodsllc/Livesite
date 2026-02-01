@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Box, Typography, Paper, Divider, Button } from '@mui/material';
+import { Box, Typography, Paper, Divider, Button, Chip } from '@mui/material';
 import {
   IconCircleCheck,
   IconMapPin,
@@ -56,7 +56,7 @@ export default function OrderConfirmation({ order }: OrderConfirmationProps) {
             : 'Payment Successful!'}
         </Typography>
         <Typography variant="body1" sx={{ color: '#666', mb: 2 }}>
-          Thank you for your order. We&apos;ll start preparing your delicious food!
+          Thank you for your order.
         </Typography>
         <Typography variant="h6" sx={{ color: '#FF9F0D', fontWeight: 600 }}>
           Order ID: #{order.orderId}
@@ -70,17 +70,34 @@ export default function OrderConfirmation({ order }: OrderConfirmationProps) {
         </Typography>
 
         {/* Day-wise items */}
-        {order.items.map((dayOrder, index) => (
-          <Box key={index} sx={{ mb: 2 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-              <IconCalendar size={20} style={{ color: '#FF9F0D' }} />
-              <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                {dayOrder.day} -{' '}
-                {formatDeliveryDate(dayOrder.deliveryDate)}
+        {order.items.map((dayOrder, index) => {
+          return (
+            <Box key={index} sx={{ mb: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                <IconCalendar size={20} style={{ color: '#28a745' }} />
+                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                  {dayOrder.day}&apos;s Item
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, pl: 3 }}>
+                <Chip
+                  label={`Delivery on ${formatDeliveryDate(dayOrder.actualDeliveryDate || dayOrder.deliveryDate)}`}
+                  size="small"
+                  sx={{
+                    backgroundColor: '#FFF5E6',
+                    color: '#FF9F0D',
+                    fontWeight: 500,
+                    fontSize: '0.75rem',
+                    height: '24px',
+                    borderRadius: '6px',
+                  }}
+                />
+              </Box>
+              <Typography variant="caption" sx={{ color: '#666', pl: 3, display: 'block' }}>
+                Minimum order value: ${order.minOrderValue.toFixed(2)}
               </Typography>
-            </Box>
-            {dayOrder.items.map((item, itemIndex) => (
-              <Box key={itemIndex} sx={{ pl: 3, py: 0.5 }}>
+              {dayOrder.items.map((item, itemIndex) => (
+                <Box key={itemIndex} sx={{ pl: 3, py: 0.5 }}>
                 <Box
                   sx={{
                     display: 'flex',
@@ -98,27 +115,33 @@ export default function OrderConfirmation({ order }: OrderConfirmationProps) {
                 {/* Combo Selections */}
                 {item.comboSelections && Object.keys(item.comboSelections).length > 0 && item.food.sections && (
                   <Box sx={{ mt: 0.5, pl: 1 }}>
-                    {Object.entries(item.comboSelections).map(([sectionId, itemId]) => {
+                    {Object.entries(item.comboSelections).map(([sectionId, itemIds]) => {
                       const section = item.food.sections?.find((s) => s._id === sectionId) as unknown as ComboSection | undefined;
                       if (!section) return null;
 
-                      const selectedItem = section.selectedItems?.find((si) => si._id === itemId) as SelectedComboItem | undefined;
-                      if (!selectedItem) return null;
-
-                      const portionText = selectedItem.portion ? ` (${selectedItem.portion})` : '';
-
                       return (
-                        <Typography
-                          key={sectionId}
-                          variant="caption"
-                          sx={{
-                            color: '#999',
-                            fontSize: '0.7rem',
-                            display: 'block',
-                          }}
-                        >
-                          • {section.title}: {selectedItem.item.name}{portionText}
-                        </Typography>
+                        <React.Fragment key={sectionId}>
+                          {itemIds.map((itemId) => {
+                            const selectedItem = section.selectedItems?.find((si) => si._id === itemId) as SelectedComboItem | undefined;
+                            if (!selectedItem) return null;
+
+                            const portionText = selectedItem.portion ? ` (${selectedItem.portion})` : '';
+
+                            return (
+                              <Typography
+                                key={itemId}
+                                variant="caption"
+                                sx={{
+                                  color: '#999',
+                                  fontSize: '0.7rem',
+                                  display: 'block',
+                                }}
+                              >
+                                • {section.title}: {selectedItem.item.name}{portionText}
+                              </Typography>
+                            );
+                          })}
+                        </React.Fragment>
                       );
                     })}
                   </Box>
@@ -139,10 +162,11 @@ export default function OrderConfirmation({ order }: OrderConfirmationProps) {
                     )}
                   </Box>
                 )}
-              </Box>
-            ))}
-          </Box>
-        ))}
+                </Box>
+              ))}
+            </Box>
+          );
+        })}
 
         <Divider sx={{ my: 2 }} />
 

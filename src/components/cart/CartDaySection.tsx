@@ -11,9 +11,10 @@ import { PST_TIMEZONE } from '@/lib/timezone';
 interface CartDaySectionProps {
   cartDay: CartDay;
   hasAddress?: boolean;
+  onClose?: () => void;
 }
 
-export default function CartDaySection({ cartDay, hasAddress = false }: CartDaySectionProps) {
+export default function CartDaySection({ cartDay, hasAddress = false, onClose }: CartDaySectionProps) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
@@ -90,7 +91,7 @@ export default function CartDaySection({ cartDay, hasAddress = false }: CartDayS
       </Box>
 
       {/* Delivery Message - Only show when address is selected */}
-      {hasAddress && cartDay.deliveryMessage && <DeliveryMessageBadge message={cartDay.deliveryMessage} />}
+      {hasAddress && cartDay.deliveryMessage && <DeliveryMessageBadge message={cartDay.deliveryMessage} onClose={onClose} />}
 
       {/* Cart Items */}
       <Box>

@@ -17,6 +17,7 @@ import {
   calculateCartClubbing,
   DEFAULT_MIN_CART_VALUE,
   calculateDayTotal,
+  TAX_RATE,
 } from '@/lib/cartLogic';
 import { fetchZipcodeConfig } from '@/lib/clientUtils';
 import { ZipcodeConfig } from '@/types/zipcode';
@@ -187,7 +188,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   /**
    * Fetches the current cart - from localStorage for all users
    */
-  const fetchCart = useCallback(async (overrideZipcodeConfig?: ZipcodeConfig | null) => {
+  const fetchCart = useCallback(async (overrideZipcodeConfig?: ZipcodeConfig | null, overrideAddress?: Cart['selectedAddress']) => {
     try {
       setIsLoading(true);
       setError(null);
@@ -196,8 +197,10 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
       // Load from localStorage for all users (both guest and authenticated)
       // Use override config if provided (to fix timing issues), otherwise use ref
+      // Use override address if provided (to fix timing issues), otherwise use ref
       const configToUse = overrideZipcodeConfig !== undefined ? overrideZipcodeConfig : zipcodeConfigRef.current;
-      const localCartData = await convertLocalCartToCart(configToUse, selectedAddressObjectRef.current);
+      const addressToUse = overrideAddress !== undefined ? overrideAddress : selectedAddressObjectRef.current;
+      const localCartData = await convertLocalCartToCart(configToUse, addressToUse);
 
       console.log('[CartContext] convertLocalCartToCart returned:', localCartData);
 
@@ -209,7 +212,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
           setSummary({
             subtotal: localCartData.subtotal,
             tax: localCartData.tax,
-            taxRate: 0.1,
+            taxRate: TAX_RATE,
             deliveryFee: localCartData.deliveryFee,
             platformFee: localCartData.platformFee,
             discount: 0,
@@ -390,13 +393,20 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       localStorage.setItem('selectedZipcode', zipcode);
       localStorage.setItem('selectedAddressObject', JSON.stringify(formattedAddress));
 
+      // Update state
+      setSelectedZipcode(zipcode);
+      setSelectedAddressObject(formattedAddress);
+
+      // Update refs immediately to avoid stale data in fetchCart
+      selectedAddressObjectRef.current = formattedAddress;
+
       // Fetch zipcode configuration
       const config = await fetchZipcodeConfig(zipcode);
       setZipcodeConfig(config);
+      zipcodeConfigRef.current = config;
 
-      // Refresh cart with new config (pass config directly to avoid timing issues)
-      // Pass the formatted address to ensure cart has complete address data immediately
-      await fetchCart(config);
+      // Refresh cart with new config and address (pass both directly to avoid timing issues)
+      await fetchCart(config, formattedAddress);
     } catch (error) {
       console.error('Error updating address:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to update address';
@@ -450,12 +460,19 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       localStorage.setItem('selectedZipcode', zipcode);
       localStorage.setItem('selectedAddressObject', JSON.stringify(derivedAddress));
 
+      // Update state
+      setSelectedAddressObject(derivedAddress);
+
+      // Update refs immediately to avoid stale data in fetchCart
+      selectedAddressObjectRef.current = derivedAddress;
+
       // Fetch zipcode configuration
       const config = await fetchZipcodeConfig(zipcode);
       setZipcodeConfig(config);
+      zipcodeConfigRef.current = config;
 
-      // Refresh cart with new config (pass config directly to avoid timing issues)
-      await fetchCart(config);
+      // Refresh cart with new config and address (pass both directly to avoid timing issues)
+      await fetchCart(config, derivedAddress);
     } catch (error) {
       console.error('Error updating zipcode:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to update zipcode';
@@ -505,6 +522,8 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
           const parsedAddress = JSON.parse(storedAddressObject);
           loadedAddressObject = parsedAddress;
           setSelectedAddressObject(parsedAddress);
+          // Update ref immediately to avoid stale data
+          selectedAddressObjectRef.current = parsedAddress;
         } catch (error) {
           console.error('Error parsing stored address:', error);
           localStorage.removeItem('selectedAddressObject');
@@ -517,26 +536,20 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
           const config = await fetchZipcodeConfig(storedZipcode);
           loadedZipcodeConfig = config;
           setZipcodeConfig(config);
+          // Update ref immediately to avoid stale data
+          zipcodeConfigRef.current = config;
         } catch (error) {
           console.error('Error fetching zipcode config on mount:', error);
         }
       }
 
       // Now fetch cart with all location data loaded
-      // Use setTimeout to avoid synchronous setState in useEffect
-      setTimeout(() => {
-        if (loadedZipcodeConfig !== undefined || loadedAddressObject !== undefined) {
-          // Pass the loaded config and address to ensure cart is calculated with correct data
-          fetchCart(loadedZipcodeConfig);
-        } else {
-          // No location data, fetch cart normally
-          fetchCart();
-        }
-      }, 0);
+      // Pass both the loaded config AND address to ensure cart has correct data
+      await fetchCart(loadedZipcodeConfig, loadedAddressObject);
     };
 
     loadLocationDataAndCart();
-  }, [fetchCart]); // Run once on mount - fetchCart is now stable (empty deps)
+  }, []); // Run once on mount - empty deps since we're using direct function calls
 
   return (
     <CartContext.Provider

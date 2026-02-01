@@ -14,6 +14,8 @@ import {
   Link,
   useTheme,
   useMediaQuery,
+  Checkbox,
+  FormControlLabel,
 } from '@mui/material';
 import {
   IconMail,
@@ -49,6 +51,8 @@ export default function SignupDialog({
   const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [acceptPrivacyPolicy, setAcceptPrivacyPolicy] = useState(false);
+  const [acceptNotifications, setAcceptNotifications] = useState(false);
 
   // Focus states
   const [fullNameFocused, setFullNameFocused] = useState(false);
@@ -93,6 +97,10 @@ export default function SignupDialog({
         'Password must be at least 8 characters with uppercase, lowercase, number, and special character';
     }
 
+    if (!acceptPrivacyPolicy) {
+      newErrors.privacyPolicy = 'You must accept the Privacy Policy to continue';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -117,6 +125,8 @@ export default function SignupDialog({
           email,
           password,
           phone,
+          acceptPrivacyPolicy,
+          acceptNotifications,
         }),
       });
 
@@ -155,6 +165,8 @@ export default function SignupDialog({
     setEmail('');
     setPassword('');
     setPhone('');
+    setAcceptPrivacyPolicy(false);
+    setAcceptNotifications(false);
     setErrors({});
     onClose();
   };
@@ -502,6 +514,118 @@ export default function SignupDialog({
                     opacity: 1,
                   },
                 },
+              }}
+            />
+
+            {/* Privacy Policy Checkbox (Required) */}
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={acceptPrivacyPolicy}
+                  onChange={(e) => {
+                    setAcceptPrivacyPolicy(e.target.checked);
+                    if (errors.privacyPolicy) {
+                      setErrors({ ...errors, privacyPolicy: '' });
+                    }
+                  }}
+                  sx={{
+                    color: errors.privacyPolicy ? '#f44336' : '#666',
+                    '&.Mui-checked': {
+                      color: '#FF9F0D',
+                    },
+                    '&.MuiCheckbox-root': {
+                      transition: 'all 0.2s ease',
+                    },
+                  }}
+                />
+              }
+              label={
+                <Typography
+                  sx={{
+                    fontSize: 14,
+                    color: '#333',
+                    fontWeight: 500,
+                  }}
+                >
+                  I accept the{' '}
+                  <Link
+                    href="/privacy"
+                    underline="none"
+                    sx={{
+                      color: '#FF9F0D',
+                      fontWeight: 600,
+                      '&:hover': {
+                        color: '#FF6B35',
+                      },
+                    }}
+                  >
+                    Privacy Policy
+                  </Link>
+                </Typography>
+              }
+              sx={{
+                alignItems: 'flex-start',
+                margin: 0,
+                ml: -1,
+              }}
+            />
+            {errors.privacyPolicy && (
+              <Typography
+                sx={{
+                  fontSize: 12,
+                  color: '#f44336',
+                  mt: -1.5,
+                  mb: 1,
+                  ml: 3.5,
+                }}
+              >
+                {errors.privacyPolicy}
+              </Typography>
+            )}
+
+            {/* Notifications Consent Checkbox (Optional) */}
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={acceptNotifications}
+                  onChange={(e) => setAcceptNotifications(e.target.checked)}
+                  sx={{
+                    color: '#666',
+                    '&.Mui-checked': {
+                      color: '#FF9F0D',
+                    },
+                    '&.MuiCheckbox-root': {
+                      transition: 'all 0.2s ease',
+                    },
+                  }}
+                />
+              }
+              label={
+                <Typography
+                  sx={{
+                    fontSize: 14,
+                    color: '#333',
+                    fontWeight: 400,
+                  }}
+                >
+                  I consent to receive ordering notifications via email and phone
+                  <Typography
+                    component="span"
+                    sx={{
+                      fontSize: 12,
+                      color: '#999',
+                      fontWeight: 400,
+                      display: 'block',
+                    }}
+                  >
+                    (optional)
+                  </Typography>
+                </Typography>
+              }
+              sx={{
+                alignItems: 'flex-start',
+                margin: 0,
+                ml: -1,
               }}
             />
 

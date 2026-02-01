@@ -1,12 +1,11 @@
 'use client';
 
 import React from 'react';
-import { Box, Typography, Paper, Divider, Alert } from '@mui/material';
-import { CartDay, DeliveryMessage } from '@/types/cart';
+import { Box, Typography, Paper, Divider } from '@mui/material';
+import { CartDay } from '@/types/cart';
 import { formatSpiceLevel } from '@/utils/formatters';
 import { type DayDeliveryInfo } from '@/lib/deliveryCalculator';
 import DeliveryDateBadge from './DeliveryDateBadge';
-import { PST_TIMEZONE } from '@/lib/timezone';
 
 interface CheckoutOrderSummaryProps {
   cartDays: CartDay[];
@@ -17,8 +16,8 @@ interface CheckoutOrderSummaryProps {
   tip: number;
   discount: number;
   total: number;
-  deliveryMessages?: DeliveryMessage[];
   deliveryCalculations?: DayDeliveryInfo[];
+  discountCode?: string;
 }
 
 export default function CheckoutOrderSummary({
@@ -30,8 +29,8 @@ export default function CheckoutOrderSummary({
   tip,
   discount,
   total,
-  deliveryMessages = [],
   deliveryCalculations = [],
+  discountCode,
 }: CheckoutOrderSummaryProps) {
   // Create a map for quick lookup of delivery calculations by date
   const deliveryCalcMap = new Map<string, DayDeliveryInfo>();
@@ -112,27 +111,33 @@ export default function CheckoutOrderSummary({
                   {/* Combo Selections */}
                   {item.comboSelections && Object.keys(item.comboSelections).length > 0 && item.foodItem.sections && (
                     <Box sx={{ mt: 0.5, pl: 1 }}>
-                      {Object.entries(item.comboSelections).map(([sectionId, itemId]) => {
+                      {Object.entries(item.comboSelections).map(([sectionId, itemIds]) => {
                         const section = item.foodItem.sections?.find((s) => s._id === sectionId);
                         if (!section) return null;
 
-                        const selectedItem = section.selectedItems.find((si) => si._id === itemId);
-                        if (!selectedItem) return null;
-
-                        const portionText = selectedItem.portion ? ` (${selectedItem.portion})` : '';
-
                         return (
-                          <Typography
-                            key={sectionId}
-                            variant="caption"
-                            sx={{
-                              color: '#999',
-                              fontSize: '0.7rem',
-                              display: 'block',
-                            }}
-                          >
-                            • {section.title}: {selectedItem.item.name}{portionText}
-                          </Typography>
+                          <React.Fragment key={sectionId}>
+                            {itemIds.map((itemId) => {
+                              const selectedItem = section.selectedItems.find((si) => si._id === itemId);
+                              if (!selectedItem) return null;
+
+                              const portionText = selectedItem.portion ? ` (${selectedItem.portion})` : '';
+
+                              return (
+                                <Typography
+                                  key={itemId}
+                                  variant="caption"
+                                  sx={{
+                                    color: '#999',
+                                    fontSize: '0.7rem',
+                                    display: 'block',
+                                  }}
+                                >
+                                  • {section.title}: {selectedItem.item.name}{portionText}
+                                </Typography>
+                              );
+                            })}
+                          </React.Fragment>
                         );
                       })}
                     </Box>
@@ -186,7 +191,7 @@ export default function CheckoutOrderSummary({
           </Box>
 
           <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-            <Typography variant="body2">Service Fee</Typography>
+            <Typography variant="body2">Platform Fee</Typography>
             <Typography variant="body2" sx={{ fontWeight: 500 }}>
               ${platformFee.toFixed(2)}
             </Typography>
@@ -218,7 +223,7 @@ export default function CheckoutOrderSummary({
           {discount > 0 && (
             <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
               <Typography variant="body2" sx={{ color: '#28a745' }}>
-                Discount
+                {discountCode ? `Discount (${discountCode})` : 'Discount'}
               </Typography>
               <Typography
                 variant="body2"
@@ -241,25 +246,6 @@ export default function CheckoutOrderSummary({
             ${total.toFixed(2)}
           </Typography>
         </Box>
-
-        {/* Delivery messages */}
-        {deliveryMessages.length > 0 && (
-          <Box sx={{ mt: 2 }}>
-            {deliveryMessages.map((msg, index) => (
-              <Alert
-                key={index}
-                severity={msg.type}
-                sx={{
-                  mb: 1,
-                  fontSize: '13px',
-                  '& .MuiAlert-message': { py: 0 },
-                }}
-              >
-                {msg.message}
-              </Alert>
-            ))}
-          </Box>
-        )}
 
         {/* Item count */}
         <Typography
