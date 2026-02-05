@@ -1,8 +1,8 @@
 'use client';
 
 import React from 'react';
-import { Box, Typography, Paper, Radio, Alert } from '@mui/material';
-import { IconCreditCard, IconCash } from '@tabler/icons-react';
+import { Box, Typography, Paper, Radio } from '@mui/material';
+import { IconCreditCard } from '@tabler/icons-react';
 import { PaymentMethod } from '@/types/order';
 
 interface PaymentMethodSectionProps {
@@ -25,12 +25,6 @@ export default function PaymentMethodSection({
       label: 'Credit or Debit Card',
       icon: <IconCreditCard size={24} />,
       description: 'Pay securely with your card via Stripe',
-    },
-    {
-      value: 'Cash on Delivery',
-      label: 'Cash on Delivery',
-      icon: <IconCash size={24} />,
-      description: 'Pay in cash when your order is delivered',
     },
   ];
 
@@ -97,13 +91,6 @@ export default function PaymentMethodSection({
           </Paper>
         ))}
       </Box>
-
-      {selectedMethod === 'Cash on Delivery' && (
-        <Alert severity="info" sx={{ mt: 2 }}>
-          You will pay in cash when your order is delivered. Please keep exact
-          change ready.
-        </Alert>
-      )}
     </Paper>
   );
 }

@@ -190,63 +190,14 @@ export async function POST(request: NextRequest) {
       minOrderValue,
       totalPaid: Number(totalPaid.toFixed(2)),
       currency: currency || 'usd',
-      status: paymentMethod === 'Cash on Delivery' ? 'confirmed' : 'pending',
+      status: 'pending',
       paymentStatus: 'unpaid',
       paymentMethod,
       deliveryMessages,
     };
 
     // Handle payment method specific logic
-    if (paymentMethod === 'Cash on Delivery') {
-      console.log(`[POST /api/orders/create] COD order - orderId: ${order.orderId}, userId: ${userId}`);
-
-      // Save order to database
-      // formatOrderForDatabase() adds createdAt and updatedAt as Date objects
-      const dbOrder = formatOrderForDatabase(order as Order);
-      console.log(`[POST /api/orders/create] Saving order to database...`);
-
-      const result = await db.create('orders', dbOrder);
-
-      if (!result.success) {
-        console.error('[POST /api/orders/create] Failed to create order:', result.error);
-        return NextResponse.json(
-          { success: false, error: 'Failed to create order' },
-          { status: 500 }
-        );
-      }
-
-      console.log(`[POST /api/orders/create] COD order created successfully - returning orderId: ${order.orderId}`);
-
-      // Send order confirmation email for COD orders
-      try {
-        console.log(`[POST /api/orders/create] Sending confirmation email for COD order: ${order.orderId}`);
-        const emailResult = await sendOrderConfirmationEmail(order as Order);
-
-        if (emailResult.success) {
-          console.log(`[POST /api/orders/create] Confirmation email sent successfully for order: ${order.orderId}`, {
-            messageId: emailResult.messageId,
-            statusInfo: emailResult.statusInfo,
-          });
-        } else {
-          console.error(`[POST /api/orders/create] Failed to send confirmation email for order: ${order.orderId}`, {
-            error: emailResult.error,
-            statusInfo: emailResult.statusInfo,
-          });
-        }
-      } catch (emailError) {
-        console.error(`[POST /api/orders/create] Exception sending confirmation email for order: ${order.orderId}:`, emailError);
-        // Email failure should not break order creation - continue with order response
-      }
-
-      return NextResponse.json({
-        success: true,
-        data: {
-          orderId: order.orderId,
-          totalAmount: order.totalPaid,
-          paymentMethod: order.paymentMethod,
-        },
-      });
-    } else if (paymentMethod === 'Credit Card') {
+    if (paymentMethod === 'Credit Card') {
       // Check if Stripe is properly configured
       if (!stripeSecretKey || stripeSecretKey === 'sk_test_dummy_key_for_build') {
         return NextResponse.json(
@@ -290,6 +241,27 @@ export async function POST(request: NextRequest) {
           );
         }
 
+        // Send order confirmation email for Credit Card orders
+        try {
+          console.log(`[POST /api/orders/create] Sending confirmation email for Credit Card order: ${order.orderId}`);
+          const emailResult = await sendOrderConfirmationEmail(orderWithStripe);
+
+          if (emailResult.success) {
+            console.log(`[POST /api/orders/create] Confirmation email sent successfully for order: ${order.orderId}`, {
+              messageId: emailResult.messageId,
+              statusInfo: emailResult.statusInfo,
+            });
+          } else {
+            console.error(`[POST /api/orders/create] Failed to send confirmation email for order: ${order.orderId}`, {
+              error: emailResult.error,
+              statusInfo: emailResult.statusInfo,
+            });
+          }
+        } catch (emailError) {
+          console.error(`[POST /api/orders/create] Exception sending confirmation email for order: ${order.orderId}:`, emailError);
+          // Email failure should not break order creation - continue with order response
+        }
+
         return NextResponse.json({
           success: true,
           data: {
@@ -309,11 +281,6 @@ export async function POST(request: NextRequest) {
           { status: 500 }
         );
       }
-    } else {
-      return NextResponse.json(
-        { success: false, error: 'Invalid payment method' },
-        { status: 400 }
-      );
     }
   } catch (error) {
     console.error('Order creation error:', error);
