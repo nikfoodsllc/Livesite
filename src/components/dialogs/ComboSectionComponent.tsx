@@ -18,9 +18,12 @@ export default function ComboSectionComponent({
   const useCheckboxes = !section.isRequired || (section.maxSelection !== undefined && section.maxSelection > 1);
 
   // Normalize selectedValue based on control type
+  // Note: Parent always passes arrays (string[]), so for radio buttons we extract the first element
   const selectedItems = useCheckboxes
     ? (Array.isArray(selectedValue) ? selectedValue : [])
-    : (typeof selectedValue === 'string' ? selectedValue : '');
+    : (Array.isArray(selectedValue)
+        ? (selectedValue.length > 0 ? selectedValue[0] : '')
+        : (typeof selectedValue === 'string' ? selectedValue : ''));
 
   const handleSelectionChange = (itemId: string, checked: boolean) => {
     if (!section?._id) return;

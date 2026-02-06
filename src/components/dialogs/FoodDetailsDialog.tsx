@@ -94,31 +94,29 @@ export default function FoodDetailsDialog({
 
   // Load existing combo selections from cart when dialog opens for an item already in cart
   useEffect(() => {
-    if (open && foodItem && currentQuantity > 0) {
-      const existingDays = localCart.findDaysWithItem(foodItem._id);
-      if (existingDays.length > 0) {
-        // Get the cart to find the existing item and its customizations
-        const cart = localCart.getCart();
-        const firstDay = existingDays[0];
-        const dayData = cart.days[firstDay.day];
+    if (open && foodItem && currentQuantity > 0 && dayGroup) {
+      // Get the specific day for this dayGroup
+      const cart = localCart.getCart();
+      const dayName = dayGroup.day as DayType;
+      const dayData = cart.days[dayName];
 
-        if (dayData && dayData.items) {
-          // Find the cart item (using the foodItemId as key)
-          const cartItem = Object.values(dayData.items).find(item => item.foodItemId === foodItem._id);
+      if (dayData && dayData.items) {
+        // Find the cart item (using the foodItemId as key)
+        const cartItem = Object.values(dayData.items).find(item => item.foodItemId === foodItem._id);
 
-          if (cartItem && cartItem.comboSelections) {
-            // Load existing selections from cart
-            setComboSelections(cartItem.comboSelections);
-            return;
-          }
+        if (cartItem && cartItem.comboSelections) {
+          // Load existing selections from cart
+          setComboSelections(cartItem.comboSelections);
+          return;
         }
       }
     }
-  }, [open, foodItem, currentQuantity]);
+  }, [open, foodItem, currentQuantity, dayGroup]);
 
   // Re-initialize combo selections when foodItem changes (for new items)
   useEffect(() => {
     if (foodItem && currentQuantity === 0) {
+      console.log('[FoodDetailsDialog] Initializing combo defaults for new item:', foodItem.name);
       // This is a new item, reset combo selections to initial defaults
       const defaults: Record<string, string[]> = {};
       if (foodItem.sections && Array.isArray(foodItem.sections)) {
@@ -127,6 +125,7 @@ export default function FoodDetailsDialog({
           if (section && section._id && section.selectedItems && Array.isArray(section.selectedItems)) {
             // Count items with isDefault=true
             const defaultItems = section.selectedItems.filter(item => item.isDefault);
+            console.log(`[FoodDetailsDialog] Section "${section.title}": Found ${defaultItems.length} default items out of ${section.selectedItems.length}`);
 
             // Determine if this section uses checkboxes (multi-select) or radio buttons (single-select)
             const useCheckboxes = !section.isRequired || (section.maxSelection !== undefined && section.maxSelection > 1);
@@ -135,34 +134,42 @@ export default function FoodDetailsDialog({
               // Multi-select: use array
               if (defaultItems.length > 0) {
                 defaults[section._id] = defaultItems.map(item => item._id);
+                console.log(`[FoodDetailsDialog] Selected ${defaultItems.length} default items:`, defaultItems.map(i => `${i.item.name} (${i._id})`));
               } else if (section.isRequired && section.minSelection && section.minSelection > 0) {
                 // Required multi-select: select minimum number of items
                 defaults[section._id] = section.selectedItems.slice(0, section.minSelection).map(item => item._id);
+                console.log(`[FoodDetailsDialog] No defaults, selected first ${section.minSelection} items (required multi-select)`);
               } else {
                 // Optional multi-select: start with empty array
                 defaults[section._id] = [];
+                console.log(`[FoodDetailsDialog] No defaults, starting empty (optional multi-select)`);
               }
             } else {
               // Single-select: use array with single element
               if (defaultItems.length === 1 && defaultItems[0]._id) {
                 // Exactly one default: select it
                 defaults[section._id] = [defaultItems[0]._id];
+                console.log(`[FoodDetailsDialog] Selected single default: ${defaultItems[0].item.name} (${defaultItems[0]._id})`);
               } else if (defaultItems.length > 1) {
                 // Multiple defaults: select the first one
                 if (defaultItems[0]._id) {
                   defaults[section._id] = [defaultItems[0]._id];
+                  console.log(`[FoodDetailsDialog] Multiple defaults found, selected first: ${defaultItems[0].item.name} (${defaultItems[0]._id})`);
                 }
               } else if (section.selectedItems.length === 1 && section.selectedItems[0]._id) {
                 // No defaults: auto-select single item section
                 defaults[section._id] = [section.selectedItems[0]._id];
+                console.log(`[FoodDetailsDialog] No defaults, auto-selected single item: ${section.selectedItems[0].item.name} (${section.selectedItems[0]._id})`);
               } else if (section.selectedItems.length > 0 && section.selectedItems[0]._id) {
                 // No defaults and multiple items: select the first item
                 defaults[section._id] = [section.selectedItems[0]._id];
+                console.log(`[FoodDetailsDialog] No defaults, selected first item: ${section.selectedItems[0].item.name} (${section.selectedItems[0]._id})`);
               }
             }
           }
         });
       }
+      console.log('[FoodDetailsDialog] Final combo selections initialized:', defaults);
       setComboSelections(defaults);
     }
   }, [foodItem, currentQuantity]);
@@ -217,45 +224,102 @@ export default function FoodDetailsDialog({
 
     setQuantity(newQuantity);
 
-    // Check if this item already exists in cart
-    const existingDays = localCart.findDaysWithItem(foodItem._id);
+    // If we have a dayGroup context, check if item exists for that specific day
+    if (dayGroup) {
+      const dayName = dayGroup.day as DayType;
+      const cart = localCart.getCart();
+      const itemExists = cart.days[dayName]?.items[foodItem._id];
 
-    if (existingDays.length > 0 && newQuantity > 0) {
-      // Item exists in cart, update the quantity on the first day it was added to
-      const customizations: CartCustomizations = {
-        selectedPortion: foodItem.portions?.[selectedPortion] || '',
-        selectedPortionPrice: foodItem.portions?.[selectedPortion] ? foodItem.portionPrices?.[selectedPortion] : undefined,
-        selectedSpiceLevel: selectedSpiceLevel as SpiceLevel,
-        isEcoFriendlyContainer: useEcoContainer,
-        ecoContainerCharge: useEcoContainer ? foodItem.ecoContainerCharge : undefined,
-        comboSelections,
-      };
+      if (itemExists && newQuantity > 0) {
+        // Item exists in cart for this specific day, update the quantity
+        const customizations: CartCustomizations = {
+          selectedPortion: foodItem.portions?.[selectedPortion] || '',
+          selectedPortionPrice: foodItem.portions?.[selectedPortion] ? foodItem.portionPrices?.[selectedPortion] : undefined,
+          selectedSpiceLevel: selectedSpiceLevel as SpiceLevel,
+          isEcoFriendlyContainer: useEcoContainer,
+          ecoContainerCharge: useEcoContainer ? foodItem.ecoContainerCharge : undefined,
+          comboSelections,
+        };
 
-      const firstDay = existingDays[0];
-      onAddToCart?.(foodItem, newQuantity, customizations, firstDay.day, firstDay.date);
+        onAddToCart?.(foodItem, newQuantity, customizations, dayName, dayGroup.date);
 
-      // Show feedback for quantity update
-      const action = newQuantity > currentQuantity ? 'increased' : 'decreased';
-      showSuccessNotification(
-        showNotification,
-        `${foodItem.name} quantity ${action} to ${newQuantity} for ${firstDay.day}`,
-        'Cart Updated'
-      );
-    } else if (newQuantity === 0 && existingDays.length > 0) {
-      // Remove item from all days it exists in
-      existingDays.forEach(({ day }) => {
-        localCart.removeItem(day, foodItem._id);
-      });
-      refreshCart?.();
+        // Show feedback for quantity update
+        const action = newQuantity > currentQuantity ? 'increased' : 'decreased';
+        showSuccessNotification(
+          showNotification,
+          `${foodItem.name} quantity ${action} to ${newQuantity} for ${dayName}`,
+          'Cart Updated'
+        );
+      } else if (newQuantity === 0 && itemExists) {
+        // Remove item from this specific day
+        localCart.removeItem(dayName, foodItem._id);
+        refreshCart?.();
 
-      // Show feedback for item removal
-      showSuccessNotification(
-        showNotification,
-        `${foodItem.name} has been removed from your cart`,
-        'Item Removed'
-      );
+        // Show feedback for item removal
+        showSuccessNotification(
+          showNotification,
+          `${foodItem.name} has been removed from your cart`,
+          'Item Removed'
+        );
+      } else if (!itemExists && newQuantity > 0) {
+        // Item doesn't exist in cart for this day, but user wants to add it
+        // This can happen when user clicks "+" on an item that exists for another day
+        const customizations: CartCustomizations = {
+          selectedPortion: foodItem.portions?.[selectedPortion] || '',
+          selectedPortionPrice: foodItem.portions?.[selectedPortion] ? foodItem.portionPrices?.[selectedPortion] : undefined,
+          selectedSpiceLevel: selectedSpiceLevel as SpiceLevel,
+          isEcoFriendlyContainer: useEcoContainer,
+          ecoContainerCharge: useEcoContainer ? foodItem.ecoContainerCharge : undefined,
+          comboSelections,
+        };
+
+        // Add item directly to cart for this day (not via onAddToCart callback to avoid re-fetching dates)
+        localCart.addItem(dayName, dayGroup.date, foodItem, newQuantity, customizations);
+        refreshCart?.();
+
+        showSuccessNotification(
+          showNotification,
+          `${foodItem.name} has been added to your cart for ${dayName}`,
+          'Added to Cart'
+        );
+      }
+      // If newQuantity === 0 and item doesn't exist, do nothing (already at 0)
+    } else {
+      // Fallback to old behavior for flat categories (no dayGroup)
+      const existingDays = localCart.findDaysWithItem(foodItem._id);
+
+      if (existingDays.length > 0 && newQuantity > 0) {
+        const customizations: CartCustomizations = {
+          selectedPortion: foodItem.portions?.[selectedPortion] || '',
+          selectedPortionPrice: foodItem.portions?.[selectedPortion] ? foodItem.portionPrices?.[selectedPortion] : undefined,
+          selectedSpiceLevel: selectedSpiceLevel as SpiceLevel,
+          isEcoFriendlyContainer: useEcoContainer,
+          ecoContainerCharge: useEcoContainer ? foodItem.ecoContainerCharge : undefined,
+          comboSelections,
+        };
+
+        const firstDay = existingDays[0];
+        onAddToCart?.(foodItem, newQuantity, customizations, firstDay.day, firstDay.date);
+
+        const action = newQuantity > currentQuantity ? 'increased' : 'decreased';
+        showSuccessNotification(
+          showNotification,
+          `${foodItem.name} quantity ${action} to ${newQuantity} for ${firstDay.day}`,
+          'Cart Updated'
+        );
+      } else if (newQuantity === 0 && existingDays.length > 0) {
+        existingDays.forEach(({ day }) => {
+          localCart.removeItem(day, foodItem._id);
+        });
+        refreshCart?.();
+
+        showSuccessNotification(
+          showNotification,
+          `${foodItem.name} has been removed from your cart`,
+          'Item Removed'
+        );
+      }
     }
-    // If item doesn't exist in cart or quantity is 0, don't do anything - let user use "Add to Cart" button
   };
 
   // Handle auto-add for day-wise categories
@@ -533,10 +597,12 @@ export default function FoodDetailsDialog({
               <Typography variant="h5" sx={{ fontWeight: 600, mb: 0.5, fontSize: '1.25rem' }}>
                 {foodItem.name}
               </Typography>
-              <Typography variant="h6" sx={{ color: '#f89c35', fontWeight: 600, fontSize: '1.125rem' }}>
-                {foodItem.portions && foodItem.portions.length > 0 ? 'Starting at ' : ''}
-                {foodItem.price != null ? `$${foodItem.price.toFixed(2)}` : 'Price not available'}
-              </Typography>
+              {foodItem.price != null && (
+                <Typography variant="h6" sx={{ color: '#f89c35', fontWeight: 600, fontSize: '1.125rem' }}>
+                  {foodItem.portions && foodItem.portions.length > 0 ? 'Starting at ' : ''}
+                  {`$${foodItem.price.toFixed(2)}`}
+                </Typography>
+              )}
             </Box>
           </Box>
 

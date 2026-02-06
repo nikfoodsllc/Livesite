@@ -730,9 +730,42 @@ export default function CheckoutPage() {
 
       const { orderId, clientSecret } = data.data;
 
-      // Handle based on payment method
-      if (paymentMethod === 'Cash on Delivery') {
-        // COD: Order is confirmed immediately
+      // Credit Card: Need to confirm payment with Stripe
+      if (!stripe || !elements) {
+        throw new Error('Stripe not initialized');
+      }
+
+      const cardElement = elements.getElement(CardElement);
+      if (!cardElement) {
+        throw new Error('Card element not found');
+      }
+
+      // Confirm card payment
+      const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(
+        clientSecret,
+        {
+          payment_method: {
+            card: cardElement,
+            billing_details: {
+              name,
+              email,
+              phone,
+            },
+          },
+        }
+      );
+
+      if (stripeError) {
+        const errorMessage = stripeError.message || 'Payment failed';
+        // Redirect to failure page for Stripe payment errors
+        router.push(`/checkout/failure?error=${encodeURIComponent(errorMessage)}`);
+        return;
+      }
+
+      if (paymentIntent?.status === 'succeeded') {
+        // Payment succeeded, poll for order confirmation
+        await pollOrderStatus(orderId);
+
         // Mark order as completed to prevent empty cart redirect
         setOrderCompleted(true);
 
@@ -744,60 +777,11 @@ export default function CheckoutPage() {
 
         // Redirect to success page
         router.push(`/checkout/success?orderId=${orderId}`);
-      } else if (paymentMethod === 'Credit Card') {
-        // Credit Card: Need to confirm payment with Stripe
-        if (!stripe || !elements) {
-          throw new Error('Stripe not initialized');
-        }
-
-        const cardElement = elements.getElement(CardElement);
-        if (!cardElement) {
-          throw new Error('Card element not found');
-        }
-
-        // Confirm card payment
-        const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(
-          clientSecret,
-          {
-            payment_method: {
-              card: cardElement,
-              billing_details: {
-                name,
-                email,
-                phone,
-              },
-            },
-          }
-        );
-
-        if (stripeError) {
-          const errorMessage = stripeError.message || 'Payment failed';
-          // Redirect to failure page for Stripe payment errors
-          router.push(`/checkout/failure?error=${encodeURIComponent(errorMessage)}`);
-          return;
-        }
-
-        if (paymentIntent?.status === 'succeeded') {
-          // Payment succeeded, poll for order confirmation
-          await pollOrderStatus(orderId);
-
-          // Mark order as completed to prevent empty cart redirect
-          setOrderCompleted(true);
-
-          // Clear cart from localStorage
-          localCart.clearCart();
-
-          // Refresh cart context to update state
-          await refreshCart();
-
-          // Redirect to success page
-          router.push(`/checkout/success?orderId=${orderId}`);
-        } else {
-          const errorMessage = 'Payment confirmation failed. Please try again.';
-          // Redirect to failure page for payment confirmation errors
-          router.push(`/checkout/failure?error=${encodeURIComponent(errorMessage)}`);
-          return;
-        }
+      } else {
+        const errorMessage = 'Payment confirmation failed. Please try again.';
+        // Redirect to failure page for payment confirmation errors
+        router.push(`/checkout/failure?error=${encodeURIComponent(errorMessage)}`);
+        return;
       }
     } catch (err) {
       console.error('Order placement error:', err);
@@ -911,7 +895,14 @@ export default function CheckoutPage() {
 
         {/* Checkout Form wrapped in Stripe Elements */}
         <Box ref={formContainerRef}>
-          <Elements stripe={stripePromise}>
+          <Elements
+            stripe={stripePromise}
+            options={{
+              wallets: {
+                enabled: false,
+              },
+            }}
+          >
             <CheckoutFormContent
               cart={cart}
               name={name}

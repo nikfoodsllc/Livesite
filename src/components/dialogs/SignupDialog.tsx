@@ -560,11 +560,25 @@ export default function SignupDialog({
                     }}
                   >
                     Privacy Policy
+                  </Link>{' '}
+                  and{' '}
+                  <Link
+                    href="/terms"
+                    underline="none"
+                    sx={{
+                      color: '#FF9F0D',
+                      fontWeight: 600,
+                      '&:hover': {
+                        color: '#FF6B35',
+                      },
+                    }}
+                  >
+                    Terms of Service
                   </Link>
                 </Typography>
               }
               sx={{
-                alignItems: 'flex-start',
+                alignItems: 'center',
                 margin: 0,
                 ml: -1,
               }}

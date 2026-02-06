@@ -10,6 +10,11 @@ const nextConfig: NextConfig = {
         hostname: 'res.cloudinary.com',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'nikfoodsadmin.vercel.app',
+        pathname: '/**',
+      },
     ],
   },
   // Ensure MongoDB is never bundled for the client

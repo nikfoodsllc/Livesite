@@ -503,6 +503,25 @@ export default function Home() {
   };
 
   const handleIncrement = (foodItemId: string, foodItem: FoodItem, dayGroup?: any) => {
+    // If dayGroup is provided, check if item already exists in cart for that specific date
+    if (dayGroup) {
+      const dateString = dayGroup.date;
+      const dayName = dayGroup.day;
+      const dateOption = availableDates.find(d => d.date === dateString);
+      const dayNameForCart = dateOption?.day || dayName;
+
+      if (dayNameForCart) {
+        const dayType = dayNameForCart as DayType;
+        const existingQuantity = localCart.getDayQuantity(dayType, foodItemId);
+
+        // If item already exists in cart for this date, increment directly
+        if (existingQuantity > 0) {
+          handleIncrementForDayWiseCategory(foodItem, dayGroup);
+          return;
+        }
+      }
+    }
+
     // Check if item has portions - if so, open FoodDetailsDialog to force portion selection
     if (foodItem.portions && foodItem.portions.length > 0) {
       handleOpenDialog(foodItem, dayGroup);
@@ -1165,7 +1184,7 @@ export default function Home() {
         open={dialogOpen}
         onClose={handleCloseDialog}
         foodItem={selectedFoodItem}
-        currentQuantity={selectedFoodItem ? getItemQuantity(selectedFoodItem._id) : 0}
+        currentQuantity={selectedFoodItem ? getItemQuantity(selectedFoodItem._id, (selectedFoodItem as any).__dayGroup?.date) : 0}
         onAddToCart={handleAddToCartFromDialog}
         onOpenDaySelection={handleOpenDaySelectionWithCustomizations}
         refreshCart={handleRefreshCart}
