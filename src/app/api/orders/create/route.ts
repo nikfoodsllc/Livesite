@@ -13,7 +13,6 @@ import {
 } from '@/lib/orderHelpers';
 import { calculateDeliveryDates } from '@/lib/deliveryCalculator';
 import { DEFAULT_MIN_CART_VALUE } from '@/lib/cartLogic';
-import { sendOrderConfirmationEmail } from '@/lib/email';
 import Stripe from 'stripe';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
@@ -241,26 +240,8 @@ export async function POST(request: NextRequest) {
           );
         }
 
-        // Send order confirmation email for Credit Card orders
-        try {
-          console.log(`[POST /api/orders/create] Sending confirmation email for Credit Card order: ${order.orderId}`);
-          const emailResult = await sendOrderConfirmationEmail(orderWithStripe);
-
-          if (emailResult.success) {
-            console.log(`[POST /api/orders/create] Confirmation email sent successfully for order: ${order.orderId}`, {
-              messageId: emailResult.messageId,
-              statusInfo: emailResult.statusInfo,
-            });
-          } else {
-            console.error(`[POST /api/orders/create] Failed to send confirmation email for order: ${order.orderId}`, {
-              error: emailResult.error,
-              statusInfo: emailResult.statusInfo,
-            });
-          }
-        } catch (emailError) {
-          console.error(`[POST /api/orders/create] Exception sending confirmation email for order: ${order.orderId}:`, emailError);
-          // Email failure should not break order creation - continue with order response
-        }
+        // Email will be sent via Stripe webhook when payment succeeds
+        // This ensures emails are only sent for successful payments
 
         return NextResponse.json({
           success: true,
