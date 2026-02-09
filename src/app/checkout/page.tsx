@@ -897,11 +897,7 @@ export default function CheckoutPage() {
         <Box ref={formContainerRef}>
           <Elements
             stripe={stripePromise}
-            options={{
-              wallets: {
-                enabled: false,
-              },
-            }}
+            options={{}}
           >
             <CheckoutFormContent
               cart={cart}
