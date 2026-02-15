@@ -40,7 +40,7 @@ export default function DeliveryAddressDisplay({
             Delivery Address
           </Typography>
           <Typography variant="body2" sx={{ color: '#666', mb: 2 }}>
-            Please log in or sign up to select a delivery address for your order.
+            Please login or signup to select a delivery address for your order.
           </Typography>
           <Box sx={{ display: 'flex', gap: 2 }}>
             <Button

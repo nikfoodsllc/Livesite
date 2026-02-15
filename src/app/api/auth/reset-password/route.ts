@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
 
     // Verify password reset record exists and is verified
     const resetResult = await db.readOne<IPasswordReset>('passwordresets', {
-      _id: passwordResetId as any,
+      _id: new MongoObjectId(passwordResetId),
     });
 
     if (!resetResult.success || !resetResult.data) {

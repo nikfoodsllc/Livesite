@@ -280,7 +280,7 @@ export default function Header({
                       },
                     }}
                   >
-                    Login
+                    Login / Signup
                   </Button>
                 )}
               </Box>
@@ -439,7 +439,7 @@ export default function Header({
                 >
                   <IconUser size={20} style={{ marginRight: 12 }} />
                   <ListItemText
-                    primary="Login"
+                    primary="Login / Signup"
                     primaryTypographyProps={{ fontWeight: 600 }}
                   />
                 </ListItemButton>
