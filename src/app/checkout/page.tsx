@@ -79,6 +79,10 @@ interface CheckoutFormContentProps {
   onLoginClick: () => void;
   onSignupClick: () => void;
   zipcodeConfig: ZipcodeConfig | null;
+  onPaymentValidationChange?: (isValid: boolean, isEmpty: boolean, error?: string) => void;
+  isPaymentComplete: boolean;
+  isPaymentEmpty?: boolean;
+  paymentError?: string;
 }
 
 function CheckoutFormContent({
@@ -108,6 +112,10 @@ function CheckoutFormContent({
   onLoginClick,
   onSignupClick,
   zipcodeConfig,
+  onPaymentValidationChange,
+  isPaymentComplete,
+  isPaymentEmpty,
+  paymentError,
 }: CheckoutFormContentProps) {
   const stripe = useStripe();
   const elements = useElements();
@@ -198,7 +206,7 @@ function CheckoutFormContent({
 
         {/* Stripe Card Form */}
         {paymentMethod === 'Credit Card' && (
-          <StripePaymentForm show={true} />
+          <StripePaymentForm show={true} onValidationChange={onPaymentValidationChange} />
         )}
 
         {/* Tip Section */}
@@ -215,7 +223,7 @@ function CheckoutFormContent({
             variant="contained"
             size="large"
             onClick={handlePlaceOrderClick}
-            disabled={isProcessing || !cart.canCheckout}
+            disabled={isProcessing || !cart.canCheckout || (paymentMethod === 'Credit Card' && !isPaymentComplete)}
             startIcon={
               isProcessing ? (
                 <CircularProgress size={20} sx={{ color: '#fff' }} />
@@ -280,7 +288,7 @@ function CheckoutFormContent({
           variant="contained"
           size="large"
           onClick={handlePlaceOrderClick}
-          disabled={isProcessing || !cart.canCheckout}
+          disabled={isProcessing || !cart.canCheckout || (paymentMethod === 'Credit Card' && !isPaymentComplete)}
           startIcon={
             isProcessing ? (
               <CircularProgress size={20} sx={{ color: '#fff' }} />
@@ -355,6 +363,11 @@ export default function CheckoutPage() {
     email?: string;
     phone?: string;
   }>({});
+
+  // Payment validation state
+  const [isPaymentComplete, setIsPaymentComplete] = useState(false);
+  const [isPaymentEmpty, setIsPaymentEmpty] = useState(true);
+  const [paymentError, setPaymentError] = useState<string | undefined>();
 
   // Validation error summary shown when Place Order is clicked
   const [validationErrors, setValidationErrors] = useState<ErrorSummary[]>([]);
@@ -433,8 +446,18 @@ export default function CheckoutPage() {
       allErrors.push({ field: 'phone', message: errors.phone });
     }
 
+    // Check if payment details are complete (only for Credit Card payment)
+    if (paymentMethod === 'Credit Card' && !isPaymentComplete) {
+      allErrors.push({
+        field: 'Payment Details',
+        message: isPaymentEmpty
+          ? 'Please enter your card details to complete your order'
+          : 'Please complete all required card details correctly'
+      });
+    }
+
     return allErrors;
-  }, [cart, errors, isAddressComplete]);
+  }, [cart, errors, isAddressComplete, paymentMethod, isPaymentComplete, isPaymentEmpty]);
 
   // Scroll to first error and show detailed error summary
   const handleValidationError = useCallback(() => {
@@ -577,6 +600,13 @@ export default function CheckoutPage() {
       phone: error || undefined,
     }));
   };
+
+  // Handle payment validation changes from StripePaymentForm
+  const handlePaymentValidationChange = useCallback((isValid: boolean, isEmpty: boolean, error?: string) => {
+    setIsPaymentComplete(isValid);
+    setIsPaymentEmpty(isEmpty);
+    setPaymentError(error);
+  }, []);
 
   // Clear validation errors when user starts fixing form fields
   const handleNameChange = (value: string) => {
@@ -926,6 +956,10 @@ export default function CheckoutPage() {
               onLoginClick={openLoginDialog}
               onSignupClick={openSignupDialog}
               zipcodeConfig={zipcodeConfig}
+              onPaymentValidationChange={handlePaymentValidationChange}
+              isPaymentComplete={isPaymentComplete}
+              isPaymentEmpty={isPaymentEmpty}
+              paymentError={paymentError}
             />
           </Elements>
         </Box>
