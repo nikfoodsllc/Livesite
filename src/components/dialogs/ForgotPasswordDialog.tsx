@@ -30,6 +30,7 @@ import {
   IconEye,
   IconEyeOff,
 } from '@tabler/icons-react';
+import { validatePassword } from '@/lib/password';
 
 interface ForgotPasswordDialogProps {
   open: boolean;
@@ -78,12 +79,6 @@ export default function ForgotPasswordDialog({
 
   const validateOtp = (otp: string): boolean => {
     return /^\d{6}$/.test(otp);
-  };
-
-  const validatePassword = (password: string): boolean => {
-    const passwordRegex =
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+])[A-Za-z\d@#$%&*_]{8,}$/;
-    return passwordRegex.test(password);
   };
 
   const handleEmailSubmit = async (e: React.FormEvent) => {

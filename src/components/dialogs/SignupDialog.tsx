@@ -28,6 +28,8 @@ import {
 } from '@tabler/icons-react';
 import { useApiClient } from '@/hooks/useApiClient';
 import { useAuth } from '@/contexts/AuthContext';
+import { validatePassword } from '@/lib/password';
+import PasswordRequirements from '@/components/common/PasswordRequirements';
 
 interface SignupDialogProps {
   open: boolean;
@@ -69,12 +71,6 @@ export default function SignupDialog({
   const validateEmail = (email: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
-  };
-
-  const validatePassword = (password: string): boolean => {
-    const passwordRegex =
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+])[A-Za-z\d@#$%&*_]{8,}$/;
-    return passwordRegex.test(password);
   };
 
   const validateStep1 = (): boolean => {
@@ -465,6 +461,9 @@ export default function SignupDialog({
                 },
               }}
             />
+
+            {/* Password Requirements */}
+            <PasswordRequirements password={password} />
 
             {/* Phone Input (Optional) */}
             <TextField

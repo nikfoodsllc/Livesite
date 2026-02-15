@@ -2,11 +2,12 @@
 
 import React from 'react';
 import { Box, Typography, Paper, Alert } from '@mui/material';
-import { CardElement } from '@stripe/react-stripe-js';
+import { CardElement, useElements } from '@stripe/react-stripe-js';
 import { StripeCardElementOptions } from '@stripe/stripe-js';
 
 interface StripePaymentFormProps {
   show: boolean;
+  onValidationChange?: (isValid: boolean, isEmpty: boolean, error?: string) => void;
 }
 
 const CARD_ELEMENT_OPTIONS: StripeCardElementOptions = {
@@ -28,11 +29,31 @@ const CARD_ELEMENT_OPTIONS: StripeCardElementOptions = {
   hidePostalCode: false,
 };
 
-export default function StripePaymentForm({ show }: StripePaymentFormProps) {
+export default function StripePaymentForm({ show, onValidationChange }: StripePaymentFormProps) {
+  const elements = useElements();
+
+  const handleCardChange = (event: any) => {
+    // Track CardElement validation state
+    const isValid = event.complete;
+    const isEmpty = event.empty;
+    const errorMessage = event.error?.message;
+
+    // Notify parent component of validation state changes
+    onValidationChange?.(isValid, isEmpty, errorMessage);
+  };
+
   if (!show) return null;
 
   return (
-    <Paper elevation={0} sx={{ p: 3, mb: 3, border: '1px solid #EDEDED' }}>
+    <Paper
+      elevation={2}
+      sx={{
+        p: 3,
+        mb: 3,
+        border: '2px solid #FF9F0D',
+        backgroundColor: '#FFFBF5',
+      }}
+    >
       <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
         Card Details
       </Typography>
@@ -45,7 +66,7 @@ export default function StripePaymentForm({ show }: StripePaymentFormProps) {
           bgcolor: '#FAFAFA',
         }}
       >
-        <CardElement options={CARD_ELEMENT_OPTIONS} />
+        <CardElement options={CARD_ELEMENT_OPTIONS} onChange={handleCardChange} />
       </Box>
 
       <Alert severity="info" sx={{ mt: 2 }}>
