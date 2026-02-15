@@ -218,6 +218,24 @@ function CheckoutFormContent({
 
         {/* Place Order Button (Mobile) */}
         <Box sx={{ display: { xs: 'block', md: 'none' }, mb: 3 }}>
+          {/* Disabled reason messages */}
+          {!isProcessing && (
+            <Box sx={{ mb: 1.5 }}>
+              {!cart.canCheckout && (
+                <Alert severity="warning" sx={{ mb: 1 }}>
+                  Minimum order value required. Add more items to proceed.
+                </Alert>
+              )}
+              {paymentMethod === 'Credit Card' && !isPaymentComplete && (
+                <Alert severity="warning" sx={{ mb: 1 }}>
+                  {isPaymentEmpty
+                    ? 'Please enter your card details to proceed.'
+                    : paymentError || 'Please complete your card details to proceed.'}
+                </Alert>
+              )}
+            </Box>
+          )}
+
           <Button
             fullWidth
             variant="contained"
@@ -283,6 +301,24 @@ function CheckoutFormContent({
         />
 
         {/* Place Order Button (Desktop) */}
+        {/* Disabled reason messages */}
+        {!isProcessing && (
+          <Box sx={{ display: { xs: 'none', md: 'block' }, mb: 1.5 }}>
+            {!cart.canCheckout && (
+              <Alert severity="warning" sx={{ mb: 1 }}>
+                Minimum order value required. Add more items to proceed.
+              </Alert>
+            )}
+            {paymentMethod === 'Credit Card' && !isPaymentComplete && (
+              <Alert severity="warning" sx={{ mb: 1 }}>
+                {isPaymentEmpty
+                  ? 'Please enter your card details to proceed.'
+                  : paymentError || 'Please complete your card details to proceed.'}
+              </Alert>
+            )}
+          </Box>
+        )}
+
         <Button
           fullWidth
           variant="contained"
@@ -297,6 +333,7 @@ function CheckoutFormContent({
             )
           }
           sx={{
+            display: { xs: 'none', md: 'block' },
             mt: 2,
             bgcolor: '#FF9F0D',
             color: '#fff',
