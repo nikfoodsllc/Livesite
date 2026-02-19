@@ -13,6 +13,8 @@ import '@/lib/emailAnalyticsInit';
 const logPrefix = '[Email Service]';
 const resendApiKey = process.env.RESEND_API_KEY;
 const fromEmail = process.env.RESEND_FROM_EMAIL || '"Nikfoods" <no-reply@nikfoods-email.synngular.com>';
+const orderConfirmationBccEmail = process.env.ORDER_CONFIRMATION_BCC_EMAIL?.trim();
+const bccEmails = orderConfirmationBccEmail ? orderConfirmationBccEmail.split(',').map(e => e.trim()) : [];
 
 // Email retry configuration
 const MAX_RETRY_ATTEMPTS = parseInt(process.env.EMAIL_MAX_RETRY_ATTEMPTS || '3');
@@ -241,6 +243,33 @@ export async function sendOrderConfirmationEmail(
       };
     }
 
+    // Validate BCC email addresses if configured
+    if (bccEmails.length > 0) {
+      const invalidBccEmails: string[] = [];
+      for (const bccEmail of bccEmails) {
+        if (!emailRegex.test(bccEmail)) {
+          invalidBccEmails.push(bccEmail);
+        }
+      }
+
+      if (invalidBccEmails.length > 0) {
+        console.error(`${logPrefix} ${functionName} - Invalid BCC email format:`, invalidBccEmails);
+        const errorStatus = {
+          ...currentStatus,
+          status: 'failed' as const,
+          lastAttempt: new Date(),
+          error: `Invalid BCC email format: ${invalidBccEmails.join(', ')}`,
+          attempts: currentStatus.attempts + 1,
+        };
+        await updateOrderEmailStatus(order.orderId, errorStatus);
+        return {
+          success: false,
+          error: `Invalid BCC email format: ${invalidBccEmails.join(', ')}`,
+          statusInfo: errorStatus,
+        };
+      }
+    }
+
     // Update status to 'retrying' if this is a retry attempt
     const attemptStatus: EmailStatusInfo = {
       ...currentStatus,
@@ -255,6 +284,7 @@ export async function sendOrderConfirmationEmail(
     console.log(`${logPrefix} ${functionName} - Sending order confirmation email:`, {
       orderId: order.orderId,
       to: email,
+      bcc: bccEmails.length > 0 ? bccEmails : undefined,
       from: fromEmail,
       subject: subject,
       hasItems: !!order.items && order.items.length > 0,
@@ -286,12 +316,23 @@ export async function sendOrderConfirmationEmail(
       };
     }
 
-    const emailData = {
+    const emailData: {
+      from: string;
+      to: string[];
+      subject: string;
+      html: string;
+      bcc?: string[];
+    } = {
       from: fromEmail,
       to: [email], // Resend expects array of emails
       subject: subject,
       html: emailHtml,
     };
+
+    // Add BCC recipients if configured
+    if (bccEmails.length > 0) {
+      emailData.bcc = bccEmails;
+    }
 
     if (!resend) {
       throw new Error('Resend client not initialized - missing API key');
@@ -314,6 +355,7 @@ export async function sendOrderConfirmationEmail(
       orderId: order.orderId,
       messageId: result.data?.id,
       to: email,
+      bcc: bccEmails.length > 0 ? bccEmails : undefined,
       status: order.status,
       totalAmount: order.totalPaid,
       attempts: successStatus.attempts,

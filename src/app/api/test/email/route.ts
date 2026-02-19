@@ -139,6 +139,7 @@ export async function GET() {
     const config = {
       resendApiKey: process.env.RESEND_API_KEY ? 'Configured ✓' : 'Not configured ✗',
       fromEmail: process.env.RESEND_FROM_EMAIL || 'Not configured',
+      orderConfirmationBccEmail: process.env.ORDER_CONFIRMATION_BCC_EMAIL || 'Not configured',
       timestamp: formatAPITimestamp(new Date()),
     };
 
