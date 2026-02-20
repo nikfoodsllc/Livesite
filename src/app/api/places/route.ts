@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     // Call Google Maps Autocomplete API
     const googleUrl = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(
       input
-    )}&key=${apiKey}&components=country:us`;
+    )}&key=${apiKey}&components=country:us|administrative_area:WA&types=address&location=47.7511,-120.7401&radius=150000`;
 
     const response = await fetch(googleUrl);
     const data = await response.json();

@@ -105,8 +105,8 @@ export default function AddressSearch({ onAddressSelect, disabled }: AddressSear
       renderInput={(params) => (
         <TextField
           {...params}
-          label="Search for an address *"
-          placeholder="Start typing your address..."
+          label="Search for a Washington address *"
+          placeholder="Start typing your Washington address..."
           InputProps={{
             ...params.InputProps,
             startAdornment: (
