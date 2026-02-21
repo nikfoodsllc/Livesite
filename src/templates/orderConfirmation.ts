@@ -88,7 +88,7 @@ export function getOrderConfirmationEmailTemplate(order: Order): string {
                         ${day.day}
                       </h4>
                       <p style="margin: 4px 0 0 0; color: #6B7280; font-size: 13px;">
-                        ${formatDate(day.actualDeliveryDate || day.deliveryDate)}
+                        Deliver on ${formatDate(day.actualDeliveryDate || day.deliveryDate)}
                       </p>
                     </div>
 

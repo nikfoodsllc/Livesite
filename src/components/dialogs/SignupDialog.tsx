@@ -48,7 +48,8 @@ export default function SignupDialog({
   const { login } = useAuth();
 
   // Step 1 fields
-  const [fullName, setFullName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
@@ -57,7 +58,8 @@ export default function SignupDialog({
   const [acceptNotifications, setAcceptNotifications] = useState(false);
 
   // Focus states
-  const [fullNameFocused, setFullNameFocused] = useState(false);
+  const [firstNameFocused, setFirstNameFocused] = useState(false);
+  const [lastNameFocused, setLastNameFocused] = useState(false);
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
   const [phoneFocused, setPhoneFocused] = useState(false);
@@ -76,8 +78,12 @@ export default function SignupDialog({
   const validateStep1 = (): boolean => {
     const newErrors: { [key: string]: string } = {};
 
-    if (!fullName.trim()) {
-      newErrors.fullName = 'Full name is required';
+    if (!firstName.trim()) {
+      newErrors.firstName = 'First name is required';
+    }
+
+    if (!lastName.trim()) {
+      newErrors.lastName = 'Last name is required';
     }
 
     if (!email.trim()) {
@@ -117,7 +123,7 @@ export default function SignupDialog({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          fullName,
+          fullName: `${firstName} ${lastName}`.trim(),
           email,
           password,
           phone,
@@ -157,7 +163,8 @@ export default function SignupDialog({
 
   const handleClose = () => {
     // Reset form
-    setFullName('');
+    setFirstName('');
+    setLastName('');
     setEmail('');
     setPassword('');
     setPhone('');
@@ -264,66 +271,136 @@ export default function SignupDialog({
             gap: 2.5,
           }}
         >
-            {/* Full Name Input */}
-            <TextField
-              fullWidth
-              type="text"
-              placeholder="Full Name"
-              value={fullName}
-              onChange={(e) => {
-                setFullName(e.target.value);
-                if (errors.fullName) {
-                  setErrors({ ...errors, fullName: '' });
-                }
-              }}
-              onFocus={() => setFullNameFocused(true)}
-              onBlur={() => setFullNameFocused(false)}
-              error={!!errors.fullName}
-              helperText={errors.fullName}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <IconUser
-                      size={20}
-                      color={fullNameFocused ? '#FF9F0D' : '#666'}
-                    />
-                  </InputAdornment>
-                ),
-              }}
+            {/* First Name and Last Name Inputs */}
+            <Box
               sx={{
-                '& .MuiOutlinedInput-root': {
-                  height: 56,
-                  borderRadius: '12px',
-                  backgroundColor: fullNameFocused ? '#FFF9F2' : '#FAFAFA',
-                  transition: 'all 0.2s ease',
-                  '& fieldset': {
-                    borderWidth: 2,
-                    borderColor: errors.fullName ? '#f44336' : '#E8E8E8',
-                  },
-                  '&:hover fieldset': {
-                    borderColor: errors.fullName
-                      ? '#f44336'
-                      : fullNameFocused
-                      ? '#FF9F0D'
-                      : '#D0D0D0',
-                  },
-                  '&.Mui-focused': {
-                    backgroundColor: '#FFF9F2',
-                    boxShadow: '0 0 0 4px rgba(255, 159, 13, 0.1)',
-                  },
-                  '&.Mui-focused fieldset': {
-                    borderColor: errors.fullName ? '#f44336' : '#FF9F0D',
-                  },
-                },
-                '& input': {
-                  fontSize: 15,
-                  '&::placeholder': {
-                    color: '#999',
-                    opacity: 1,
-                  },
-                },
+                display: 'grid',
+                gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+                gap: 2,
               }}
-            />
+            >
+              {/* First Name Input */}
+              <TextField
+                fullWidth
+                type="text"
+                placeholder="First Name"
+                value={firstName}
+                onChange={(e) => {
+                  setFirstName(e.target.value);
+                  if (errors.firstName) {
+                    setErrors({ ...errors, firstName: '' });
+                  }
+                }}
+                onFocus={() => setFirstNameFocused(true)}
+                onBlur={() => setFirstNameFocused(false)}
+                error={!!errors.firstName}
+                helperText={errors.firstName}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <IconUser
+                        size={20}
+                        color={firstNameFocused ? '#FF9F0D' : '#666'}
+                      />
+                    </InputAdornment>
+                  ),
+                }}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    height: 56,
+                    borderRadius: '12px',
+                    backgroundColor: firstNameFocused ? '#FFF9F2' : '#FAFAFA',
+                    transition: 'all 0.2s ease',
+                    '& fieldset': {
+                      borderWidth: 2,
+                      borderColor: errors.firstName ? '#f44336' : '#E8E8E8',
+                    },
+                    '&:hover fieldset': {
+                      borderColor: errors.firstName
+                        ? '#f44336'
+                        : firstNameFocused
+                        ? '#FF9F0D'
+                        : '#D0D0D0',
+                    },
+                    '&.Mui-focused': {
+                      backgroundColor: '#FFF9F2',
+                      boxShadow: '0 0 0 4px rgba(255, 159, 13, 0.1)',
+                    },
+                    '&.Mui-focused fieldset': {
+                      borderColor: errors.firstName ? '#f44336' : '#FF9F0D',
+                    },
+                  },
+                  '& input': {
+                    fontSize: 15,
+                    '&::placeholder': {
+                      color: '#999',
+                      opacity: 1,
+                    },
+                  },
+                }}
+              />
+
+              {/* Last Name Input */}
+              <TextField
+                fullWidth
+                type="text"
+                placeholder="Last Name"
+                value={lastName}
+                onChange={(e) => {
+                  setLastName(e.target.value);
+                  if (errors.lastName) {
+                    setErrors({ ...errors, lastName: '' });
+                  }
+                }}
+                onFocus={() => setLastNameFocused(true)}
+                onBlur={() => setLastNameFocused(false)}
+                error={!!errors.lastName}
+                helperText={errors.lastName}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <IconUser
+                        size={20}
+                        color={lastNameFocused ? '#FF9F0D' : '#666'}
+                      />
+                    </InputAdornment>
+                  ),
+                }}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    height: 56,
+                    borderRadius: '12px',
+                    backgroundColor: lastNameFocused ? '#FFF9F2' : '#FAFAFA',
+                    transition: 'all 0.2s ease',
+                    '& fieldset': {
+                      borderWidth: 2,
+                      borderColor: errors.lastName ? '#f44336' : '#E8E8E8',
+                    },
+                    '&:hover fieldset': {
+                      borderColor: errors.lastName
+                        ? '#f44336'
+                        : lastNameFocused
+                        ? '#FF9F0D'
+                        : '#D0D0D0',
+                    },
+                    '&.Mui-focused': {
+                      backgroundColor: '#FFF9F2',
+                      boxShadow: '0 0 0 4px rgba(255, 159, 13, 0.1)',
+                    },
+                    '&.Mui-focused fieldset': {
+                      borderColor: errors.lastName ? '#f44336' : '#FF9F0D',
+                    },
+                  },
+                  '& input': {
+                    fontSize: 15,
+                    '&::placeholder': {
+                      color: '#999',
+                      opacity: 1,
+                    },
+                  },
+                }}
+              />
+            </Box>
 
             {/* Email Input */}
             <TextField
