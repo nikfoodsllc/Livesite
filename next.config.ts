@@ -1,7 +1,5 @@
 import type { NextConfig } from "next";
-
 const nextConfig: NextConfig = {
-  // reactCompiler: true, // Temporarily disabled to prevent timeout issues
   turbopack: {},
   images: {
     remotePatterns: [
@@ -17,12 +15,21 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  // Ensure MongoDB is never bundled for the client
+  async headers() {
+    return [
+      {
+        source: '/api/:path*',
+        headers: [
+          { key: 'Access-Control-Allow-Origin', value: '*' },
+          { key: 'Access-Control-Allow-Methods', value: 'GET,POST,PUT,DELETE,OPTIONS' },
+          { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization' },
+        ],
+      },
+    ];
+  },
   serverExternalPackages: ['mongodb'],
-  // Additional webpack configuration to exclude Node.js modules from client bundle
   webpack: (config, { isServer }) => {
     if (!isServer) {
-      // Exclude Node.js built-in modules from client bundle
       config.resolve.fallback = {
         ...config.resolve.fallback,
         fs: false,
@@ -37,13 +44,10 @@ const nextConfig: NextConfig = {
         zlib: false,
         events: false,
       };
-
-      // Exclude mongodb from client bundle completely
       config.externals = config.externals || [];
       config.externals.push('mongodb');
     }
     return config;
   },
 };
-
 export default nextConfig;
