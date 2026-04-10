@@ -1,0 +1,17 @@
+{
+  "headers": [
+    {
+      "source": "/.well-known/apple-developer-merchantid-domain-association.txt",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "text/plain"
+        },
+        {
+          "key": "Content-Disposition",
+          "value": "inline"
+        }
+      ]
+    }
+  ]
+}
