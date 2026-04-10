@@ -91,6 +91,7 @@ export default function AddressSearch({ onAddressSelect, disabled }: AddressSear
   return (
     <Autocomplete
       options={options}
+      filterOptions={(opts)=>opts}
       getOptionLabel={(option) => option.description}
       inputValue={inputValue}
       onInputChange={handleInputChange}
