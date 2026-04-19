@@ -156,7 +156,7 @@ export function getOrderConfirmationEmailTemplate(order: Order): string {
                       <td style="padding: 8px 0; color: #1A1106; font-size: 15px; text-align: right; font-weight: 600;">${formatCurrency(order.deliveryFee, order.currency)}</td>
                     </tr>
                     <tr>
-                      <td style="padding: 8px 0; color: #1A1106; font-size: 15px; width: 40%;">Tax (10.2%)</td>
+                      <td style="padding: 8px 0; color: #1A1106; font-size: 15px; width: 40%;">Tax (10.3%)</td>
                       <td style="padding: 8px 0; color: #1A1106; font-size: 15px; text-align: right; font-weight: 600;">${formatCurrency(order.taxes, order.currency)}</td>
                     </tr>
                     <tr>
