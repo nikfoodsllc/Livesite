@@ -163,7 +163,8 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   const { authenticatedFetch } = useApiClient();
   const [cart, setCart] = useState<Cart | null>(null);
   const [summary, setSummary] = useState<CartSummary | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  // True until first load finishes so pages (e.g. checkout) don't treat "cart not yet hydrated" as empty.
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [itemCount, setItemCount] = useState(0);
   const [selectedAddressId, setSelectedAddressId] = useState<string | undefined>();
@@ -204,37 +205,31 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
       console.log('[CartContext] convertLocalCartToCart returned:', localCartData);
 
-      // Use setTimeout to avoid synchronous setState in useEffect
-      setTimeout(() => {
-        if (localCartData) {
-          console.log('[CartContext] Setting cart state with:', localCartData);
-          setCart(localCartData);
-          setSummary({
-            subtotal: localCartData.subtotal,
-            tax: localCartData.tax,
-            taxRate: TAX_RATE,
-            deliveryFee: localCartData.deliveryFee,
-            platformFee: localCartData.platformFee,
-            discount: 0,
-            total: localCartData.totalAmount,
-            itemCount: localCartData.itemCount,
-          });
-          setItemCount(localCartData.itemCount);
-        } else {
-          setCart(null);
-          setSummary(null);
-          setItemCount(0);
-        }
-      }, 0);
-    } catch (err) {
-      console.error('Error fetching cart:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load cart');
-      // Use setTimeout to avoid synchronous setState in useEffect
-      setTimeout(() => {
+      if (localCartData) {
+        console.log('[CartContext] Setting cart state with:', localCartData);
+        setCart(localCartData);
+        setSummary({
+          subtotal: localCartData.subtotal,
+          tax: localCartData.tax,
+          taxRate: TAX_RATE,
+          deliveryFee: localCartData.deliveryFee,
+          platformFee: localCartData.platformFee,
+          discount: 0,
+          total: localCartData.totalAmount,
+          itemCount: localCartData.itemCount,
+        });
+        setItemCount(localCartData.itemCount);
+      } else {
         setCart(null);
         setSummary(null);
         setItemCount(0);
-      }, 0);
+      }
+    } catch (err) {
+      console.error('Error fetching cart:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load cart');
+      setCart(null);
+      setSummary(null);
+      setItemCount(0);
     } finally {
       setIsLoading(false);
     }
@@ -548,7 +543,10 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       await fetchCart(loadedZipcodeConfig, loadedAddressObject);
     };
 
-    loadLocationDataAndCart();
+    void loadLocationDataAndCart().catch((error) => {
+      console.error('Error loading cart on mount:', error);
+      setIsLoading(false);
+    });
   }, []); // Run once on mount - empty deps since we're using direct function calls
 
   return (
