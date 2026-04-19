@@ -19,9 +19,9 @@ const getDateForDayName = (dateString: string): Date => {
 
 /**
  * Tax rate applied to cart subtotal
- * @constant {number} TAX_RATE - 10.2% (0.102)
+ * @constant {number} TAX_RATE - 10.3% (0.103)
  */
-export const TAX_RATE = 0.102;
+export const TAX_RATE = 0.103;
 
 /**
  * Service fee rate applied to cart subtotal
