@@ -41,10 +41,23 @@ export default function SpiceLevelSelector({
 }: SpiceLevelSelectorProps) {
   return (
     <Box sx={{ mb: 3 }}>
-      <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1.5 }}>
-        Select Spice Level
+      <Typography variant="subtitle1" component="label" id="spice-level-label" sx={{ fontWeight: 600, mb: 1.5 }}>
+        Select Spice Level{' '}
+        <Typography
+          component="span"
+          sx={{
+            color: '#d32f2f',
+            fontWeight: 700,
+            lineHeight: 1,
+          }}
+          aria-hidden
+        >
+          *
+        </Typography>
       </Typography>
       <RadioGroup
+        aria-labelledby="spice-level-label"
+        aria-required
         value={selectedSpiceLevel}
         onChange={(e) => onSpiceLevelChange(e.target.value)}
       >

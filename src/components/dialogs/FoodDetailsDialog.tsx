@@ -77,7 +77,7 @@ export default function FoodDetailsDialog({
 
   const [quantity, setQuantity] = useState(currentQuantity);
   const [selectedPortion, setSelectedPortion] = useState(0);
-  const [selectedSpiceLevel, setSelectedSpiceLevel] = useState('normal');
+  const [selectedSpiceLevel, setSelectedSpiceLevel] = useState('');
   const [useEcoContainer, setUseEcoContainer] = useState(false);
 
   const [comboSelections, setComboSelections] = useState<Record<string, string[]>>({});
@@ -92,25 +92,39 @@ export default function FoodDetailsDialog({
     }
   }, [currentQuantity, foodItem?._id, quantity]);
 
-  // Load existing combo selections from cart when dialog opens for an item already in cart
+  // When dialog opens: load customizations from cart for existing line items, or reset for new adds
   useEffect(() => {
-    if (open && foodItem && currentQuantity > 0 && dayGroup) {
-      // Get the specific day for this dayGroup
-      const cart = localCart.getCart();
+    if (!open || !foodItem) return;
+
+    if (currentQuantity > 0 && dayGroup) {
       const dayName = dayGroup.day as DayType;
-      const dayData = cart.days[dayName];
+      const cartItem = localCart.getFirstLineForFoodOnDay(dayName, foodItem._id);
 
-      if (dayData && dayData.items) {
-        // Find the cart item (using the foodItemId as key)
-        const cartItem = Object.values(dayData.items).find(item => item.foodItemId === foodItem._id);
-
-        if (cartItem && cartItem.comboSelections) {
-          // Load existing selections from cart
+      if (cartItem) {
+        if (cartItem.comboSelections) {
           setComboSelections(cartItem.comboSelections);
-          return;
         }
+        if (foodItem.hasSpiceLevel) {
+          setSelectedSpiceLevel(cartItem.selectedSpiceLevel ? String(cartItem.selectedSpiceLevel) : '');
+        } else {
+          setSelectedSpiceLevel('');
+        }
+        if (typeof cartItem.isEcoFriendlyContainer === 'boolean') {
+          setUseEcoContainer(cartItem.isEcoFriendlyContainer);
+        }
+        if (cartItem.selectedPortion && foodItem.portions?.length) {
+          const idx = foodItem.portions.indexOf(cartItem.selectedPortion);
+          setSelectedPortion(idx >= 0 ? idx : 0);
+        } else {
+          setSelectedPortion(0);
+        }
+        return;
       }
     }
+
+    setSelectedPortion(0);
+    setSelectedSpiceLevel('');
+    setUseEcoContainer(false);
   }, [open, foodItem, currentQuantity, dayGroup]);
 
   // Re-initialize combo selections when foodItem changes (for new items)
@@ -222,46 +236,42 @@ export default function FoodDetailsDialog({
   const handleQuantityChange = (newQuantity: number) => {
     if (!foodItem) return;
 
+    if (foodItem.hasSpiceLevel && !selectedSpiceLevel.trim() && newQuantity > 0) {
+      showErrorNotification(
+        showNotification,
+        'Please select a spice level before updating the cart.',
+        'Spice level required'
+      );
+      return;
+    }
+
     setQuantity(newQuantity);
 
     // If we have a dayGroup context, check if item exists for that specific day
     if (dayGroup) {
       const dayName = dayGroup.day as DayType;
-      const cart = localCart.getCart();
-      const itemExists = cart.days[dayName]?.items[foodItem._id];
+      const existingLine = localCart.getFirstLineForFoodOnDay(dayName, foodItem._id);
 
-      if (itemExists && newQuantity > 0) {
-        // Item exists in cart for this specific day, update the quantity
-        const customizations: CartCustomizations = {
-          selectedPortion: foodItem.portions?.[selectedPortion] || '',
-          selectedPortionPrice: foodItem.portions?.[selectedPortion] ? foodItem.portionPrices?.[selectedPortion] : undefined,
-          selectedSpiceLevel: selectedSpiceLevel as SpiceLevel,
-          isEcoFriendlyContainer: useEcoContainer,
-          ecoContainerCharge: useEcoContainer ? foodItem.ecoContainerCharge : undefined,
-          comboSelections,
-        };
+      if (existingLine && newQuantity > 0) {
+        localCart.updateQuantity(dayName, existingLine.lineId, newQuantity);
+        refreshCart?.();
 
-        onAddToCart?.(foodItem, newQuantity, customizations, dayName, dayGroup.date);
-
-        // Show feedback for quantity update
         const action = newQuantity > currentQuantity ? 'increased' : 'decreased';
         showSuccessNotification(
           showNotification,
           `${foodItem.name} quantity ${action} to ${newQuantity} for ${dayName}`,
           'Cart Updated'
         );
-      } else if (newQuantity === 0 && itemExists) {
-        // Remove item from this specific day
-        localCart.removeItem(dayName, foodItem._id);
+      } else if (newQuantity === 0 && existingLine) {
+        localCart.removeItem(dayName, existingLine.lineId);
         refreshCart?.();
 
-        // Show feedback for item removal
         showSuccessNotification(
           showNotification,
           `${foodItem.name} has been removed from your cart`,
           'Item Removed'
         );
-      } else if (!itemExists && newQuantity > 0) {
+      } else if (!existingLine && newQuantity > 0) {
         // Item doesn't exist in cart for this day, but user wants to add it
         // This can happen when user clicks "+" on an item that exists for another day
         const customizations: CartCustomizations = {
@@ -289,17 +299,22 @@ export default function FoodDetailsDialog({
       const existingDays = localCart.findDaysWithItem(foodItem._id);
 
       if (existingDays.length > 0 && newQuantity > 0) {
-        const customizations: CartCustomizations = {
-          selectedPortion: foodItem.portions?.[selectedPortion] || '',
-          selectedPortionPrice: foodItem.portions?.[selectedPortion] ? foodItem.portionPrices?.[selectedPortion] : undefined,
-          selectedSpiceLevel: selectedSpiceLevel as SpiceLevel,
-          isEcoFriendlyContainer: useEcoContainer,
-          ecoContainerCharge: useEcoContainer ? foodItem.ecoContainerCharge : undefined,
-          comboSelections,
-        };
-
         const firstDay = existingDays[0];
-        onAddToCart?.(foodItem, newQuantity, customizations, firstDay.day, firstDay.date);
+        const line = localCart.getFirstLineForFoodOnDay(firstDay.day, foodItem._id);
+        if (line) {
+          localCart.updateQuantity(firstDay.day, line.lineId, newQuantity);
+          refreshCart?.();
+        } else {
+          const customizations: CartCustomizations = {
+            selectedPortion: foodItem.portions?.[selectedPortion] || '',
+            selectedPortionPrice: foodItem.portions?.[selectedPortion] ? foodItem.portionPrices?.[selectedPortion] : undefined,
+            selectedSpiceLevel: selectedSpiceLevel as SpiceLevel,
+            isEcoFriendlyContainer: useEcoContainer,
+            ecoContainerCharge: useEcoContainer ? foodItem.ecoContainerCharge : undefined,
+            comboSelections,
+          };
+          onAddToCart?.(foodItem, newQuantity, customizations, firstDay.day, firstDay.date);
+        }
 
         const action = newQuantity > currentQuantity ? 'increased' : 'decreased';
         showSuccessNotification(
@@ -309,7 +324,7 @@ export default function FoodDetailsDialog({
         );
       } else if (newQuantity === 0 && existingDays.length > 0) {
         existingDays.forEach(({ day }) => {
-          localCart.removeItem(day, foodItem._id);
+          localCart.removeAllLinesForFood(day, foodItem._id);
         });
         refreshCart?.();
 
@@ -435,6 +450,15 @@ export default function FoodDetailsDialog({
       finalComboSelections = defaults;
     }
 
+    if (foodItem.hasSpiceLevel && !selectedSpiceLevel.trim()) {
+      showErrorNotification(
+        showNotification,
+        'Please select a spice level before adding this item to your cart.',
+        'Spice level required'
+      );
+      return;
+    }
+
     // Validate combo selections for all sections
     if (foodItem.hasCombo && foodItem.sections) {
       for (const section of foodItem.sections) {
@@ -501,21 +525,15 @@ export default function FoodDetailsDialog({
   const handleClose = () => {
     setQuantity(currentQuantity);
     setSelectedPortion(0);
-    setSelectedSpiceLevel('normal');
+    setSelectedSpiceLevel('');
     setUseEcoContainer(false);
     setComboSelections({});
     onClose();
   };
 
-  // Reset portion to default (index 0) when dialog opens with a new item
-  useEffect(() => {
-    if (open && foodItem) {
-      // Ensure portion is reset to 0 when dialog opens
-      setSelectedPortion(0);
-    }
-  }, [open, foodItem]);
-
   if (!foodItem) return null;
+
+  const spiceRequiredIncomplete = Boolean(foodItem.hasSpiceLevel && !selectedSpiceLevel.trim());
 
   return (
     <Dialog
@@ -707,6 +725,7 @@ export default function FoodDetailsDialog({
             <Button
               variant="contained"
               onClick={handleAddToCart}
+              disabled={spiceRequiredIncomplete}
               sx={{
                 backgroundColor: '#f89c35',
                 color: 'white',
@@ -717,6 +736,10 @@ export default function FoodDetailsDialog({
                 borderRadius: 2,
                 '&:hover': {
                   backgroundColor: '#e08929',
+                },
+                '&.Mui-disabled': {
+                  backgroundColor: '#e5e7eb',
+                  color: '#9ca3af',
                 },
               }}
             >
@@ -757,10 +780,14 @@ export default function FoodDetailsDialog({
               </Typography>
               <IconButton
                 onClick={() => handleQuantityChange(quantity + 1)}
+                disabled={spiceRequiredIncomplete}
                 sx={{
                   color: 'white',
                   '&:hover': {
                     backgroundColor: 'rgba(255,255,255,0.1)',
+                  },
+                  '&.Mui-disabled': {
+                    color: 'rgba(255,255,255,0.4)',
                   },
                 }}
               >

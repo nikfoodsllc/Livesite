@@ -3,11 +3,13 @@ import { DayType, SpiceLevel } from './cart';
 
 /**
  * LocalStorage Cart Item
- * Represents a single item in the cart with all customizations
+ * Represents a single line in the cart (unique variant per delivery day).
+ * Keys in LocalCartDay.items are lineId, not foodItemId.
  */
 export interface LocalCartItem {
+  lineId: string;
   foodItemId: string;
-  foodItem: FoodItem; // Store full item data for display without API calls
+  foodItem: FoodItem;
   quantity: number;
   selectedPortion?: string;
   selectedPortionPrice?: number;
@@ -16,9 +18,9 @@ export interface LocalCartItem {
   ecoContainerCharge?: number;
   comboSelections?: Record<string, string[]>; // { sectionId: itemId[] }
   notes?: string;
-  unitPrice: number; // Price per single item with customizations
-  totalPrice: number; // unitPrice × quantity
-  addedAt: string; // ISO timestamp when item was added
+  unitPrice: number;
+  totalPrice: number;
+  addedAt: string;
 }
 
 /**
@@ -27,22 +29,20 @@ export interface LocalCartItem {
  */
 export interface LocalCartDay {
   day: DayType;
-  date: string; // ISO date string
-  items: {
-    [foodItemId: string]: LocalCartItem;
-  };
+  date: string;
+  /** Keys are cart line IDs (UUIDs), not foodItemIds */
+  items: Record<string, LocalCartItem>;
 }
 
 /**
  * LocalStorage Cart
- * Complete cart structure stored in localStorage
  */
 export interface LocalCart {
   days: {
-    [day: string]: LocalCartDay; // Key is DayType ('Monday', 'Tuesday', etc.)
+    [day: string]: LocalCartDay;
   };
-  version: string; // For future migrations if structure changes
-  lastUpdated: string; // ISO timestamp
+  version: string;
+  lastUpdated: string;
 }
 
 /**

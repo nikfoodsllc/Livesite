@@ -10,7 +10,12 @@ interface FoodCardProps {
   imageUrl: string;
   name: string;
   price?: number | null;
+  /** Quantity for the +/- stepper (simple items). Ignored when alwaysShowAdd is true. */
   quantity?: number;
+  /** Total units in cart for this item (all variants). Drives the cart badge when > 0. */
+  inCartCount?: number;
+  /** When true, always show an Add button so users can add another variant (combo/spice/portions). */
+  alwaysShowAdd?: boolean;
   onAdd?: () => void;
   onIncrement?: () => void;
   onDecrement?: () => void;
@@ -30,6 +35,8 @@ export default function FoodCard({
   name,
   price,
   quantity = 0,
+  inCartCount,
+  alwaysShowAdd = false,
   onAdd,
   onIncrement,
   onDecrement,
@@ -45,6 +52,7 @@ export default function FoodCard({
 
   const cardWidth = isMobile ? 160 : 180;
   const imageSize = isMobile ? 80 : 100;
+  const badgeCount = inCartCount ?? quantity;
 
   return (
     <Card
@@ -66,7 +74,7 @@ export default function FoodCard({
       onClick={available ? onClick : undefined}
     >
       {/* Shopping Cart Indicator - Show if item is in cart */}
-      {quantity > 0 && (
+      {badgeCount > 0 && (
         <Tooltip title="View in cart" arrow placement="top">
           <Box
             onClick={(e) => {
@@ -282,7 +290,8 @@ export default function FoodCard({
           onClick={(e) => e.stopPropagation()} // Prevent card click when interacting with buttons
         >
           <QuantitySelector
-            quantity={quantity}
+            quantity={alwaysShowAdd ? 0 : quantity}
+            alwaysShowAdd={alwaysShowAdd}
             onAdd={onAdd}
             onIncrement={onIncrement}
             onDecrement={onDecrement}

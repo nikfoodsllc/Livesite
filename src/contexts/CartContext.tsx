@@ -80,7 +80,7 @@ async function convertLocalCartToCart(
     const items: CartItem[] = Object.values(localDay.items).map((localItem: LocalCartItem) => {
       console.log('[CartContext] Processing localItem:', localItem);
       return {
-        _id: `${localItem.foodItemId}-${localDay.day}`,
+        _id: localItem.lineId,
         foodItem: localItem.foodItem,
         quantity: localItem.quantity,
         day: localDay.day,
@@ -257,26 +257,24 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
       // Find which day this item belongs to and get its foodItemId
       let itemDay: DayType | undefined;
-      let foodItemId: string | undefined;
+      let lineId: string | undefined;
 
       for (const day of currentCart.days) {
         const item = day.items.find((i) => i._id === update.cartItemId);
         if (item) {
           itemDay = day.day;
-          // Extract foodItemId from the unique ID (format: "foodItemId-day")
-          foodItemId = item._id.split('-')[0];
+          lineId = update.cartItemId;
           break;
         }
       }
 
-      if (!itemDay || !foodItemId) {
+      if (!itemDay || !lineId) {
         console.error('Item not found in cart for update');
         return;
       }
 
-      // Update quantity in localStorage
       if (update.quantity !== undefined) {
-        localCart.updateQuantity(itemDay, foodItemId, update.quantity);
+        localCart.updateQuantity(itemDay, lineId, update.quantity);
       }
 
       // Refresh cart to pick up changes
@@ -298,25 +296,23 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
       // Find which day this item belongs to and get its foodItemId
       let itemDay: DayType | undefined;
-      let foodItemId: string | undefined;
+      let lineId: string | undefined;
 
       for (const day of currentCart.days) {
         const item = day.items.find((i) => i._id === itemId);
         if (item) {
           itemDay = day.day;
-          // Extract foodItemId from the unique ID (format: "foodItemId-day")
-          foodItemId = item._id.split('-')[0];
+          lineId = itemId;
           break;
         }
       }
 
-      if (!itemDay || !foodItemId) {
+      if (!itemDay || !lineId) {
         console.error('Item not found in cart for removal');
         return;
       }
 
-      // Remove item from localStorage
-      localCart.removeItem(itemDay, foodItemId);
+      localCart.removeItem(itemDay, lineId);
 
       // Refresh cart to pick up changes
       await fetchCart();
