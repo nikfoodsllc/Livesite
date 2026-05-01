@@ -113,11 +113,17 @@ export default function AddressesPage() {
 
       // Use returned address data instead of refetching
       if (data.data) {
-        setAddresses(prev => [...prev, data.data]);
-      } else {
-        // Fallback to refetch if address not returned
-        await fetchAddresses();
-      }
+
+  // agar new address default hai to old default remove karo
+  const updated = data.data.isDefault
+    ? addresses.map(addr => ({
+        ...addr,
+        isDefault: false
+      }))
+    : addresses;
+
+  setAddresses([...updated, data.data]);
+}
     } else {
       // Update existing address
       const response = await authenticatedFetch('/api/address', {
@@ -141,11 +147,24 @@ export default function AddressesPage() {
       invalidateAddressCache();
 
       // Use returned address data instead of refetching
-      if (data.data) {
-        setAddresses(prev =>
-          prev.map(addr => addr._id === data.data._id ? data.data : addr)
-        );
-      } else {
+     if (data.data) {
+
+  let updatedAddresses = addresses;
+
+  // agar edited address default ban raha hai
+  if (data.data.isDefault) {
+    updatedAddresses = addresses.map(addr => ({
+      ...addr,
+      isDefault: false
+    }));
+  }
+
+  setAddresses(
+    updatedAddresses.map(addr =>
+      addr._id === data.data._id ? data.data : addr
+    )
+  );
+}else {
         // Fallback to refetch if address not returned
         await fetchAddresses();
       }

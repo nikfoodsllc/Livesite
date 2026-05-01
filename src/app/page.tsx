@@ -15,6 +15,7 @@ import { DayType } from '@/types/cart';
 import { CartCustomizations } from '@/types/localCart';
 
 import * as localCart from '@/lib/localStorageCart';
+import { isFoodCustomizable } from '@/lib/foodItemUtils';
 import { useCart } from '@/contexts/CartContext';
 import { useHeader } from '@/contexts/HeaderContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -475,6 +476,12 @@ export default function Home() {
       return;
     }
 
+    // Spice level must be chosen in the details dialog before adding to cart
+    if (foodItem.hasSpiceLevel) {
+      handleOpenDialog(foodItem, dayGroup);
+      return;
+    }
+
     // If dayGroup is provided, use it directly (day-wise category with correct day)
     if (dayGroup) {
       handleAddToDayWiseCategory(foodItem, dayGroup);
@@ -534,6 +541,11 @@ export default function Home() {
       return;
     }
 
+    if (foodItem.hasSpiceLevel) {
+      handleOpenDialog(foodItem, dayGroup);
+      return;
+    }
+
     // If dayGroup is provided, use it directly (day-wise category with correct day)
     if (dayGroup) {
       handleIncrementForDayWiseCategory(foodItem, dayGroup);
@@ -562,35 +574,26 @@ export default function Home() {
   };
 
   const handleDecrement = (foodItemId: string, dayGroup?: any) => {
-    // If dayGroup is provided, decrement from that specific date
     if (dayGroup) {
-      // dayGroup now contains date string (YYYY-MM-DD) and day name
       const dateString = dayGroup.date;
       const dayName = dayGroup.day;
-
-      // Find the date option to get the day name for cart operations
       const dateOption = availableDates.find(d => d.date === dateString);
       const dayNameForCart = dateOption?.day || dayName;
 
       if (dayNameForCart) {
         const dayType = dayNameForCart as DayType;
         const dayQty = localCart.getDayQuantity(dayType, foodItemId);
-
         if (dayQty === 0) return;
 
         simulateLoading(foodItemId, 'decrement');
         setTimeout(() => {
-          if (dayQty > 1) {
-            localCart.updateQuantity(dayType, foodItemId, dayQty - 1);
-          } else {
-            localCart.removeItem(dayType, foodItemId);
-          }
+          localCart.decrementOneUnitForFoodOnDay(dayType, foodItemId);
+          refreshCart();
         }, 500);
         return;
       }
     }
 
-    // For flat categories, decrement from the first date that has the item
     const currentQty = getItemQuantity(foodItemId);
     if (currentQty === 0) return;
 
@@ -602,11 +605,8 @@ export default function Home() {
       if (dayQty > 0) {
         simulateLoading(foodItemId, 'decrement');
         setTimeout(() => {
-          if (dayQty > 1) {
-            localCart.updateQuantity(dayType, foodItemId, dayQty - 1);
-          } else {
-            localCart.removeItem(dayType, foodItemId);
-          }
+          localCart.decrementOneUnitForFoodOnDay(dayType, foodItemId);
+          refreshCart();
         }, 500);
         break;
       }
@@ -721,8 +721,12 @@ export default function Home() {
         const existingQuantity = localCart.getDayQuantity(dayType, foodItem._id);
 
         if (existingQuantity > 0) {
-          // Item exists in designated date, increment the quantity
-          localCart.updateQuantity(dayType, foodItem._id, existingQuantity + 1);
+          const line = localCart.getFirstLineForFoodOnDay(dayType, foodItem._id);
+          if (line) {
+            localCart.updateQuantity(dayType, line.lineId, line.quantity + 1);
+          } else {
+            localCart.addItem(dayType, dateString, foodItem, 1, {});
+          }
           showSuccessNotification(
             showNotification,
             `${foodItem.name} quantity increased to ${existingQuantity + 1} for ${displayName}`,
@@ -801,9 +805,8 @@ export default function Home() {
       customizations
     });
 
-    // Set the cart quantity directly (not adding to it)
     if (quantity === 0) {
-      localCart.removeItem(dayKey, cleanItem._id);
+      localCart.removeAllLinesForFood(dayKey, cleanItem._id);
     } else {
       localCart.addItem(dayKey, date, cleanItem, quantity, customizations);
     }
@@ -1086,16 +1089,21 @@ export default function Home() {
                               ? 'portions'
                               : 'simple';
 
+                          const customizable = isFoodCustomizable(item);
+                          const inCart = getItemQuantity(item._id);
+
                           return (
                             <FoodCard
                               key={item._id}
                               imageUrl={item.url}
                               name={item.name}
                               price={getPriceForDisplay(item)}
-                              quantity={getItemQuantity(item._id)}
+                              quantity={customizable ? 0 : inCart}
+                              inCartCount={inCart}
+                              alwaysShowAdd={customizable}
                               onAdd={() => handleAddToCart(item._id, item)}
-                              onIncrement={() => handleIncrement(item._id, item)}
-                              onDecrement={() => handleDecrement(item._id)}
+                              onIncrement={customizable ? undefined : () => handleIncrement(item._id, item)}
+                              onDecrement={customizable ? undefined : () => handleDecrement(item._id)}
                               onClick={() => handleOpenDialog(item)}
                               isLoading={loadingStates[item._id]}
                               itemType={itemType}
@@ -1146,16 +1154,21 @@ export default function Home() {
                                   ? 'portions'
                                   : 'simple';
 
+                              const customizable = isFoodCustomizable(item);
+                              const inCart = getItemQuantity(item._id, dayGroup.date);
+
                               return (
                                 <FoodCard
                                   key={`${item._id}-${dayGroup.date}`}
                                   imageUrl={item.url}
                                   name={item.name}
                                   price={getPriceForDisplay(item)}
-                                  quantity={getItemQuantity(item._id, dayGroup.date)}
+                                  quantity={customizable ? 0 : inCart}
+                                  inCartCount={inCart}
+                                  alwaysShowAdd={customizable}
                                   onAdd={() => handleAddToCart(item._id, item, dayGroup)}
-                                  onIncrement={() => handleIncrement(item._id, item, dayGroup)}
-                                  onDecrement={() => handleDecrement(item._id, dayGroup)}
+                                  onIncrement={customizable ? undefined : () => handleIncrement(item._id, item, dayGroup)}
+                                  onDecrement={customizable ? undefined : () => handleDecrement(item._id, dayGroup)}
                                   onClick={() => handleOpenDialog(item, dayGroup)}
                                   isLoading={loadingStates[item._id]}
                                   itemType={itemType}
@@ -1184,7 +1197,13 @@ export default function Home() {
         open={dialogOpen}
         onClose={handleCloseDialog}
         foodItem={selectedFoodItem}
-        currentQuantity={selectedFoodItem ? getItemQuantity(selectedFoodItem._id, (selectedFoodItem as any).__dayGroup?.date) : 0}
+        currentQuantity={
+          selectedFoodItem
+            ? isFoodCustomizable(selectedFoodItem)
+              ? 0
+              : getItemQuantity(selectedFoodItem._id, (selectedFoodItem as any).__dayGroup?.date)
+            : 0
+        }
         onAddToCart={handleAddToCartFromDialog}
         onOpenDaySelection={handleOpenDaySelectionWithCustomizations}
         refreshCart={handleRefreshCart}

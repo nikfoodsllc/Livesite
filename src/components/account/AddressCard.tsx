@@ -123,20 +123,7 @@ export default function AddressCard({ address, onEdit, onDelete }: AddressCardPr
               }}
             />
           )}
-          {address.floor && (
-            <Chip
-              label={`Floor: ${address.floor}`}
-              size="small"
-              sx={{
-                backgroundColor: '#FFF5E6',
-                color: theme.palette.primary.main,
-                border: '1px solid #FFE5B4',
-                fontWeight: 500,
-                fontSize: '12px',
-              }}
-            />
-          )}
-          {address.entrance && (
+           {address.entrance && (
             <Chip
               label={`Gate Code: ${address.entrance}`}
               size="small"
@@ -149,6 +136,42 @@ export default function AddressCard({ address, onEdit, onDelete }: AddressCardPr
               }}
             />
           )}
+        {address.floor && (
+  <Box
+    sx={{
+      mb: 2,
+      p: 2,
+      borderRadius: '10px',
+      border: '1px solid #FFE5B4',
+      backgroundColor: '#FFF9F0',
+      width: '100%'
+    }}
+  >
+    <Typography
+      variant="caption"
+      sx={{
+        display: 'block',
+        color: theme.palette.primary.main,
+        fontWeight: 600,
+         
+      }}
+    >
+      Delivery Instruction
+    </Typography>
+
+    <Typography
+      variant="body2"
+      sx={{
+        color: theme.palette.text.primary,
+        lineHeight: 1.6,
+        wordBreak: 'break-word'
+      }}
+    >
+      {address.floor}
+    </Typography>
+  </Box>
+)}
+         
         </Box>
       )}
 

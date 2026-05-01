@@ -5,6 +5,8 @@ import { IconPlus, IconMinus } from '@tabler/icons-react';
 
 interface QuantitySelectorProps {
   quantity?: number;
+  /** Always show the Add button (e.g. customizable menu items that allow multiple cart lines). */
+  alwaysShowAdd?: boolean;
   onAdd?: () => void;
   onIncrement?: () => void;
   onDecrement?: () => void;
@@ -19,6 +21,7 @@ interface QuantitySelectorProps {
 
 export default function QuantitySelector({
   quantity = 0,
+  alwaysShowAdd = false,
   onAdd,
   onIncrement,
   onDecrement,
@@ -32,8 +35,7 @@ export default function QuantitySelector({
   const iconSize = size === 'small' ? 16 : 20;
   const fontSize = size === 'small' ? '0.875rem' : '1rem';
 
-  // If quantity is 0, show Add button
-  if (quantity === 0) {
+  if (quantity === 0 || alwaysShowAdd) {
     return (
       <Button
         variant="contained"

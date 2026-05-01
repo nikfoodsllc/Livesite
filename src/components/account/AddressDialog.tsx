@@ -447,7 +447,7 @@ export default function AddressDialog({
                 />
                 <TextField
                   fullWidth
-                  label="Floor"
+                  label="Delivery instruction"
                   value={formData.floor}
                   onChange={handleChange('floor')}
                 />

@@ -5,11 +5,15 @@ import { generateAvailableDatesFromAPI } from './dayAvailabilityClient';
 import { getPSTDateString } from './timezone';
 
 const CART_STORAGE_KEY = 'nikfoods_guest_cart';
-const CART_VERSION = '1.0';
+const CART_VERSION = '2.0';
 
-/**
- * Get empty cart structure
- */
+function newLineId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `line-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+}
+
 function getEmptyCart(): LocalCart {
   return {
     days: {},
@@ -18,28 +22,87 @@ function getEmptyCart(): LocalCart {
   };
 }
 
+function normalizeComboSelections(
+  sel?: Record<string, string[] | string>
+): Record<string, string[]> {
+  if (!sel) return {};
+  const keys = Object.keys(sel).sort();
+  const out: Record<string, string[]> = {};
+  for (const k of keys) {
+    const v = sel[k];
+    out[k] = Array.isArray(v) ? [...v].sort() : [v as string];
+  }
+  return out;
+}
+
+/** Stable signature for merge: same food + same signature => increment quantity */
+function customizationSignature(foodItem: FoodItem, c: CartCustomizations): string {
+  const portion = c.selectedPortion || '';
+  const spice = foodItem.hasSpiceLevel ? String(c.selectedSpiceLevel ?? '') : '';
+  const eco = c.isEcoFriendlyContainer ? '1' : '0';
+  const notes = c.notes || '';
+  const combo = normalizeComboSelections(c.comboSelections as Record<string, string[] | string> | undefined);
+  return JSON.stringify({ portion, spice, eco, notes, combo });
+}
+
+function signatureFromLine(foodItem: FoodItem, line: LocalCartItem): string {
+  return customizationSignature(foodItem, {
+    selectedPortion: line.selectedPortion,
+    selectedPortionPrice: line.selectedPortionPrice,
+    selectedSpiceLevel: line.selectedSpiceLevel,
+    isEcoFriendlyContainer: line.isEcoFriendlyContainer,
+    ecoContainerCharge: line.ecoContainerCharge,
+    comboSelections: line.comboSelections,
+    notes: line.notes,
+  });
+}
+
 /**
- * Migrate cart data from old format to new format
- * Converts comboSelections from Record<string, string> to Record<string, string[]>
+ * v1.0: day.items keyed by foodItemId, no lineId on items.
+ * v2.0: day.items keyed by lineId, each item has lineId.
  */
-function migrateCartData(cart: LocalCart): LocalCart {
+function migrateV1ToV2(cart: LocalCart): boolean {
+  if (cart.version === '2.0') {
+    return false;
+  }
+
+  Object.values(cart.days).forEach((day) => {
+    const oldItems = day.items as Record<string, LocalCartItem>;
+    const newItems: Record<string, LocalCartItem> = {};
+
+    for (const item of Object.values(oldItems)) {
+      const lineId = item.lineId || newLineId();
+      newItems[lineId] = {
+        ...item,
+        lineId,
+        foodItemId: item.foodItemId || item.foodItem?._id || '',
+      };
+    }
+    day.items = newItems;
+  });
+
+  cart.version = '2.0';
+  console.log('[localStorageCart] Migrated cart from v1 to v2 (line IDs)');
+  return true;
+}
+
+/**
+ * Migrate comboSelections string values to string[]
+ */
+function migrateComboSelectionsFormat(cart: LocalCart): boolean {
   let migrated = false;
 
   Object.values(cart.days).forEach((day) => {
     Object.values(day.items).forEach((item) => {
       if (item.comboSelections) {
-        // Check if any values are strings (old format)
-        const hasOldFormat = Object.values(item.comboSelections).some(
-          (value) => typeof value === 'string'
-        );
-
+        const hasOldFormat = Object.values(item.comboSelections).some((value) => typeof value === 'string');
         if (hasOldFormat) {
           const newSelections: Record<string, string[]> = {};
           Object.entries(item.comboSelections).forEach(([sectionId, itemId]) => {
             if (typeof itemId === 'string') {
               newSelections[sectionId] = [itemId];
             } else {
-              newSelections[sectionId] = itemId;
+              newSelections[sectionId] = itemId as string[];
             }
           });
           item.comboSelections = newSelections;
@@ -50,16 +113,22 @@ function migrateCartData(cart: LocalCart): LocalCart {
   });
 
   if (migrated) {
-    console.log('[localStorageCart] Cart data migrated to new format');
+    console.log('[localStorageCart] Cart comboSelections format migrated');
   }
 
-  return cart;
+  return migrated;
 }
 
-/**
- * Get cart from localStorage
- * Returns empty cart if not found or invalid
- */
+function runMigrations(cart: LocalCart): { cart: LocalCart; changed: boolean } {
+  if (!cart.version) {
+    cart.version = '1.0';
+  }
+  let changed = false;
+  if (migrateV1ToV2(cart)) changed = true;
+  if (migrateComboSelectionsFormat(cart)) changed = true;
+  return { cart, changed };
+}
+
 export function getCart(): LocalCart {
   if (typeof window === 'undefined') {
     return getEmptyCart();
@@ -73,36 +142,29 @@ export function getCart(): LocalCart {
 
     const cart = JSON.parse(stored) as LocalCart;
 
-    // Validate cart structure
-    if (!cart.days || !cart.version) {
+    if (!cart.days) {
       console.warn('Invalid cart structure, resetting');
       return getEmptyCart();
     }
 
-    // Migrate cart data to new format if needed
-    const migratedCart = migrateCartData(cart);
-
-    // Save migrated cart back to storage
-    if (migratedCart !== cart) {
-      saveCart(migratedCart);
+    const { cart: migrated, changed } = runMigrations(cart);
+    if (changed) {
+      saveCart(migrated);
     }
-
-    return migratedCart;
+    return migrated;
   } catch (error) {
     console.error('Error reading cart from localStorage:', error);
     return getEmptyCart();
   }
 }
 
-/**
- * Save cart to localStorage
- */
 function saveCart(cart: LocalCart): void {
   if (typeof window === 'undefined') {
     return;
   }
 
   try {
+    cart.version = CART_VERSION;
     cart.lastUpdated = new Date().toISOString();
     localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
   } catch (error) {
@@ -110,33 +172,22 @@ function saveCart(cart: LocalCart): void {
   }
 }
 
-/**
- * Calculate unit price with customizations
- */
-function calculateUnitPrice(
-  foodItem: FoodItem,
-  customizations: CartCustomizations
-): number {
+function calculateUnitPrice(foodItem: FoodItem, customizations: CartCustomizations): number {
   let price = foodItem.price;
 
-  // Add portion price if selected (replaces base price)
   if (customizations.selectedPortionPrice) {
     price = customizations.selectedPortionPrice;
   }
 
-  // Add eco container charge
   if (customizations.isEcoFriendlyContainer && customizations.ecoContainerCharge) {
     price += customizations.ecoContainerCharge;
   }
 
-  // Add combo selections pricing
   if (customizations.comboSelections && foodItem.sections) {
     Object.entries(customizations.comboSelections).forEach(([sectionId, selectedItems]) => {
       const section = foodItem.sections?.find((s) => s._id === sectionId);
       if (section) {
-        // Handle both string (single) and array (multi) selections
         const itemIds = Array.isArray(selectedItems) ? selectedItems : [selectedItems];
-
         itemIds.forEach((itemId) => {
           const selectedItem = section.selectedItems.find((item) => item._id === itemId);
           if (selectedItem && selectedItem.price > 0) {
@@ -150,8 +201,20 @@ function calculateUnitPrice(
   return price;
 }
 
+export function getLinesForFoodOnDay(day: DayType, foodItemId: string): LocalCartItem[] {
+  const cart = getCart();
+  const dayData = cart.days[day];
+  if (!dayData?.items) return [];
+  return Object.values(dayData.items).filter((li) => li.foodItemId === foodItemId);
+}
+
+export function getFirstLineForFoodOnDay(day: DayType, foodItemId: string): LocalCartItem | undefined {
+  const lines = getLinesForFoodOnDay(day, foodItemId);
+  return lines[0];
+}
+
 /**
- * Add or update item in cart
+ * Add or merge line: same food + same customization signature => increment quantity; else new line.
  */
 export function addItem(
   day: DayType,
@@ -160,17 +223,8 @@ export function addItem(
   quantity: number,
   customizations: CartCustomizations = {}
 ): LocalCart {
-  console.log('[localStorageCart] addItem called with:', {
-    day,
-    date,
-    foodItem,
-    quantity,
-    customizations
-  });
-
   const cart = getCart();
 
-  // Initialize day if it doesn't exist
   if (!cart.days[day]) {
     cart.days[day] = {
       day,
@@ -179,18 +233,25 @@ export function addItem(
     };
   }
 
+  const sig = customizationSignature(foodItem, customizations);
+  const existing = Object.values(cart.days[day].items).find(
+    (li) => li.foodItemId === foodItem._id && signatureFromLine(foodItem, li) === sig
+  );
+
+  if (existing) {
+    existing.quantity += quantity;
+    existing.totalPrice = existing.unitPrice * existing.quantity;
+    existing.foodItem = foodItem;
+    saveCart(cart);
+    return cart;
+  }
+
   const unitPrice = calculateUnitPrice(foodItem, customizations);
   const totalPrice = unitPrice * quantity;
+  const lineId = newLineId();
 
-  console.log('[localStorageCart] Calculated prices:', {
-    unitPrice,
-    totalPrice,
-    selectedPortion: customizations.selectedPortion,
-    selectedPortionPrice: customizations.selectedPortionPrice
-  });
-
-  // Create or update cart item
-  cart.days[day].items[foodItem._id] = {
+  cart.days[day].items[lineId] = {
+    lineId,
     foodItemId: foodItem._id,
     foodItem,
     quantity,
@@ -206,37 +267,23 @@ export function addItem(
     addedAt: new Date().toISOString(),
   };
 
-  console.log('[localStorageCart] Cart item created:', cart.days[day].items[foodItem._id]);
-  console.log('[localStorageCart] About to save cart:', cart);
-
   saveCart(cart);
-
-  console.log('[localStorageCart] Cart saved. Current cart:', getCart());
-
   return cart;
 }
 
-/**
- * Update quantity for an item
- */
-export function updateQuantity(
-  day: DayType,
-  foodItemId: string,
-  newQuantity: number
-): LocalCart {
+export function updateQuantity(day: DayType, lineId: string, newQuantity: number): LocalCart {
   const cart = getCart();
 
-  if (!cart.days[day]?.items[foodItemId]) {
-    console.warn(`Item ${foodItemId} not found in cart for ${day}`);
+  if (!cart.days[day]?.items[lineId]) {
+    console.warn(`Line ${lineId} not found in cart for ${day}`);
     return cart;
   }
 
   if (newQuantity <= 0) {
-    // Remove item if quantity is 0 or less
-    return removeItem(day, foodItemId);
+    return removeItem(day, lineId);
   }
 
-  const item = cart.days[day].items[foodItemId];
+  const item = cart.days[day].items[lineId];
   item.quantity = newQuantity;
   item.totalPrice = item.unitPrice * newQuantity;
 
@@ -244,19 +291,37 @@ export function updateQuantity(
   return cart;
 }
 
-/**
- * Remove item from cart
- */
-export function removeItem(day: DayType, foodItemId: string): LocalCart {
+export function removeItem(day: DayType, lineId: string): LocalCart {
   const cart = getCart();
 
-  if (!cart.days[day]?.items[foodItemId]) {
+  if (!cart.days[day]?.items[lineId]) {
     return cart;
   }
 
-  delete cart.days[day].items[foodItemId];
+  delete cart.days[day].items[lineId];
 
-  // Remove day if no items left
+  if (Object.keys(cart.days[day].items).length === 0) {
+    delete cart.days[day];
+  }
+
+  saveCart(cart);
+  return cart;
+}
+
+/** Remove every cart line for this menu item on the given day (e.g. dialog quantity 0). */
+export function removeAllLinesForFood(day: DayType, foodItemId: string): LocalCart {
+  const cart = getCart();
+  const dayData = cart.days[day];
+  if (!dayData?.items) return cart;
+
+  const lineIds = Object.values(dayData.items)
+    .filter((li) => li.foodItemId === foodItemId)
+    .map((li) => li.lineId);
+
+  lineIds.forEach((id) => {
+    delete cart.days[day].items[id];
+  });
+
   if (Object.keys(cart.days[day].items).length === 0) {
     delete cart.days[day];
   }
@@ -266,34 +331,33 @@ export function removeItem(day: DayType, foodItemId: string): LocalCart {
 }
 
 /**
- * Get items for a specific day
+ * Decrease total units of this food on this day by one (newest line first).
  */
+export function decrementOneUnitForFoodOnDay(day: DayType, foodItemId: string): LocalCart {
+  const lines = getLinesForFoodOnDay(day, foodItemId);
+  if (lines.length === 0) return getCart();
+
+  const sorted = [...lines].sort((a, b) => (a.addedAt < b.addedAt ? 1 : -1));
+  const line = sorted[0];
+  if (line.quantity > 1) {
+    return updateQuantity(day, line.lineId, line.quantity - 1);
+  }
+  return removeItem(day, line.lineId);
+}
+
 export function getItemsForDay(day: DayType): LocalCartItem[] {
   const cart = getCart();
-
   if (!cart.days[day]) {
     return [];
   }
-
   return Object.values(cart.days[day].items);
 }
 
-/**
- * Get quantity for specific day and food item
- */
+/** Sum of quantities across all lines for this menu item on this day. */
 export function getDayQuantity(day: DayType, foodItemId: string): number {
-  const cart = getCart();
-
-  if (!cart.days[day]?.items[foodItemId]) {
-    return 0;
-  }
-
-  return cart.days[day].items[foodItemId].quantity;
+  return getLinesForFoodOnDay(day, foodItemId).reduce((sum, li) => sum + li.quantity, 0);
 }
 
-/**
- * Get total item count across all days
- */
 export function getItemCount(): number {
   const cart = getCart();
   let count = 0;
@@ -307,9 +371,6 @@ export function getItemCount(): number {
   return count;
 }
 
-/**
- * Get cart summary with totals
- */
 export function getCartSummary(): {
   itemCount: number;
   subtotal: number;
@@ -333,9 +394,6 @@ export function getCartSummary(): {
   };
 }
 
-/**
- * Clear entire cart
- */
 export function clearCart(): void {
   if (typeof window === 'undefined') {
     return;
@@ -348,9 +406,6 @@ export function clearCart(): void {
   }
 }
 
-/**
- * Clear items for a specific day
- */
 export function clearDay(day: DayType): LocalCart {
   const cart = getCart();
 
@@ -362,22 +417,14 @@ export function clearDay(day: DayType): LocalCart {
   return cart;
 }
 
-/**
- * Get all cart days sorted by date
- * Fetches enabled dates from API to determine sort order dynamically
- */
 export async function getAllDays(): Promise<LocalCartDay[]> {
-  // First, remove items from past dates (before today)
   await removePastDateItems();
 
   const cart = getCart();
   const days = Object.values(cart.days);
 
-  // Fetch enabled dates from API to get correct sort order
   const dateOptions = await generateAvailableDatesFromAPI(false);
 
-  // Create a map of day name to date string for sorting
-  // In the new date-based system, we sort by actual calendar date
   const dateMap = new Map<string, string>();
   dateOptions.forEach((option) => {
     if (option.day) {
@@ -385,7 +432,6 @@ export async function getAllDays(): Promise<LocalCartDay[]> {
     }
   });
 
-  // Sort days by their calendar date
   return days.sort((a, b) => {
     const dateA = dateMap.get(a.day) ?? '9999-12-31';
     const dateB = dateMap.get(b.day) ?? '9999-12-31';
@@ -393,18 +439,11 @@ export async function getAllDays(): Promise<LocalCartDay[]> {
   });
 }
 
-/**
- * Check if cart has any items
- */
 export function hasItems(): boolean {
   const cart = getCart();
   return Object.keys(cart.days).length > 0;
 }
 
-/**
- * Prepare cart data for API migration (when user logs in)
- * Converts localStorage cart to API cart format
- */
 export function prepareForAPIMigration(): Array<{
   foodItemId: string;
   quantity: number;
@@ -448,42 +487,25 @@ export function prepareForAPIMigration(): Array<{
   return apiCartItems;
 }
 
-/**
- * Remove cart items for days that are now disabled
- * This should be called when cart is loaded to clean up invalid items
- *
- * NOTE: Time-based cutoff logic has been removed.
- * Days are now enabled/disabled solely by admin panel settings.
- * This function only removes days where enabled=false in database.
- *
- * @returns Promise containing removed days and the updated cart
- */
 export async function removeDisabledDayItems(): Promise<{ removedDays: DayType[]; cart: LocalCart }> {
   const cart = getCart();
   const removedDays: DayType[] = [];
 
-  // Get all dates with their enabled status
   const dateOptions = await generateAvailableDatesFromAPI(true);
 
-  // Create a Set of disabled day names (days that are not enabled)
   const disabledDays = new Set<string>(
-    dateOptions
-      .filter((option) => !option.enabled && option.day)
-      .map((option) => option.day!)
+    dateOptions.filter((option) => !option.enabled && option.day).map((option) => option.day!)
   );
 
-  // Iterate through cart days and remove disabled ones
   const cartDayKeys = Object.keys(cart.days) as DayType[];
 
   for (const dayKey of cartDayKeys) {
     if (disabledDays.has(dayKey)) {
-      // This day is now disabled, remove it from cart
       delete cart.days[dayKey];
       removedDays.push(dayKey);
     }
   }
 
-  // Save the updated cart if any days were removed
   if (removedDays.length > 0) {
     saveCart(cart);
     console.log(`Auto-removed cart items for disabled days: ${removedDays.join(', ')}`);
@@ -492,39 +514,24 @@ export async function removeDisabledDayItems(): Promise<{ removedDays: DayType[]
   return { removedDays, cart };
 }
 
-/**
- * Remove cart items for past dates (dates before today)
- * This should be called when cart is loaded to clean up items from previous days
- *
- * Uses PST timezone for date comparison to ensure consistency with the application's
- * canonical timezone.
- *
- * @returns Promise containing removed days and the updated cart
- */
 export async function removePastDateItems(): Promise<{ removedDays: DayType[]; cart: LocalCart }> {
   const cart = getCart();
   const removedDays: DayType[] = [];
 
-  // Get today's date in PST timezone
   const todayDate = getPSTDateString();
 
-  // Iterate through cart days and remove past dates
   const cartDayKeys = Object.keys(cart.days) as DayType[];
 
   for (const dayKey of cartDayKeys) {
     const dayData = cart.days[dayKey];
 
-    // Compare the day's date with today's date
-    // If the day's date is before today, remove it from cart
     if (dayData.date < todayDate) {
-      // This day is in the past, remove it from cart
       delete cart.days[dayKey];
       removedDays.push(dayKey);
       console.log(`[removePastDateItems] Removed past date: ${dayKey} (${dayData.date})`);
     }
   }
 
-  // Save the updated cart if any days were removed
   if (removedDays.length > 0) {
     saveCart(cart);
     console.log(`[removePastDateItems] Auto-removed cart items for past dates: ${removedDays.join(', ')}`);
@@ -533,20 +540,18 @@ export async function removePastDateItems(): Promise<{ removedDays: DayType[]; c
   return { removedDays, cart };
 }
 
-/**
- * Find which day(s) an item belongs to
- */
 export function findDaysWithItem(foodItemId: string): Array<{ day: DayType; date: string; quantity: number }> {
   const cart = getCart();
   const result: Array<{ day: DayType; date: string; quantity: number }> = [];
 
   for (const [dayKey, dayData] of Object.entries(cart.days)) {
-    const item = Object.values(dayData.items).find(item => item.foodItemId === foodItemId);
-    if (item) {
+    const lines = Object.values(dayData.items).filter((li) => li.foodItemId === foodItemId);
+    const qty = lines.reduce((s, li) => s + li.quantity, 0);
+    if (qty > 0) {
       result.push({
         day: dayKey as DayType,
         date: dayData.date,
-        quantity: item.quantity
+        quantity: qty,
       });
     }
   }

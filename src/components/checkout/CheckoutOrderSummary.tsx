@@ -205,7 +205,7 @@ export default function CheckoutOrderSummary({
           </Box>
 
           <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-            <Typography variant="body2">Tax (10.2%)</Typography>
+            <Typography variant="body2">Tax (10.3%)</Typography>
             <Typography variant="body2" sx={{ fontWeight: 500 }}>
               ${tax.toFixed(2)}
             </Typography>
