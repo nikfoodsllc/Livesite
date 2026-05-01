@@ -107,18 +107,29 @@ export default function DeliveryLocationBar({
       // 2. localStorage doesn't have a saved selectedAddressId
       const hasStoredAddressId = localStorage.getItem('selectedAddressId');
 
-      if (!hasAutoSelectedRef.current && !hasStoredAddressId) {
-        // Priority 1: Find and always select the default address
-        const defaultAddress = addresses.find((address) => address.isDefault === true);
-        const addressToSelect = defaultAddress || addresses[0]; // Fallback to first if no default
-        const addressId = addressToSelect._id?.toString();
+     if (!hasAutoSelectedRef.current) {
 
-        // Only select if different from current (avoid unnecessary updates)
-        if (addressId && addressId !== selectedAddressId) {
-          handleAddressSelect(addressId);
-          hasAutoSelectedRef.current = true;
-        }
-      }
+  // always check default address first
+  const defaultAddress = addresses.find(
+    (address) => address.isDefault === true
+  );
+
+  const addressToSelect =
+    defaultAddress ||
+    addresses.find(a => a._id?.toString() === selectedAddressId) ||
+    addresses[0];
+
+  const addressId = addressToSelect?._id?.toString();
+
+  if (addressId && addressId !== selectedAddressId) {
+    handleAddressSelect(addressId);
+
+    // update CartContext also
+    updateAddress(addressId);
+
+    hasAutoSelectedRef.current = true;
+  }
+}
     }
   }, [user, addresses, selectedAddressId, handleAddressSelect]);
 

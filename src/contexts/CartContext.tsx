@@ -80,7 +80,7 @@ async function convertLocalCartToCart(
     const items: CartItem[] = Object.values(localDay.items).map((localItem: LocalCartItem) => {
       console.log('[CartContext] Processing localItem:', localItem);
       return {
-        _id: `${localItem.foodItemId}-${localDay.day}`,
+        _id: localItem.lineId,
         foodItem: localItem.foodItem,
         quantity: localItem.quantity,
         day: localDay.day,
@@ -163,7 +163,8 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   const { authenticatedFetch } = useApiClient();
   const [cart, setCart] = useState<Cart | null>(null);
   const [summary, setSummary] = useState<CartSummary | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  // True until first load finishes so pages (e.g. checkout) don't treat "cart not yet hydrated" as empty.
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [itemCount, setItemCount] = useState(0);
   const [selectedAddressId, setSelectedAddressId] = useState<string | undefined>();
@@ -204,37 +205,31 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
       console.log('[CartContext] convertLocalCartToCart returned:', localCartData);
 
-      // Use setTimeout to avoid synchronous setState in useEffect
-      setTimeout(() => {
-        if (localCartData) {
-          console.log('[CartContext] Setting cart state with:', localCartData);
-          setCart(localCartData);
-          setSummary({
-            subtotal: localCartData.subtotal,
-            tax: localCartData.tax,
-            taxRate: TAX_RATE,
-            deliveryFee: localCartData.deliveryFee,
-            platformFee: localCartData.platformFee,
-            discount: 0,
-            total: localCartData.totalAmount,
-            itemCount: localCartData.itemCount,
-          });
-          setItemCount(localCartData.itemCount);
-        } else {
-          setCart(null);
-          setSummary(null);
-          setItemCount(0);
-        }
-      }, 0);
-    } catch (err) {
-      console.error('Error fetching cart:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load cart');
-      // Use setTimeout to avoid synchronous setState in useEffect
-      setTimeout(() => {
+      if (localCartData) {
+        console.log('[CartContext] Setting cart state with:', localCartData);
+        setCart(localCartData);
+        setSummary({
+          subtotal: localCartData.subtotal,
+          tax: localCartData.tax,
+          taxRate: TAX_RATE,
+          deliveryFee: localCartData.deliveryFee,
+          platformFee: localCartData.platformFee,
+          discount: 0,
+          total: localCartData.totalAmount,
+          itemCount: localCartData.itemCount,
+        });
+        setItemCount(localCartData.itemCount);
+      } else {
         setCart(null);
         setSummary(null);
         setItemCount(0);
-      }, 0);
+      }
+    } catch (err) {
+      console.error('Error fetching cart:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load cart');
+      setCart(null);
+      setSummary(null);
+      setItemCount(0);
     } finally {
       setIsLoading(false);
     }
@@ -262,26 +257,24 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
       // Find which day this item belongs to and get its foodItemId
       let itemDay: DayType | undefined;
-      let foodItemId: string | undefined;
+      let lineId: string | undefined;
 
       for (const day of currentCart.days) {
         const item = day.items.find((i) => i._id === update.cartItemId);
         if (item) {
           itemDay = day.day;
-          // Extract foodItemId from the unique ID (format: "foodItemId-day")
-          foodItemId = item._id.split('-')[0];
+          lineId = update.cartItemId;
           break;
         }
       }
 
-      if (!itemDay || !foodItemId) {
+      if (!itemDay || !lineId) {
         console.error('Item not found in cart for update');
         return;
       }
 
-      // Update quantity in localStorage
       if (update.quantity !== undefined) {
-        localCart.updateQuantity(itemDay, foodItemId, update.quantity);
+        localCart.updateQuantity(itemDay, lineId, update.quantity);
       }
 
       // Refresh cart to pick up changes
@@ -303,25 +296,23 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
       // Find which day this item belongs to and get its foodItemId
       let itemDay: DayType | undefined;
-      let foodItemId: string | undefined;
+      let lineId: string | undefined;
 
       for (const day of currentCart.days) {
         const item = day.items.find((i) => i._id === itemId);
         if (item) {
           itemDay = day.day;
-          // Extract foodItemId from the unique ID (format: "foodItemId-day")
-          foodItemId = item._id.split('-')[0];
+          lineId = itemId;
           break;
         }
       }
 
-      if (!itemDay || !foodItemId) {
+      if (!itemDay || !lineId) {
         console.error('Item not found in cart for removal');
         return;
       }
 
-      // Remove item from localStorage
-      localCart.removeItem(itemDay, foodItemId);
+      localCart.removeItem(itemDay, lineId);
 
       // Refresh cart to pick up changes
       await fetchCart();
@@ -548,7 +539,10 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       await fetchCart(loadedZipcodeConfig, loadedAddressObject);
     };
 
-    loadLocationDataAndCart();
+    void loadLocationDataAndCart().catch((error) => {
+      console.error('Error loading cart on mount:', error);
+      setIsLoading(false);
+    });
   }, []); // Run once on mount - empty deps since we're using direct function calls
 
   return (

@@ -585,6 +585,25 @@ export default function CheckoutPage() {
     setTimeout(fetchUserAddresses, 0);
   }, [user, authenticatedFetch]);
 
+useEffect(() => {
+
+  if (userAddresses.length > 0 && !selectedAddressId) {
+
+    const defaultAddress = userAddresses.find(
+      addr => addr.isDefault === true
+    );
+
+    const addressToSelect = defaultAddress || userAddresses[0];
+
+    if (addressToSelect?._id) {
+      updateAddress(addressToSelect._id);
+    }
+
+  }
+
+}, [userAddresses, selectedAddressId, updateAddress]);
+
+
   // Address dialog handlers
   const handleOpenAddressDialog = () => {
     setShowAddressDialog(true);
