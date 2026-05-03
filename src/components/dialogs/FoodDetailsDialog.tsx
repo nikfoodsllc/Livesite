@@ -725,7 +725,7 @@ export default function FoodDetailsDialog({
             <Button
               variant="contained"
               onClick={handleAddToCart}
-              disabled={spiceRequiredIncomplete}
+              disabled={false}
               sx={{
                 backgroundColor: '#f89c35',
                 color: 'white',
