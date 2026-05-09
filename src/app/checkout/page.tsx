@@ -11,7 +11,7 @@ import {
 } from '@mui/material';
 import { useRouter } from 'next/navigation';
 import { loadStripe } from '@stripe/stripe-js';
-import { Elements, useStripe, useElements, CardElement } from '@stripe/react-stripe-js';
+import { Elements, useStripe, useElements, CardNumberElement } from '@stripe/react-stripe-js';
 import type { Stripe as StripeType, StripeElements } from '@stripe/stripe-js';
 import { IconShoppingCart, IconLock } from '@tabler/icons-react';
 import { useCart } from '@/contexts/CartContext';
@@ -821,7 +821,7 @@ useEffect(() => {
         throw new Error('Stripe not initialized');
       }
 
-      const cardElement = elements.getElement(CardElement);
+      const cardElement = elements.getElement(CardNumberElement);
       if (!cardElement) {
         throw new Error('Card element not found');
       }
