@@ -47,6 +47,8 @@ interface CartContextType {
   removeCartItem: (itemId: string) => Promise<void>;
   updateAddress: (addressId: string) => Promise<void>;
   updateZipcode: (zipcode: string, preserveAddressId?: boolean) => Promise<void>;
+  /** Call after deleting an address so cart/checkout drop stale delivery selection */
+  clearSelectedAddressIfDeleted: (deletedAddressId: string) => Promise<void>;
   clearError: () => void;
   refreshCart: () => Promise<void>;
 }
@@ -408,6 +410,21 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const clearSelectedAddressIfDeleted = useCallback(async (deletedAddressId: string) => {
+    if (typeof window === 'undefined') return;
+    const storedId = localStorage.getItem('selectedAddressId');
+    if (!storedId || storedId !== deletedAddressId) return;
+
+    setSelectedAddressId(undefined);
+    localStorage.removeItem('selectedAddressId');
+    localStorage.removeItem('selectedAddressObject');
+    setSelectedAddressObject(undefined);
+    selectedAddressObjectRef.current = undefined;
+
+    // fetchCart(undefined address) cannot use explicit undefined (means "use ref"); ref already cleared
+    await fetchCart();
+  }, [fetchCart]);
+
   /**
    * Updates the selected zipcode (for guest users or manual entry)
    * Fetches zipcode configuration and recalculates cart
@@ -567,6 +584,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         removeCartItem,
         updateAddress,
         updateZipcode,
+        clearSelectedAddressIfDeleted,
         clearError,
         refreshCart,
       }}

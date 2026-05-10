@@ -15,6 +15,7 @@ import AddressCard from '@/components/account/AddressCard';
 import AddressDialog from '@/components/account/AddressDialog';
 import DeleteAddressDialog from '@/components/account/DeleteAddressDialog';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCart } from '@/contexts/CartContext';
 import { invalidateAddressCache } from '@/lib/zipcodeCache';
 import { useApiClient } from '@/hooks/useApiClient';
 
@@ -36,6 +37,19 @@ export default function AddressesPage() {
   const theme = useTheme();
   const { user } = useAuth();
   const { authenticatedFetch } = useApiClient();
+  const { selectedAddressId, updateAddress, clearSelectedAddressIfDeleted } = useCart();
+
+  /** Cart/checkout cache selectedAddress in localStorage; refresh when DB row changes */
+  const syncCartIfThisAddressIsSelected = async (addressId: string | undefined) => {
+    if (!addressId) return;
+    const id = String(addressId);
+    if (selectedAddressId !== id) return;
+    try {
+      await updateAddress(id);
+    } catch (e) {
+      console.error('[AddressesPage] Could not refresh cart delivery address', e);
+    }
+  };
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -123,6 +137,7 @@ export default function AddressesPage() {
     : addresses;
 
   setAddresses([...updated, data.data]);
+        await syncCartIfThisAddressIsSelected(data.data._id);
 }
     } else {
       // Update existing address
@@ -164,9 +179,11 @@ export default function AddressesPage() {
       addr._id === data.data._id ? data.data : addr
     )
   );
+        await syncCartIfThisAddressIsSelected(data.data._id);
 }else {
         // Fallback to refetch if address not returned
         await fetchAddresses();
+        await syncCartIfThisAddressIsSelected(selectedAddress?._id);
       }
     }
   };
@@ -196,10 +213,14 @@ export default function AddressesPage() {
       // Invalidate address cache (now a no-op, but kept for safety)
       invalidateAddressCache();
 
+      const deletedId = addressToDelete;
+
       // Remove from local state instead of refetching
-      setAddresses(prev => prev.filter(addr => addr._id !== addressToDelete));
+      setAddresses(prev => prev.filter(addr => addr._id !== deletedId));
       setDeleteDialogOpen(false);
       setAddressToDelete(null);
+
+      await clearSelectedAddressIfDeleted(deletedId);
     } catch (err: unknown) {
       console.error('Delete address error:', err);
       setError(err instanceof Error ? err.message : 'Failed to delete address');
