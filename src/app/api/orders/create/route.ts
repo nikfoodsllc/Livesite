@@ -207,9 +207,12 @@ export async function POST(request: NextRequest) {
 
       // Create Stripe PaymentIntent
       try {
+        // `card` only: card fields + Apple Pay / Google Pay wallets in Payment Element.
+        // Broader `automatic_payment_methods` also enables Cash App, Amazon Pay, bank debit, etc.
         const paymentIntent = await stripe.paymentIntents.create({
           amount: Math.round(totalPaid * 100), // Convert to cents
           currency: currency || 'usd',
+          payment_method_types: ['card'],
           metadata: {
             orderId: order.orderId,
             userId: userId,

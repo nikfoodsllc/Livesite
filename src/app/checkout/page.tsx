@@ -11,8 +11,8 @@ import {
 } from '@mui/material';
 import { useRouter } from 'next/navigation';
 import { loadStripe } from '@stripe/stripe-js';
-import { Elements, useStripe, useElements, CardNumberElement } from '@stripe/react-stripe-js';
-import type { Stripe as StripeType, StripeElements } from '@stripe/stripe-js';
+import { Elements } from '@stripe/react-stripe-js';
+import type { StripeElementsOptions } from '@stripe/stripe-js';
 import { IconShoppingCart, IconLock } from '@tabler/icons-react';
 import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -20,7 +20,7 @@ import { useHeader } from '@/contexts/HeaderContext';
 import { useApiClient } from '@/hooks/useApiClient';
 import ContactInfoSection, { ContactInfoSectionRef } from '@/components/checkout/ContactInfoSection';
 import PaymentMethodSection from '@/components/checkout/PaymentMethodSection';
-import StripePaymentForm from '@/components/checkout/StripePaymentForm';
+import CheckoutPaymentStep from '@/components/checkout/CheckoutPaymentStep';
 import TipSection from '@/components/checkout/TipSection';
 import DeliveryAddressDisplay from '@/components/checkout/DeliveryAddressDisplay';
 import AddressSelectionDialog from '@/components/checkout/AddressSelectionDialog';
@@ -45,8 +45,15 @@ const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || ''
 );
 
+const stripeAppearance: StripeElementsOptions['appearance'] = {
+  theme: 'stripe',
+  variables: {
+    colorPrimary: '#FF9F0D',
+  },
+};
+
 /**
- * Inner component that has access to Stripe hooks
+ * Checkout details (address, contact, tip) before Stripe Payment Element step
  */
 interface CheckoutFormContentProps {
   cart: Cart;
@@ -68,7 +75,7 @@ interface CheckoutFormContentProps {
   onPhoneError: (error: string | null) => void;
   onPaymentMethodChange: (method: PaymentMethod) => void;
   onTipChange: (percentage: number) => void;
-  onPlaceOrder: (stripe: StripeType | null, elements: StripeElements | null) => Promise<void>;
+  onContinueToPayment: () => Promise<void>;
   onOpenAddressDialog: () => void;
   contactInfoRef: React.RefObject<ContactInfoSectionRef | null>;
   addressesLoading?: boolean;
@@ -79,10 +86,6 @@ interface CheckoutFormContentProps {
   onLoginClick: () => void;
   onSignupClick: () => void;
   zipcodeConfig: ZipcodeConfig | null;
-  onPaymentValidationChange?: (isValid: boolean, isEmpty: boolean, error?: string) => void;
-  isPaymentComplete: boolean;
-  isPaymentEmpty?: boolean;
-  paymentError?: string;
 }
 
 function CheckoutFormContent({
@@ -101,7 +104,7 @@ function CheckoutFormContent({
   onPhoneError,
   onPaymentMethodChange,
   onTipChange,
-  onPlaceOrder,
+  onContinueToPayment,
   onOpenAddressDialog,
   contactInfoRef,
   addressesLoading,
@@ -112,14 +115,7 @@ function CheckoutFormContent({
   onLoginClick,
   onSignupClick,
   zipcodeConfig,
-  onPaymentValidationChange,
-  isPaymentComplete,
-  isPaymentEmpty,
-  paymentError,
 }: CheckoutFormContentProps) {
-  const stripe = useStripe();
-  const elements = useElements();
-
   const calculateTotals = () => {
     const subtotal = cart.subtotal;
     const platformFee = cart.platformFee;
@@ -161,8 +157,12 @@ function CheckoutFormContent({
   console.log('Number of delivery calculations:', deliveryCalculations.length);
   console.log('=== DELIVERY DATE CALCULATION END ===');
 
-  const handlePlaceOrderClick = async () => {
-    await onPlaceOrder(stripe, elements);
+  const handleContinueClick = async () => {
+    try {
+      await onContinueToPayment();
+    } catch {
+      // Validation and API errors are already shown in the UI
+    }
   };
 
   return (
@@ -204,11 +204,6 @@ function CheckoutFormContent({
           onMethodChange={onPaymentMethodChange}
         />
 
-        {/* Stripe Card Form */}
-        {paymentMethod === 'Credit Card' && (
-          <StripePaymentForm show={true} onValidationChange={onPaymentValidationChange} />
-        )}
-
         {/* Tip Section */}
         <TipSection
           selectedTipPercentage={tipPercentage}
@@ -226,11 +221,9 @@ function CheckoutFormContent({
                   Minimum order value required. Add more items to proceed.
                 </Alert>
               )}
-              {paymentMethod === 'Credit Card' && !isPaymentComplete && (
-                <Alert severity="warning" sx={{ mb: 1 }}>
-                  {isPaymentEmpty
-                    ? 'Please enter your card details to proceed.'
-                    : paymentError || 'Please complete your card details to proceed.'}
+              {paymentMethod === 'Credit Card' && (
+                <Alert severity="info" sx={{ mb: 1 }}>
+                  Next: pay by card or wallet. Apple Pay on the web needs Safari, HTTPS, and a Stripe-verified domain—not Chrome on localhost.
                 </Alert>
               )}
             </Box>
@@ -240,8 +233,8 @@ function CheckoutFormContent({
             fullWidth
             variant="contained"
             size="large"
-            onClick={handlePlaceOrderClick}
-            disabled={isProcessing || !cart.canCheckout || (paymentMethod === 'Credit Card' && !isPaymentComplete)}
+            onClick={handleContinueClick}
+            disabled={isProcessing || !cart.canCheckout}
             startIcon={
               isProcessing ? (
                 <CircularProgress size={20} sx={{ color: '#fff' }} />
@@ -265,8 +258,8 @@ function CheckoutFormContent({
             }}
           >
             {isProcessing
-              ? 'Processing...'
-              : `Place Order - $${totals.total.toFixed(2)}`}
+              ? 'Creating order…'
+              : `Continue to payment - $${totals.total.toFixed(2)}`}
           </Button>
           <Box
             sx={{
@@ -309,11 +302,9 @@ function CheckoutFormContent({
                 Minimum order value required. Add more items to proceed.
               </Alert>
             )}
-            {paymentMethod === 'Credit Card' && !isPaymentComplete && (
-              <Alert severity="warning" sx={{ mb: 1 }}>
-                {isPaymentEmpty
-                  ? 'Please enter your card details to proceed.'
-                  : paymentError || 'Please complete your card details to proceed.'}
+            {paymentMethod === 'Credit Card' && (
+              <Alert severity="info" sx={{ mb: 1 }}>
+                Next: pay by card or wallet. Apple Pay on the web needs Safari, HTTPS, and a Stripe-verified domain—not Chrome on localhost.
               </Alert>
             )}
           </Box>
@@ -323,8 +314,8 @@ function CheckoutFormContent({
           fullWidth
           variant="contained"
           size="large"
-          onClick={handlePlaceOrderClick}
-          disabled={isProcessing || !cart.canCheckout || (paymentMethod === 'Credit Card' && !isPaymentComplete)}
+          onClick={handleContinueClick}
+          disabled={isProcessing || !cart.canCheckout}
           startIcon={
             isProcessing ? (
               <CircularProgress size={20} sx={{ color: '#fff' }} />
@@ -350,8 +341,8 @@ function CheckoutFormContent({
           }}
         >
           {isProcessing
-            ? 'Processing...'
-            : `Place Order - $${totals.total.toFixed(2)}`}
+            ? 'Creating order…'
+            : `Continue to payment - $${totals.total.toFixed(2)}`}
         </Button>
         <Box
           sx={{
@@ -401,10 +392,8 @@ export default function CheckoutPage() {
     phone?: string;
   }>({});
 
-  // Payment validation state
-  const [isPaymentComplete, setIsPaymentComplete] = useState(false);
-  const [isPaymentEmpty, setIsPaymentEmpty] = useState(true);
-  const [paymentError, setPaymentError] = useState<string | undefined>();
+  const [paymentClientSecret, setPaymentClientSecret] = useState<string | null>(null);
+  const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
 
   // Validation error summary shown when Place Order is clicked
   const [validationErrors, setValidationErrors] = useState<ErrorSummary[]>([]);
@@ -483,18 +472,8 @@ export default function CheckoutPage() {
       allErrors.push({ field: 'phone', message: errors.phone });
     }
 
-    // Check if payment details are complete (only for Credit Card payment)
-    if (paymentMethod === 'Credit Card' && !isPaymentComplete) {
-      allErrors.push({
-        field: 'Payment Details',
-        message: isPaymentEmpty
-          ? 'Please enter your card details to complete your order'
-          : 'Please complete all required card details correctly'
-      });
-    }
-
     return allErrors;
-  }, [cart, errors, isAddressComplete, paymentMethod, isPaymentComplete, isPaymentEmpty]);
+  }, [cart, errors, isAddressComplete]);
 
   // Scroll to first error and show detailed error summary
   const handleValidationError = useCallback(() => {
@@ -657,13 +636,6 @@ useEffect(() => {
     }));
   };
 
-  // Handle payment validation changes from StripePaymentForm
-  const handlePaymentValidationChange = useCallback((isValid: boolean, isEmpty: boolean, error?: string) => {
-    setIsPaymentComplete(isValid);
-    setIsPaymentEmpty(isEmpty);
-    setPaymentError(error);
-  }, []);
-
   // Clear validation errors when user starts fixing form fields
   const handleNameChange = (value: string) => {
     setName(value);
@@ -713,171 +685,6 @@ useEffect(() => {
     return Object.keys(newErrors).length === 0;
   };
 
-  // This will be passed to CheckoutFormContent component
-  const handlePlaceOrderCallback = async (
-    stripe: StripeType | null,
-    elements: StripeElements | null
-  ): Promise<void> => {
-    setError('');
-    setShowValidationErrors(false);
-    setValidationErrors([]);
-
-    // Validate form fields first
-    if (!validateForm()) {
-      // Collect all validation errors including cart and address
-      const allErrors = collectAllValidationErrors();
-      setValidationErrors(allErrors);
-      setShowValidationErrors(true);
-
-      // Scroll to error banner
-      setTimeout(() => {
-        if (formContainerRef.current) {
-          formContainerRef.current.scrollIntoView({
-            behavior: 'smooth',
-            block: 'start'
-          });
-        }
-      }, 100);
-
-      // Also handle field-level scroll behavior
-      handleValidationError();
-      throw new Error('Form validation failed');
-    }
-
-    // Collect all validation errors (cart and address checks)
-    const allErrors = collectAllValidationErrors();
-    if (allErrors.length > 0) {
-      setValidationErrors(allErrors);
-      setShowValidationErrors(true);
-
-      // Check if validation failed due to incomplete address
-      const hasAddressError = allErrors.some(error =>
-        error.field === 'Delivery Address' &&
-        error.message.includes('complete delivery address')
-      );
-
-      // Auto-open address dialog if address is incomplete
-      if (hasAddressError) {
-        setShowAddressDialog(true);
-      }
-
-      // Scroll to error banner
-      setTimeout(() => {
-        if (formContainerRef.current) {
-          formContainerRef.current.scrollIntoView({
-            behavior: 'smooth',
-            block: 'start'
-          });
-        }
-      }, 100);
-
-      throw new Error('Validation failed');
-    }
-
-    // Check if cart has items
-    if (!cart || cart.days.length === 0) {
-      setError('Your cart is empty');
-      throw new Error('Cart is empty');
-    }
-
-    setIsProcessing(true);
-
-    try {
-      // Create order request
-      const orderRequest = {
-        cart,
-        customerInfo: {
-          name,
-          email,
-          phone,
-        },
-        tipPercentage,
-        paymentMethod,
-        currency: 'usd',
-      };
-
-      // Call order creation API
-      const response = await authenticatedFetch('/api/orders/create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(orderRequest),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        const errorMessage = data.error || 'Failed to create order';
-        // Redirect to failure page for order creation errors
-        router.push(`/checkout/failure?error=${encodeURIComponent(errorMessage)}`);
-        return;
-      }
-
-      const { orderId, clientSecret } = data.data;
-
-      // Credit Card: Need to confirm payment with Stripe
-      if (!stripe || !elements) {
-        throw new Error('Stripe not initialized');
-      }
-
-      const cardElement = elements.getElement(CardNumberElement);
-      if (!cardElement) {
-        throw new Error('Card element not found');
-      }
-
-      // Confirm card payment
-      const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(
-        clientSecret,
-        {
-          payment_method: {
-            card: cardElement,
-            billing_details: {
-              name,
-              email,
-              phone,
-            },
-          },
-        }
-      );
-
-      if (stripeError) {
-        const errorMessage = stripeError.message || 'Payment failed';
-        // Redirect to failure page for Stripe payment errors
-        router.push(`/checkout/failure?error=${encodeURIComponent(errorMessage)}`);
-        return;
-      }
-
-      if (paymentIntent?.status === 'succeeded') {
-        // Payment succeeded, poll for order confirmation
-        await pollOrderStatus(orderId);
-
-        // Mark order as completed to prevent empty cart redirect
-        setOrderCompleted(true);
-
-        // Clear cart from localStorage
-        localCart.clearCart();
-
-        // Refresh cart context to update state
-        await refreshCart();
-
-        // Redirect to success page
-        router.push(`/checkout/success?orderId=${orderId}`);
-      } else {
-        const errorMessage = 'Payment confirmation failed. Please try again.';
-        // Redirect to failure page for payment confirmation errors
-        router.push(`/checkout/failure?error=${encodeURIComponent(errorMessage)}`);
-        return;
-      }
-    } catch (err) {
-      console.error('Order placement error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to place order. Please try again.');
-      throw err;
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
   // Poll order status to wait for webhook confirmation
   const pollOrderStatus = async (
     orderId: string,
@@ -899,6 +706,129 @@ useEffect(() => {
     // If we reach here, order is still pending (webhook might be delayed)
     // We'll let the user proceed anyway
     console.warn('Order confirmation polling timed out, proceeding anyway');
+  };
+
+  const handlePaymentSuccess = async (orderId: string) => {
+    await pollOrderStatus(orderId);
+    setOrderCompleted(true);
+    localCart.clearCart();
+    await refreshCart();
+    router.push(`/checkout/success?orderId=${orderId}`);
+  };
+
+  const handlePaymentError = (message: string) => {
+    setError(message);
+  };
+
+  const handleContinueToPayment = async (): Promise<void> => {
+    setError('');
+    setShowValidationErrors(false);
+    setValidationErrors([]);
+
+    if (!validateForm()) {
+      const allErrors = collectAllValidationErrors();
+      setValidationErrors(allErrors);
+      setShowValidationErrors(true);
+
+      setTimeout(() => {
+        if (formContainerRef.current) {
+          formContainerRef.current.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start',
+          });
+        }
+      }, 100);
+
+      handleValidationError();
+      throw new Error('Form validation failed');
+    }
+
+    const allErrors = collectAllValidationErrors();
+    if (allErrors.length > 0) {
+      setValidationErrors(allErrors);
+      setShowValidationErrors(true);
+
+      const hasAddressError = allErrors.some(
+        (error) =>
+          error.field === 'Delivery Address' &&
+          error.message.includes('complete delivery address')
+      );
+
+      if (hasAddressError) {
+        setShowAddressDialog(true);
+      }
+
+      setTimeout(() => {
+        if (formContainerRef.current) {
+          formContainerRef.current.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start',
+          });
+        }
+      }, 100);
+
+      throw new Error('Validation failed');
+    }
+
+    if (!cart || cart.days.length === 0) {
+      setError('Your cart is empty');
+      throw new Error('Cart is empty');
+    }
+
+    if (paymentMethod !== 'Credit Card') {
+      setError('This payment flow supports card and digital wallets only.');
+      throw new Error('Unsupported payment method');
+    }
+
+    setIsProcessing(true);
+
+    try {
+      const orderRequest = {
+        cart,
+        customerInfo: {
+          name,
+          email,
+          phone,
+        },
+        tipPercentage,
+        paymentMethod,
+        currency: 'usd',
+      };
+
+      const response = await authenticatedFetch('/api/orders/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(orderRequest),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        const errorMessage = data.error || 'Failed to create order';
+        router.push(`/checkout/failure?error=${encodeURIComponent(errorMessage)}`);
+        return;
+      }
+
+      const { orderId, clientSecret } = data.data;
+
+      if (!clientSecret || !orderId) {
+        router.push(
+          `/checkout/failure?error=${encodeURIComponent('Missing payment session from server')}`
+        );
+        return;
+      }
+
+      setPendingOrderId(orderId);
+      setPaymentClientSecret(clientSecret);
+    } catch (err) {
+      console.error('Order creation error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to start checkout. Please try again.');
+      throw err;
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   if (cartLoading || authLoading) {
@@ -979,12 +909,9 @@ useEffect(() => {
           </Alert>
         )}
 
-        {/* Checkout Form wrapped in Stripe Elements */}
+        {/* Checkout: details first, then Stripe Payment Element */}
         <Box ref={formContainerRef}>
-          <Elements
-            stripe={stripePromise}
-            options={{}}
-          >
+          {!paymentClientSecret || !pendingOrderId ? (
             <CheckoutFormContent
               cart={cart}
               name={name}
@@ -1003,7 +930,7 @@ useEffect(() => {
               onPhoneError={handlePhoneError}
               onPaymentMethodChange={setPaymentMethod}
               onTipChange={setTipPercentage}
-              onPlaceOrder={handlePlaceOrderCallback}
+              onContinueToPayment={handleContinueToPayment}
               onOpenAddressDialog={handleOpenAddressDialog}
               onAddressSelect={handleAddressSelect}
               onCloseAddressDialog={handleCloseAddressDialog}
@@ -1012,12 +939,30 @@ useEffect(() => {
               onLoginClick={openLoginDialog}
               onSignupClick={openSignupDialog}
               zipcodeConfig={zipcodeConfig}
-              onPaymentValidationChange={handlePaymentValidationChange}
-              isPaymentComplete={isPaymentComplete}
-              isPaymentEmpty={isPaymentEmpty}
-              paymentError={paymentError}
             />
-          </Elements>
+          ) : (
+            <Elements
+              stripe={stripePromise}
+              key={paymentClientSecret}
+              options={{
+                clientSecret: paymentClientSecret,
+                appearance: stripeAppearance,
+              }}
+            >
+              <CheckoutPaymentStep
+                orderId={pendingOrderId}
+                clientSecret={paymentClientSecret}
+                cart={cart}
+                name={name}
+                email={email}
+                phone={phone}
+                tipPercentage={tipPercentage}
+                zipcodeConfig={zipcodeConfig}
+                onPaymentSuccess={handlePaymentSuccess}
+                onPaymentError={handlePaymentError}
+              />
+            </Elements>
+          )}
         </Box>
       </Container>
 

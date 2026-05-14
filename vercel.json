@@ -1,7 +1,7 @@
 {
   "headers": [
     {
-      "source": "/.well-known/apple-developer-merchantid-domain-association.txt",
+      "source": "/.well-known/apple-developer-merchantid-domain-association",
       "headers": [
         {
           "key": "Content-Type",
