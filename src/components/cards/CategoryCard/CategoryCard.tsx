@@ -7,6 +7,8 @@ import { IconArrowRight } from '@tabler/icons-react';
 interface CategoryCardProps {
   imageUrl?: string;
   name: string;
+  /** Flat categories use a neutral card; day-wise keeps the warm tint when unselected */
+  listingType?: 'flat' | 'day-wise';
   selected?: boolean;
   onClick?: () => void;
 }
@@ -14,12 +16,17 @@ interface CategoryCardProps {
 export default function CategoryCard({
   imageUrl,
   name,
+  listingType = 'flat',
   selected = false,
   onClick,
 }: CategoryCardProps) {
   const theme = useTheme();
   const imageSize = 80;
-  const backgroundColor = selected ? theme.palette.primary.main : '#FFF4E4';
+  const backgroundColor = selected
+    ? theme.palette.primary.main
+    : listingType === 'flat'
+      ? '#ffffff'
+      : '#FFF4E4';
   const textColor = selected ? '#ffffff' : theme.palette.text.primary;
 
   // Fallback placeholder image when imageUrl is undefined or null
@@ -34,6 +41,10 @@ export default function CategoryCard({
         maxHeight: 250,
         borderRadius: 1.5,
         backgroundColor,
+        border:
+          !selected && listingType === 'flat'
+            ? `1px solid ${theme.palette.divider}`
+            : 'none',
         cursor: 'pointer',
         transition: 'all 0.3s ease',
         boxShadow: selected
@@ -41,6 +52,7 @@ export default function CategoryCard({
           : '0 2px 8px rgba(0, 0, 0, 0.1)',
         '&:hover': {
           backgroundColor: theme.palette.primary.main,
+          borderColor: 'transparent',
           transform: 'translateY(-4px)',
           boxShadow: '0 8px 16px rgba(248, 156, 53, 0.3)',
           '& .category-name': {
