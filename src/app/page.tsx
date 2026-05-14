@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { Box, Container, Typography, IconButton, CircularProgress, Chip, Skeleton, Tabs, Tab } from '@mui/material';
+import { Box, Container, Typography, IconButton, CircularProgress, Skeleton, Tabs, Tab } from '@mui/material';
 import { IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
 import Footer from '@/components/layout/Footer';
 import DeliveryLocationBar from '@/components/layout/DeliveryLocationBar';
@@ -78,6 +78,11 @@ const subCategoryTabsSx = {
   '& .MuiTabs-indicator': {
     backgroundColor: colors.primary,
     height: 3,
+  },
+  '& .MuiTabs-scrollButtons': {
+    flexShrink: 0,
+    width: 40,
+    transition: 'none',
   },
 } as const;
 
@@ -326,6 +331,10 @@ export default function Home() {
   const [availableDates, setAvailableDates] = useState<DayOption[]>([]);
   /** For day-wise parents with sub-categories: selected sub tab per `${parentId}::${date}` */
   const [dayWiseSubTabByDay, setDayWiseSubTabByDay] = useState<Record<string, string>>({});
+  /** Selected calendar day (YYYY-MM-DD) per category for horizontal day tabs */
+  const [dayWiseSelectedDateByCategory, setDayWiseSelectedDateByCategory] = useState<
+    Record<string, string>
+  >({});
 
   // Fetch day options on mount and cache them
   useEffect(() => {
@@ -1202,24 +1211,45 @@ export default function Home() {
     </Box>
   );
 
-  const renderDayWiseCategorySections = (cat: CategoryDisplay) =>
-    cat.dayGroups.map((dayGroup: any) => (
-      <Box key={`${cat._id}-${dayGroup.date}`} sx={{ mb: 4 }}>
-        <Box sx={{ mb: 2 }}>
-          <Chip
-            label={dayGroup.displayName}
-            sx={{
-              backgroundColor: colors.primary,
-              color: '#fff',
-              fontWeight: 600,
-              fontSize: '0.9rem',
-              py: 0.5,
-            }}
-          />
-        </Box>
-        {renderDayWiseFoodCardsGrid(dayGroup)}
+  const renderDayWiseCategorySections = (cat: CategoryDisplay) => {
+    if (!cat.dayGroups.length) {
+      return null;
+    }
+    const selectedDate =
+      dayWiseSelectedDateByCategory[cat._id] &&
+      cat.dayGroups.some((g) => g.date === dayWiseSelectedDateByCategory[cat._id])
+        ? dayWiseSelectedDateByCategory[cat._id]!
+        : cat.dayGroups[0].date;
+
+    return (
+      <Box>
+        <Tabs
+          value={selectedDate}
+          onChange={(_, v) =>
+            setDayWiseSelectedDateByCategory((prev) => ({ ...prev, [cat._id]: String(v) }))
+          }
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
+          sx={{ ...subCategoryTabsSx, mt: 0 }}
+        >
+          {cat.dayGroups.map((dg: CategoryDisplay['dayGroups'][number]) => (
+            <Tab key={dg.date} value={dg.date} label={dg.displayName} />
+          ))}
+        </Tabs>
+        {cat.dayGroups.map((dayGroup: CategoryDisplay['dayGroups'][number]) => (
+          <Box
+            key={dayGroup.date}
+            role="tabpanel"
+            hidden={selectedDate !== dayGroup.date}
+            sx={{ pt: 2 }}
+          >
+            {renderDayWiseFoodCardsGrid(dayGroup)}
+          </Box>
+        ))}
       </Box>
-    ));
+    );
+  };
 
   const renderDayWiseParentWithSubTabs = (category: CategoryDisplay) => {
     const subs = category.subCategories ?? [];
@@ -1236,39 +1266,48 @@ export default function Home() {
       );
     }
 
-    return dates.map((date) => {
-      const tabKey = `${category._id}::${date}`;
-      const selectedSubId = dayWiseSubTabByDay[tabKey] ?? subs[0]._id;
+    const selectedDate =
+      dayWiseSelectedDateByCategory[category._id] &&
+      dates.includes(dayWiseSelectedDateByCategory[category._id])
+        ? dayWiseSelectedDateByCategory[category._id]!
+        : dates[0];
 
-      const parentDg = category.dayGroups.find((g) => g.date === date);
-      const dateOption = availableDates.find((d) => d.date === date);
-      const subDayGroupForLabel = subs
-        .map((s) => s.dayGroups?.find((g) => g.date === date))
-        .find(Boolean);
-      const displayName =
-        parentDg?.displayName ??
-        subDayGroupForLabel?.displayName ??
-        dateOption?.formattedDate ??
-        date;
+    const tabKey = `${category._id}::${selectedDate}`;
+    const selectedSubId = dayWiseSubTabByDay[tabKey] ?? subs[0]._id;
+    const parentDg = category.dayGroups.find((g) => g.date === selectedDate);
+    const dateOption = availableDates.find((d) => d.date === selectedDate);
 
-      return (
-        <Box key={tabKey} sx={{ mb: 4 }}>
+    return (
+      <Box>
+        <Tabs
+          value={selectedDate}
+          onChange={(_, v) =>
+            setDayWiseSelectedDateByCategory((prev) => ({
+              ...prev,
+              [category._id]: String(v),
+            }))
+          }
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
+          sx={{ ...subCategoryTabsSx, mt: 0 }}
+        >
+          {dates.map((date) => {
+            const pdg = category.dayGroups.find((g) => g.date === date);
+            const dopt = availableDates.find((d) => d.date === date);
+            const subLab = subs.map((s) => s.dayGroups?.find((g) => g.date === date)).find(Boolean);
+            const label =
+              pdg?.displayName ?? subLab?.displayName ?? dopt?.formattedDate ?? date;
+            return <Tab key={date} value={date} label={label} />;
+          })}
+        </Tabs>
+
+        <Box sx={{ pt: 2 }}>
           <Box sx={{ mb: 2 }}>
-            <Chip
-              label={displayName}
-              sx={{
-                backgroundColor: colors.primary,
-                color: '#fff',
-                fontWeight: 600,
-                fontSize: '0.9rem',
-                py: 0.5,
-              }}
-            />
+            {parentDg && parentDg.foodItems.length > 0 ? (
+              renderDayWiseFoodCardsGrid(parentDg)
+            ) : null}
           </Box>
-
-          {parentDg && parentDg.foodItems.length > 0 && (
-            <Box sx={{ mt: 1, mb: 2 }}>{renderDayWiseFoodCardsGrid(parentDg)}</Box>
-          )}
 
           <Tabs
             value={selectedSubId}
@@ -1286,13 +1325,18 @@ export default function Home() {
           </Tabs>
 
           {subs.map((sub) => {
-            const items = getItemsForSubOnDate(sub, date, availableDates);
-            const subDayGroup = sub.dayGroups?.find((g) => g.date === date);
+            const items = getItemsForSubOnDate(sub, selectedDate, availableDates);
+            const subDayGroup = sub.dayGroups?.find((g) => g.date === selectedDate);
+            const displayLabel =
+              parentDg?.displayName ??
+              subDayGroup?.displayName ??
+              dateOption?.formattedDate ??
+              selectedDate;
             const dayGroupForHandlers =
               subDayGroup ??
               ({
-                date,
-                displayName,
+                date: selectedDate,
+                displayName: displayLabel,
                 day: parentDg?.day ?? dateOption?.day,
                 foodItems: items,
               } as CategoryDisplay['dayGroups'][number]);
@@ -1322,7 +1366,7 @@ export default function Home() {
 
                       return (
                         <FoodCard
-                          key={`${item._id}-${date}-${sub._id}`}
+                          key={`${item._id}-${selectedDate}-${sub._id}`}
                           imageUrl={item.url}
                           name={item.name}
                           price={getPriceForDisplay(item)}
@@ -1354,8 +1398,8 @@ export default function Home() {
             );
           })}
         </Box>
-      );
-    });
+      </Box>
+    );
   };
 
   // Loading state - show when categories are loading initially
