@@ -27,6 +27,7 @@ import { LocalCartDay, LocalCartItem } from '@/types/localCart';
 import {
   invalidateZipcodeCache
 } from '@/lib/zipcodeCache';
+import { normalizeCartSelectedAddress } from '@/lib/normalizeCartAddress';
 import { useApiClient } from '@/hooks/useApiClient';
 
 interface CartContextType {
@@ -46,6 +47,8 @@ interface CartContextType {
   removeCartItem: (itemId: string) => Promise<void>;
   updateAddress: (addressId: string) => Promise<void>;
   updateZipcode: (zipcode: string, preserveAddressId?: boolean) => Promise<void>;
+  /** Call after deleting an address so cart/checkout drop stale delivery selection */
+  clearSelectedAddressIfDeleted: (deletedAddressId: string) => Promise<void>;
   clearError: () => void;
   refreshCart: () => Promise<void>;
 }
@@ -364,16 +367,15 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       const formattedAddress: Cart['selectedAddress'] = {
         _id: selectedAddress._id?.toString() || '',
         addressLine1: selectedAddress.street_address,
-        addressLine2: [
-          selectedAddress.apartment ? `Apt ${selectedAddress.apartment}` : '',
-          selectedAddress.floor ? `Floor ${selectedAddress.floor}` : '',
-        ]
-          .filter(Boolean)
-          .join(', ') || undefined,
+        addressLine2: selectedAddress.apartment
+          ? `Apt ${selectedAddress.apartment}`
+          : undefined,
         city: selectedAddress.city,
         state: selectedAddress.province || '',
         zipCode: selectedAddress.postal_code,
         landmark: selectedAddress.location_remark,
+        entrance: selectedAddress.entrance,
+        floor: selectedAddress.floor,
         isDefault: false, // Not available in IAddress schema
       };
 
@@ -407,6 +409,21 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       setIsLoading(false);
     }
   };
+
+  const clearSelectedAddressIfDeleted = useCallback(async (deletedAddressId: string) => {
+    if (typeof window === 'undefined') return;
+    const storedId = localStorage.getItem('selectedAddressId');
+    if (!storedId || storedId !== deletedAddressId) return;
+
+    setSelectedAddressId(undefined);
+    localStorage.removeItem('selectedAddressId');
+    localStorage.removeItem('selectedAddressObject');
+    setSelectedAddressObject(undefined);
+    selectedAddressObjectRef.current = undefined;
+
+    // fetchCart(undefined address) cannot use explicit undefined (means "use ref"); ref already cleared
+    await fetchCart();
+  }, [fetchCart]);
 
   /**
    * Updates the selected zipcode (for guest users or manual entry)
@@ -510,11 +527,14 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       // Parse and set address object
       if (storedAddressObject) {
         try {
-          const parsedAddress = JSON.parse(storedAddressObject);
-          loadedAddressObject = parsedAddress;
-          setSelectedAddressObject(parsedAddress);
-          // Update ref immediately to avoid stale data
-          selectedAddressObjectRef.current = parsedAddress;
+          const parsedAddress = JSON.parse(storedAddressObject) as NonNullable<
+            Cart['selectedAddress']
+          >;
+          const normalized = normalizeCartSelectedAddress(parsedAddress);
+          loadedAddressObject = normalized;
+          setSelectedAddressObject(normalized);
+          selectedAddressObjectRef.current = normalized;
+          localStorage.setItem('selectedAddressObject', JSON.stringify(normalized));
         } catch (error) {
           console.error('Error parsing stored address:', error);
           localStorage.removeItem('selectedAddressObject');
@@ -564,6 +584,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         removeCartItem,
         updateAddress,
         updateZipcode,
+        clearSelectedAddressIfDeleted,
         clearError,
         refreshCart,
       }}

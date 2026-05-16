@@ -36,10 +36,23 @@ interface CategoryDisplay {
   foodItems: FoodItem[];
   dayWiseItems: { [dayName: string]: FoodItem[] } | null;
   dayGroups: Array<{
-    day: string;
+    day?: string;
     displayName: string;
     foodItems: FoodItem[];
+    date?: string;
   }>;
+  subCategories?: CategoryDisplay[];
+}
+
+function flattenCategoriesWithSubsForDialog(categories: CategoryDisplay[]): CategoryDisplay[] {
+  const out: CategoryDisplay[] = [];
+  for (const c of categories) {
+    out.push(c);
+    for (const s of c.subCategories ?? []) {
+      out.push(s);
+    }
+  }
+  return out;
 }
 
 interface FoodDetailsDialogProps {
@@ -194,7 +207,7 @@ export default function FoodDetailsDialog({
       return { category: null };
     }
 
-    for (const category of foodItemsByCategory) {
+    for (const category of flattenCategoriesWithSubsForDialog(foodItemsByCategory)) {
       if (category.listingType === 'flat') {
         // For flat categories, check if the item is in the foodItems array
         const item = category.foodItems.find(item => item._id === foodItemId);
@@ -725,7 +738,7 @@ export default function FoodDetailsDialog({
             <Button
               variant="contained"
               onClick={handleAddToCart}
-              disabled={spiceRequiredIncomplete}
+              disabled={false}
               sx={{
                 backgroundColor: '#f89c35',
                 color: 'white',

@@ -11,8 +11,9 @@ import { PST_TIMEZONE, createPSTDate } from '@/lib/timezone';
  * GET /api/food-items-day-wise
  * Fetch food items for a specific category and date
  *
- * This endpoint is designed for day-wise categories where items are mapped
- * to specific dates rather than being shown in a flat list.
+ * This endpoint returns food items that have **DAY_WISE** category–food mappings for the given
+ * `categoryId` and calendar `date`. It works for both **day-wise** and **flat** listing types on
+ * the category (flat sub-categories often use DAY_WISE rows per date while the category stays "flat").
  *
  * Query Parameters:
  * - categoryId (required): The category ID to fetch items for
@@ -356,21 +357,10 @@ export async function GET(req: NextRequest) {
     }
 
     const category = categoryResult.data;
-    const listingType = category.listingType || 'flat';
 
-    // Verify category is day-wise type
-    if (listingType !== 'day-wise') {
-      console.log(`[food-items-day-wise] Category is not day-wise type: ${listingType}`);
-      return Response.json(
-        {
-          message: 'Invalid category type',
-          error: `This endpoint only supports day-wise categories, but the provided category has listingType: ${listingType}`,
-        },
-        { status: 400 }
-      );
-    }
-
-    console.log(`[food-items-day-wise] Category found: ${category.name} (${listingType})`);
+    console.log(
+      `[food-items-day-wise] Category found: ${category.name} (${category.listingType || 'flat'}) — DAY_WISE mappings for date`
+    );
 
     // Step 2: Fetch category food mappings for this specific category, date, and mapping type
     const categoryFoodMappingResult = await db.read(
@@ -471,6 +461,46 @@ export async function GET(req: NextRequest) {
 
     console.log(`[food-items-day-wise] Found ${foodItems.length} food items`);
 
+    // Align with food-items-by-category: weekly menu keys (day names and/or YYYY-MM-DD) per item
+    let availabilityMap = new Map<string, string[]>();
+    try {
+      const enabledDatesResult = await db.read(
+        'availableDates',
+        { dayWiseCategoryEnabled: true },
+        { sort: { date: 1 } }
+      );
+      const enabledDatesForAvailability: string[] = [];
+      if (enabledDatesResult.success && enabledDatesResult.data && Array.isArray(enabledDatesResult.data)) {
+        for (const dateDoc of enabledDatesResult.data as { date?: string }[]) {
+          const ds = typeof dateDoc.date === 'string' ? dateDoc.date.trim() : '';
+          if (/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/.test(ds)) {
+            enabledDatesForAvailability.push(ds);
+          }
+        }
+      }
+
+      const weeklyMenuResult = await db.readOne('weeklymenus', { active: true });
+      const weeklyMenu =
+        weeklyMenuResult.success && weeklyMenuResult.data
+          ? (weeklyMenuResult.data as Record<string, unknown>)
+          : { allDays: [], tuesday: [], wednesday: [], thursday: [], friday: [] };
+
+      const daysOfWeek = ['allDays', ...enabledDatesForAvailability];
+      availabilityMap = new Map<string, string[]>();
+      for (const dayOrDate of daysOfWeek) {
+        const dayItems = (weeklyMenu[dayOrDate] as unknown[]) || [];
+        for (const itemId of dayItems) {
+          const itemIdStr = String(itemId);
+          if (!availabilityMap.has(itemIdStr)) {
+            availabilityMap.set(itemIdStr, []);
+          }
+          availabilityMap.get(itemIdStr)!.push(dayOrDate);
+        }
+      }
+    } catch (e) {
+      console.warn('[food-items-day-wise] Could not build availability map:', e);
+    }
+
     // Step 5: Transform food items to response format
     const transformedItems = await Promise.all(
       foodItems.map(async (foodItem: Document) => {
@@ -502,6 +532,7 @@ export async function GET(req: NextRequest) {
           itemType: foodItem.itemType || 'single',
           comboItems: foodItem.comboItems || [],
           sections: populatedSections.length > 0 ? populatedSections : (foodItem.sections || []),
+          availableWeekDays: availabilityMap.get(foodItemIdStr) || [],
         };
       })
     );
@@ -526,7 +557,7 @@ export async function GET(req: NextRequest) {
       {
         data: {
           categoryId: categoryId,
-          categoryListingType: 'day-wise',
+          categoryListingType: (category.listingType || 'flat') as 'flat' | 'day-wise',
           // Canonical API date format (ISO 8601: YYYY-MM-DD)
           // Use this for: data processing, filtering, API interactions, date comparisons
           date: date,

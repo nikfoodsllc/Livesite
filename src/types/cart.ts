@@ -113,6 +113,10 @@ export interface Cart {
     state: string;
     zipCode: string;
     landmark?: string;
+    /** Gate / buzzer / entrance code (from saved address) */
+    entrance?: string;
+    /** Delivery instructions (saved address `floor` field in AddressDialog) */
+    floor?: string;
     isDefault: boolean;
   };
   subtotal: number;

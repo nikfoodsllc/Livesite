@@ -14,6 +14,9 @@ interface DeliveryAddressDisplayProps {
     state: string;
     zipCode: string;
     landmark?: string;
+    entrance?: string;
+    /** Delivery instructions (same as saved address floor field) */
+    floor?: string;
     isDefault: boolean;
   };
   onChangeAddress?: () => void;
@@ -206,6 +209,16 @@ export default function DeliveryAddressDisplay({
               <Typography variant="body2" sx={{ color: '#666' }}>
                 {address.city}, {address.state} {address.zipCode}
               </Typography>
+              {address.entrance && (
+                <Typography variant="body2" sx={{ color: '#666', mt: 0.5 }}>
+                  Gate code: {address.entrance}
+                </Typography>
+              )}
+              {address.floor && (
+                <Typography variant="body2" sx={{ color: '#666', mt: 0.5 }}>
+                  Delivery instructions: {address.floor}
+                </Typography>
+              )}
               {address.landmark && (
                 <Typography variant="body2" sx={{ color: '#666', mt: 0.5 }}>
                   Landmark: {address.landmark}
