@@ -18,6 +18,14 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        source: '/.well-known/apple-developer-merchantid-domain-association',
+        headers: [
+          { key: 'Content-Type', value: 'text/plain; charset=utf-8' },
+          { key: 'Content-Disposition', value: 'inline' },
+          { key: 'Cache-Control', value: 'public, max-age=300' },
+        ],
+      },
+      {
         source: '/api/:path*',
         headers: [
           { key: 'Access-Control-Allow-Origin', value: '*' },
