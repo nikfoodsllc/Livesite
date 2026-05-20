@@ -200,7 +200,7 @@ function CheckoutFormContent({
             show={false}
             showApplePay={true}
             amount={totals.total}
-            onApplePayAvailable={onApplePayAvailable}
+            onApplePayAvailable={() => {}}
             onApplePayPaymentMethod={async (e) => {
               try {
                 const orderRequest = {
@@ -222,25 +222,20 @@ function CheckoutFormContent({
                   return;
                 }
                 const { orderId, clientSecret } = data.data;
-
                 const { error: stripeError, paymentIntent } = await stripe!.confirmCardPayment(
                   clientSecret,
                   { payment_method: e.paymentMethod.id },
                   { handleActions: false }
                 );
-
                 if (stripeError) {
                   e.complete('fail');
                   return;
                 }
-
                 e.complete('success');
-
                 if (paymentIntent?.status === 'requires_action') {
                   const { error } = await stripe!.confirmCardPayment(clientSecret);
                   if (error) return;
                 }
-
                 await pollOrderStatus(orderId);
                 setOrderCompleted(true);
                 localCart.clearCart();
@@ -254,13 +249,13 @@ function CheckoutFormContent({
           />
         )}
 
-        {/* Hidden Apple Pay detector to check availability */}
+        {/* Hidden Apple Pay detector - disabled until flow is fixed */}
         {paymentMethod !== 'Apple Pay' && (
           <StripePaymentForm
             show={false}
             showApplePay={true}
             amount={totals.total}
-            onApplePayAvailable={onApplePayAvailable}
+            onApplePayAvailable={() => {}}
           />
         )}
 
@@ -289,33 +284,31 @@ function CheckoutFormContent({
             </Box>
           )}
 
-          {paymentMethod !== 'Apple Pay' && (
-            <Button
-              fullWidth
-              variant="contained"
-              size="large"
-              onClick={handlePlaceOrderClick}
-              disabled={isProcessing || !cart.canCheckout || (paymentMethod === 'Credit Card' && !isPaymentComplete)}
-              startIcon={
-                isProcessing ? (
-                  <CircularProgress size={20} sx={{ color: '#fff' }} />
-                ) : (
-                  <IconShoppingCart size={20} />
-                )
-              }
-              sx={{
-                bgcolor: '#FF9F0D',
-                color: '#fff',
-                py: 1.5,
-                fontSize: '16px',
-                fontWeight: 600,
-                '&:hover': { bgcolor: '#e68f0c' },
-                '&:disabled': { bgcolor: '#ccc', color: '#666' },
-              }}
-            >
-              {isProcessing ? 'Processing...' : `Place Order - $${totals.total.toFixed(2)}`}
-            </Button>
-          )}
+          <Button
+            fullWidth
+            variant="contained"
+            size="large"
+            onClick={handlePlaceOrderClick}
+            disabled={isProcessing || !cart.canCheckout || (paymentMethod === 'Credit Card' && !isPaymentComplete)}
+            startIcon={
+              isProcessing ? (
+                <CircularProgress size={20} sx={{ color: '#fff' }} />
+              ) : (
+                <IconShoppingCart size={20} />
+              )
+            }
+            sx={{
+              bgcolor: '#FF9F0D',
+              color: '#fff',
+              py: 1.5,
+              fontSize: '16px',
+              fontWeight: 600,
+              '&:hover': { bgcolor: '#e68f0c' },
+              '&:disabled': { bgcolor: '#ccc', color: '#666' },
+            }}
+          >
+            {isProcessing ? 'Processing...' : `Place Order - $${totals.total.toFixed(2)}`}
+          </Button>
 
           <Box
             sx={{
@@ -366,35 +359,33 @@ function CheckoutFormContent({
           </Box>
         )}
 
-        {paymentMethod !== 'Apple Pay' && (
-          <Button
-            fullWidth
-            variant="contained"
-            size="large"
-            onClick={handlePlaceOrderClick}
-            disabled={isProcessing || !cart.canCheckout || (paymentMethod === 'Credit Card' && !isPaymentComplete)}
-            startIcon={
-              isProcessing ? (
-                <CircularProgress size={20} sx={{ color: '#fff' }} />
-              ) : (
-                <IconShoppingCart size={20} />
-              )
-            }
-            sx={{
-              display: { xs: 'none', md: 'block' },
-              mt: 2,
-              bgcolor: '#FF9F0D',
-              color: '#fff',
-              py: 1.5,
-              fontSize: '16px',
-              fontWeight: 600,
-              '&:hover': { bgcolor: '#e68f0c' },
-              '&:disabled': { bgcolor: '#ccc', color: '#666' },
-            }}
-          >
-            {isProcessing ? 'Processing...' : `Place Order - $${totals.total.toFixed(2)}`}
-          </Button>
-        )}
+        <Button
+          fullWidth
+          variant="contained"
+          size="large"
+          onClick={handlePlaceOrderClick}
+          disabled={isProcessing || !cart.canCheckout || (paymentMethod === 'Credit Card' && !isPaymentComplete)}
+          startIcon={
+            isProcessing ? (
+              <CircularProgress size={20} sx={{ color: '#fff' }} />
+            ) : (
+              <IconShoppingCart size={20} />
+            )
+          }
+          sx={{
+            display: { xs: 'none', md: 'block' },
+            mt: 2,
+            bgcolor: '#FF9F0D',
+            color: '#fff',
+            py: 1.5,
+            fontSize: '16px',
+            fontWeight: 600,
+            '&:hover': { bgcolor: '#e68f0c' },
+            '&:disabled': { bgcolor: '#ccc', color: '#666' },
+          }}
+        >
+          {isProcessing ? 'Processing...' : `Place Order - $${totals.total.toFixed(2)}`}
+        </Button>
 
         <Box
           sx={{
@@ -500,9 +491,7 @@ export default function CheckoutPage() {
         formContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
       setTimeout(() => {
-        if (contactInfoRef.current) {
-          contactInfoRef.current.scrollToFirstError();
-        }
+        if (contactInfoRef.current) contactInfoRef.current.scrollToFirstError();
       }, 300);
     }
   }, [getErrorSummary]);
