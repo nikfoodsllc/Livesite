@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Typography, Paper, Alert } from '@mui/material';
 import { CardElement, useElements, useStripe, PaymentRequestButtonElement } from '@stripe/react-stripe-js';
-import { StripeCardElementOptions, PaymentRequest } from '@stripe/stripe-js';
+import { StripeCardElementOptions, PaymentRequest, PaymentRequestPaymentMethodEvent } from '@stripe/stripe-js';
 
 interface StripePaymentFormProps {
   show: boolean;
@@ -10,7 +10,7 @@ interface StripePaymentFormProps {
   showApplePay?: boolean;
   amount?: number;
   onApplePayAvailable?: (available: boolean) => void;
-  onApplePaySuccess?: (paymentMethodId: string) => void;
+  onApplePayPaymentMethod?: (event: PaymentRequestPaymentMethodEvent) => Promise<void>;
 }
 
 const CARD_ELEMENT_OPTIONS: StripeCardElementOptions = {
@@ -36,14 +36,12 @@ export default function StripePaymentForm({
   showApplePay = false,
   amount = 0,
   onApplePayAvailable,
-  onApplePaySuccess,
+  onApplePayPaymentMethod,
 }: StripePaymentFormProps) {
   const stripe = useStripe();
-  const elements = useElements();
   const [paymentRequest, setPaymentRequest] = useState<PaymentRequest | null>(null);
   const [applePayReady, setApplePayReady] = useState(false);
 
-  // Initialize payment request
   useEffect(() => {
     if (!stripe || !showApplePay || amount <= 0) return;
 
@@ -68,13 +66,15 @@ export default function StripePaymentForm({
       }
     });
 
-    pr.on('paymentmethod', (e) => {
-      onApplePaySuccess?.(e.paymentMethod.id);
-      e.complete('success');
+    pr.on('paymentmethod', async (e) => {
+      if (onApplePayPaymentMethod) {
+        await onApplePayPaymentMethod(e);
+      } else {
+        e.complete('success');
+      }
     });
   }, [stripe, showApplePay]);
 
-  // Update payment request amount whenever total changes (e.g. tip changes)
   useEffect(() => {
     if (paymentRequest && amount > 0) {
       paymentRequest.update({
