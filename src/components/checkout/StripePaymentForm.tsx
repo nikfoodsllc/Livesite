@@ -43,6 +43,7 @@ export default function StripePaymentForm({
   const [paymentRequest, setPaymentRequest] = useState<PaymentRequest | null>(null);
   const [applePayReady, setApplePayReady] = useState(false);
 
+  // Initialize payment request
   useEffect(() => {
     if (!stripe || !showApplePay || amount <= 0) return;
 
@@ -71,7 +72,19 @@ export default function StripePaymentForm({
       onApplePaySuccess?.(e.paymentMethod.id);
       e.complete('success');
     });
-  }, [stripe, showApplePay, amount]);
+  }, [stripe, showApplePay]);
+
+  // Update payment request amount whenever total changes (e.g. tip changes)
+  useEffect(() => {
+    if (paymentRequest && amount > 0) {
+      paymentRequest.update({
+        total: {
+          label: 'NikFoods Order',
+          amount: Math.round(amount * 100),
+        },
+      });
+    }
+  }, [paymentRequest, amount]);
 
   const handleCardChange = (event: any) => {
     onValidationChange?.(event.complete, event.empty, event.error?.message);
