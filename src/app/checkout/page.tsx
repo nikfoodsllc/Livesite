@@ -249,15 +249,7 @@ function CheckoutFormContent({
           />
         )}
 
-        {/* Hidden Apple Pay detector - disabled until flow is fixed */}
-        {paymentMethod !== 'Apple Pay' && (
-          <StripePaymentForm
-            show={false}
-            showApplePay={true}
-            amount={totals.total}
-            onApplePayAvailable={() => {}}
-          />
-        )}
+    
 
         <TipSection
           selectedTipPercentage={tipPercentage}
