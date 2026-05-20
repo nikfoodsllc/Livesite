@@ -1,4 +1,4 @@
-export type PaymentMethod = 'Credit Card' | 'Cash on Delivery';
+export type PaymentMethod = 'Credit Card' | 'Cash on Delivery' | 'Apple Pay';
 
 export type OrderStatus =
   | 'pending'
