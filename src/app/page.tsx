@@ -57,7 +57,7 @@ const subCategoryHeadingBoxSx = {
 const subCategoryTitleSx = {
   fontWeight: 600,
   color: colors.primaryDark,
-  fontSize: { xs: '1.125rem', sm: '1.3rem', md: '1.45rem' },
+  fontSize: { xs: '0.8rem', sm: '0.9rem', md: '1rem' },
   lineHeight: 1.35,
   letterSpacing: '-0.02em',
 } as const;
@@ -1277,129 +1277,152 @@ export default function Home() {
     const parentDg = category.dayGroups.find((g) => g.date === selectedDate);
     const dateOption = availableDates.find((d) => d.date === selectedDate);
 
-    return (
-      <Box>
-        <Tabs
-          value={selectedDate}
-          onChange={(_, v) =>
-            setDayWiseSelectedDateByCategory((prev) => ({
-              ...prev,
-              [category._id]: String(v),
-            }))
-          }
-          variant="scrollable"
-          scrollButtons="auto"
-          allowScrollButtonsMobile
-          sx={{ ...subCategoryTabsSx, mt: 0 }}
-        >
-          {dates.map((date) => {
-            const pdg = category.dayGroups.find((g) => g.date === date);
-            const dopt = availableDates.find((d) => d.date === date);
-            const subLab = subs.map((s) => s.dayGroups?.find((g) => g.date === date)).find(Boolean);
-            const label =
-              pdg?.displayName ?? subLab?.displayName ?? dopt?.formattedDate ?? date;
-            return <Tab key={date} value={date} label={label} />;
-          })}
-        </Tabs>
+   return (
+  <Box>
+    {dates.map((date) => {
+      const parentDg = category.dayGroups.find((g) => g.date === date);
 
-        <Box sx={{ pt: 2 }}>
-          <Box sx={{ mb: 2 }}>
-            {parentDg && parentDg.foodItems.length > 0 ? (
-              renderDayWiseFoodCardsGrid(parentDg)
-            ) : null}
-          </Box>
+      const displayDate =
+        parentDg?.displayName ||
+        availableDates.find((d) => d.date === date)?.formattedDate ||
+        date;
 
-          <Tabs
-            value={selectedSubId}
-            onChange={(_, v) =>
-              setDayWiseSubTabByDay((prev) => ({ ...prev, [tabKey]: String(v) }))
-            }
-            variant="scrollable"
-            scrollButtons="auto"
-            allowScrollButtonsMobile
-            sx={subCategoryTabsSx}
+      return (
+        <Box key={date} sx={{ mb: 6 }}>
+
+          {/* DATE HEADING */}
+          <Typography
+            variant="h5"
+            sx={{
+              fontWeight: 700,
+              mb: 3,
+              color: colors.primaryDark,
+              borderBottom: `2px solid ${colors.primary}`,
+              pb: 1,
+              display: 'inline-block',
+            }}
           >
-            {subs.map((sub) => (
-              <Tab key={sub._id} label={sub.name} value={sub._id} />
-            ))}
-          </Tabs>
+            {displayDate}
+          </Typography>
 
+          {/* PARENT CATEGORY ITEMS */}
+          {parentDg && parentDg.foodItems.length > 0 && (
+            <Box sx={{ mb: 5 }}>
+              {renderDayWiseFoodCardsGrid(parentDg)}
+            </Box>
+          )}
+
+          {/* SUB CATEGORIES */}
           {subs.map((sub) => {
-            const items = getItemsForSubOnDate(sub, selectedDate, availableDates);
-            const subDayGroup = sub.dayGroups?.find((g) => g.date === selectedDate);
-            const displayLabel =
-              parentDg?.displayName ??
-              subDayGroup?.displayName ??
-              dateOption?.formattedDate ??
-              selectedDate;
+            const items = getItemsForSubOnDate(
+              sub,
+              date,
+              availableDates
+            );
+
+            if (items.length === 0) return null;
+
+            const subDayGroup = sub.dayGroups?.find(
+              (g) => g.date === date
+            );
+
             const dayGroupForHandlers =
               subDayGroup ??
               ({
-                date: selectedDate,
-                displayName: displayLabel,
-                day: parentDg?.day ?? dateOption?.day,
+                date: date,
+                displayName: displayDate,
+                day: parentDg?.day,
                 foodItems: items,
               } as CategoryDisplay['dayGroups'][number]);
 
             return (
-              <Box
-                key={sub._id}
-                role="tabpanel"
-                hidden={selectedSubId !== sub._id}
-                sx={{ pt: 2 }}
-              >
-                {items.length === 0 ? (
-                  <Typography variant="body2" color="text.secondary" sx={{ py: 3 }}>
-                    No items in this section for this date.
-                  </Typography>
-                ) : (
-                  <Box sx={categoryGridSx}>
-                    {items.map((item: FoodItem) => {
-                      const itemType =
-                        item.hasCombo === true && item.sections && item.sections.length > 0
-                          ? 'combo'
-                          : item.portions && item.portions.length > 0
-                            ? 'portions'
-                            : 'simple';
-                      const customizable = isFoodCustomizable(item);
-                      const inCart = getItemQuantity(item._id, dayGroupForHandlers.date);
+              <Box key={`${sub._id}-${date}`} sx={{ mb: 5 }}>
 
-                      return (
-                        <FoodCard
-                          key={`${item._id}-${selectedDate}-${sub._id}`}
-                          imageUrl={item.url}
-                          name={item.name}
-                          price={getPriceForDisplay(item)}
-                          quantity={customizable ? 0 : inCart}
-                          inCartCount={inCart}
-                          alwaysShowAdd={customizable}
-                          onAdd={() => handleAddToCart(item._id, item, dayGroupForHandlers)}
-                          onIncrement={
-                            customizable
-                              ? undefined
-                              : () => handleIncrement(item._id, item, dayGroupForHandlers)
-                          }
-                          onDecrement={
-                            customizable
-                              ? undefined
-                              : () => handleDecrement(item._id, dayGroupForHandlers)
-                          }
-                          onClick={() => handleOpenDialog(item, dayGroupForHandlers)}
-                          isLoading={loadingStates[item._id]}
-                          itemType={itemType}
-                          veg={item.veg}
-                          available={item.available}
-                        />
-                      );
-                    })}
-                  </Box>
-                )}
+                {/* SUB CATEGORY TITLE */}
+                <Box sx={subCategoryHeadingBoxSx}>
+                  <Typography component="h3" sx={subCategoryTitleSx}>
+                    {sub.name}
+                  </Typography>
+                </Box>
+
+                {/* ITEMS */}
+                <Box sx={categoryGridSx}>
+                  {items.map((item: FoodItem) => {
+                    const itemType =
+                      item.hasCombo === true &&
+                      item.sections &&
+                      item.sections.length > 0
+                        ? 'combo'
+                        : item.portions &&
+                            item.portions.length > 0
+                          ? 'portions'
+                          : 'simple';
+
+                    const customizable =
+                      isFoodCustomizable(item);
+
+                    const inCart = getItemQuantity(
+                      item._id,
+                      dayGroupForHandlers.date
+                    );
+
+                    return (
+                      <FoodCard
+                        key={`${item._id}-${date}-${sub._id}`}
+                        imageUrl={item.url}
+                        name={item.name}
+                        price={getPriceForDisplay(item)}
+                        quantity={customizable ? 0 : inCart}
+                        inCartCount={inCart}
+                        alwaysShowAdd={customizable}
+                        onAdd={() =>
+                          handleAddToCart(
+                            item._id,
+                            item,
+                            dayGroupForHandlers
+                          )
+                        }
+                        onIncrement={
+                          customizable
+                            ? undefined
+                            : () =>
+                                handleIncrement(
+                                  item._id,
+                                  item,
+                                  dayGroupForHandlers
+                                )
+                        }
+                        onDecrement={
+                          customizable
+                            ? undefined
+                            : () =>
+                                handleDecrement(
+                                  item._id,
+                                  dayGroupForHandlers
+                                )
+                        }
+                        onClick={() =>
+                          handleOpenDialog(
+                            item,
+                            dayGroupForHandlers
+                          )
+                        }
+                        isLoading={loadingStates[item._id]}
+                        itemType={itemType}
+                        veg={item.veg}
+                        available={item.available}
+                      />
+                    );
+                  })}
+                </Box>
               </Box>
             );
           })}
         </Box>
-      </Box>
-    );
+      );
+    })}
+  </Box>
+);
   };
 
   // Loading state - show when categories are loading initially

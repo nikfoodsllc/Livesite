@@ -21,8 +21,15 @@ const addressSchema = z.object({
   street_address: z.string().min(5, 'Street address is too short'),
   city: z.string().min(2, 'City is required'),
   postal_code: z.string().regex(/^\d{5}(-\d{4})?$/, 'Invalid zip code format. Expected format: 12345 or 12345-6789'),
-  apartment: z.string().optional(),
-  floor: z.string().optional(),
+  apartment: z
+  .string()
+  .max(10, 'Apartment must be maximum 10 characters')
+  .optional(),
+
+floor: z
+  .string()
+  .max(30, 'Floor must be maximum 30 characters')
+  .optional(),
   entrance: z.string().optional(),
   isDefault: z.boolean().optional(),
 });
