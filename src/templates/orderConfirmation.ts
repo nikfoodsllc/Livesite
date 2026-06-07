@@ -295,6 +295,4 @@ export function getOrderConfirmationEmailTemplate(order: Order): string {
     </html>
   `;
 }
-}
-
 
