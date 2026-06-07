@@ -514,8 +514,8 @@ export default function AddressDialog({
     label="Gate Code"
     value={formData.entrance}
     onChange={handleChange('entrance')}
-    inputProps={{ maxLength: 30 }}
-    error={(formData.entrance?.length || 0) === 30}
+    inputProps={{ maxLength: 10 }}
+    error={(formData.entrance?.length || 0) === 10}
   />
 </Box>
             </Box>
