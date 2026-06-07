@@ -34,6 +34,8 @@ interface CreateOrderRequest {
   tipPercentage: number;
   paymentMethod: PaymentMethod;
   currency: string;
+  /** Reuse PaymentIntent created at checkout load (inline payment form) */
+  paymentIntentId?: string;
 }
 
 /**
@@ -85,7 +87,7 @@ export async function POST(request: NextRequest) {
 
     // Parse request body
     const body: CreateOrderRequest = await request.json();
-    const { cart, customerInfo, tipPercentage, paymentMethod, currency } = body;
+    const { cart, customerInfo, tipPercentage, paymentMethod, currency, paymentIntentId } = body;
 
     // Validate required fields
     if (!cart || !cart.days || cart.days.length === 0) {
@@ -161,7 +163,17 @@ export async function POST(request: NextRequest) {
     const tipAmount = calculateTipAmount(cart.subtotal, tipPercentage);
 
     // Calculate total (cart already has calculated values)
-    const totalPaid = cart.subtotal + cart.platformFee + cart.deliveryFee + cart.tax + tipAmount;
+    const discount = cart.appliedCoupon?.discountAmount || 0;
+    const totalPaid = Number(
+      (
+        cart.subtotal +
+        cart.platformFee +
+        cart.deliveryFee +
+        cart.tax +
+        tipAmount -
+        discount
+      ).toFixed(2)
+    );
 
     // Extract delivery messages from cart
     const deliveryMessages = cart.days
@@ -205,20 +217,46 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Create Stripe PaymentIntent
+      // Create or reuse Stripe PaymentIntent
       try {
-        // `card` only: card fields + Apple Pay / Google Pay wallets in Payment Element.
-        // Broader `automatic_payment_methods` also enables Cash App, Amazon Pay, bank debit, etc.
-        const paymentIntent = await stripe.paymentIntents.create({
-          amount: Math.round(totalPaid * 100), // Convert to cents
-          currency: currency || 'usd',
-          payment_method_types: ['card'],
-          metadata: {
-            orderId: order.orderId,
-            userId: userId,
-          },
-          description: `Order ${order.orderId} for ${customer.name}`,
-        });
+        const amountCents = Math.round(totalPaid * 100);
+        let paymentIntent: Stripe.PaymentIntent;
+
+        if (paymentIntentId) {
+          paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+
+          if (paymentIntent.status === 'canceled') {
+            return NextResponse.json(
+              { success: false, error: 'Payment session expired. Please refresh the page.' },
+              { status: 400 }
+            );
+          }
+
+          if (paymentIntent.amount !== amountCents) {
+            paymentIntent = await stripe.paymentIntents.update(paymentIntentId, {
+              amount: amountCents,
+            });
+          }
+
+          paymentIntent = await stripe.paymentIntents.update(paymentIntentId, {
+            metadata: {
+              orderId: order.orderId,
+              userId: userId,
+            },
+            description: `Order ${order.orderId} for ${customer.name}`,
+          });
+        } else {
+          paymentIntent = await stripe.paymentIntents.create({
+            amount: amountCents,
+            currency: currency || 'usd',
+            payment_method_types: ['card'],
+            metadata: {
+              orderId: order.orderId,
+              userId: userId,
+            },
+            description: `Order ${order.orderId} for ${customer.name}`,
+          });
+        }
 
         // Add Stripe PaymentIntent ID to order
         const orderWithStripe: Order = {

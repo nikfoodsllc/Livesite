@@ -8,6 +8,7 @@ import {
   Button,
   CircularProgress,
   Alert,
+  Paper,
 } from '@mui/material';
 import { useRouter } from 'next/navigation';
 import { loadStripe } from '@stripe/stripe-js';
@@ -20,7 +21,9 @@ import { useHeader } from '@/contexts/HeaderContext';
 import { useApiClient } from '@/hooks/useApiClient';
 import ContactInfoSection, { ContactInfoSectionRef } from '@/components/checkout/ContactInfoSection';
 import PaymentMethodSection from '@/components/checkout/PaymentMethodSection';
-import CheckoutPaymentStep from '@/components/checkout/CheckoutPaymentStep';
+import CheckoutPaymentDetails, {
+  CheckoutPaymentDetailsHandle,
+} from '@/components/checkout/CheckoutPaymentDetails';
 import TipSection from '@/components/checkout/TipSection';
 import DeliveryAddressDisplay from '@/components/checkout/DeliveryAddressDisplay';
 import AddressSelectionDialog from '@/components/checkout/AddressSelectionDialog';
@@ -62,7 +65,6 @@ interface CheckoutFormContentProps {
   phone: string;
   paymentMethod: PaymentMethod;
   tipPercentage: number;
-  isProcessing: boolean;
   errors: {
     name?: string;
     email?: string;
@@ -75,7 +77,7 @@ interface CheckoutFormContentProps {
   onPhoneError: (error: string | null) => void;
   onPaymentMethodChange: (method: PaymentMethod) => void;
   onTipChange: (percentage: number) => void;
-  onContinueToPayment: () => Promise<void>;
+  onPlaceOrder: () => Promise<void>;
   onOpenAddressDialog: () => void;
   contactInfoRef: React.RefObject<ContactInfoSectionRef | null>;
   addressesLoading?: boolean;
@@ -86,6 +88,14 @@ interface CheckoutFormContentProps {
   onLoginClick: () => void;
   onSignupClick: () => void;
   zipcodeConfig: ZipcodeConfig | null;
+  paymentClientSecret: string | null;
+  pendingOrderId: string | null;
+  isInitializingPayment: boolean;
+  paymentFormRef: React.RefObject<CheckoutPaymentDetailsHandle | null>;
+  onPaymentSuccess: (orderId: string) => Promise<void>;
+  onPaymentError: (message: string) => void;
+  isPaymentSubmitting: boolean;
+  onPaymentSubmittingChange: (value: boolean) => void;
 }
 
 function CheckoutFormContent({
@@ -95,7 +105,6 @@ function CheckoutFormContent({
   phone,
   paymentMethod,
   tipPercentage,
-  isProcessing,
   errors,
   userAddresses,
   onNameChange,
@@ -104,7 +113,7 @@ function CheckoutFormContent({
   onPhoneError,
   onPaymentMethodChange,
   onTipChange,
-  onContinueToPayment,
+  onPlaceOrder,
   onOpenAddressDialog,
   contactInfoRef,
   addressesLoading,
@@ -115,6 +124,14 @@ function CheckoutFormContent({
   onLoginClick,
   onSignupClick,
   zipcodeConfig,
+  paymentClientSecret,
+  pendingOrderId,
+  isInitializingPayment,
+  paymentFormRef,
+  onPaymentSuccess,
+  onPaymentError,
+  isPaymentSubmitting,
+  onPaymentSubmittingChange,
 }: CheckoutFormContentProps) {
   const calculateTotals = () => {
     const subtotal = cart.subtotal;
@@ -157,13 +174,16 @@ function CheckoutFormContent({
   console.log('Number of delivery calculations:', deliveryCalculations.length);
   console.log('=== DELIVERY DATE CALCULATION END ===');
 
-  const handleContinueClick = async () => {
+  const handlePlaceOrderClick = async () => {
     try {
-      await onContinueToPayment();
+      await onPlaceOrder();
     } catch {
       // Validation and API errors are already shown in the UI
     }
   };
+
+  const isBusy = isInitializingPayment || isPaymentSubmitting;
+  const canShowPaymentDetails = paymentMethod === 'Credit Card';
 
   return (
     <Box
@@ -204,6 +224,54 @@ function CheckoutFormContent({
           onMethodChange={onPaymentMethodChange}
         />
 
+        {/* Stripe payment details — inline below payment method */}
+        {canShowPaymentDetails && (
+          <>
+            {isInitializingPayment && !paymentClientSecret && (
+              <Paper
+                elevation={0}
+                sx={{
+                  p: 3,
+                  mb: 3,
+                  border: '1px solid #EDEDED',
+                  borderRadius: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1.5,
+                }}
+              >
+                <CircularProgress size={22} sx={{ color: '#FF9F0D' }} />
+                <Typography variant="body2" sx={{ color: '#666' }}>
+                  Loading payment options…
+                </Typography>
+              </Paper>
+            )}
+            {paymentClientSecret && (
+              <Elements
+                stripe={stripePromise}
+                key={paymentClientSecret}
+                options={{
+                  clientSecret: paymentClientSecret,
+                  appearance: stripeAppearance,
+                }}
+              >
+                <CheckoutPaymentDetails
+                  ref={paymentFormRef}
+                  orderId={pendingOrderId}
+                  clientSecret={paymentClientSecret}
+                  name={name}
+                  email={email}
+                  phone={phone}
+                  onPaymentSuccess={onPaymentSuccess}
+                  onPaymentError={onPaymentError}
+                  isSubmitting={isPaymentSubmitting}
+                  onSubmittingChange={onPaymentSubmittingChange}
+                />
+              </Elements>
+            )}
+          </>
+        )}
+
         {/* Tip Section */}
         <TipSection
           selectedTipPercentage={tipPercentage}
@@ -213,30 +281,20 @@ function CheckoutFormContent({
 
         {/* Place Order Button (Mobile) */}
         <Box sx={{ display: { xs: 'block', md: 'none' }, mb: 3 }}>
-          {/* Disabled reason messages */}
-          {!isProcessing && (
-            <Box sx={{ mb: 1.5 }}>
-              {!cart.canCheckout && (
-                <Alert severity="warning" sx={{ mb: 1 }}>
-                  Minimum order value required. Add more items to proceed.
-                </Alert>
-              )}
-              {paymentMethod === 'Credit Card' && (
-                <Alert severity="info" sx={{ mb: 1 }}>
-                  Next: pay by card or wallet. Apple Pay on the web needs Safari, HTTPS, and a Stripe-verified domain—not Chrome on localhost.
-                </Alert>
-              )}
-            </Box>
+          {!isBusy && !cart.canCheckout && (
+            <Alert severity="warning" sx={{ mb: 1.5 }}>
+              Minimum order value required. Add more items to proceed.
+            </Alert>
           )}
 
           <Button
             fullWidth
             variant="contained"
             size="large"
-            onClick={handleContinueClick}
-            disabled={isProcessing || !cart.canCheckout}
+            onClick={handlePlaceOrderClick}
+            disabled={isBusy || !cart.canCheckout}
             startIcon={
-              isProcessing ? (
+              isBusy ? (
                 <CircularProgress size={20} sx={{ color: '#fff' }} />
               ) : (
                 <IconShoppingCart size={20} />
@@ -257,9 +315,11 @@ function CheckoutFormContent({
               },
             }}
           >
-            {isProcessing
-              ? 'Creating order…'
-              : `Continue to payment - $${totals.total.toFixed(2)}`}
+            {isPaymentSubmitting
+              ? 'Processing…'
+              : isInitializingPayment
+                ? 'Preparing payment…'
+                : `Pay $${totals.total.toFixed(2)}`}
           </Button>
           <Box
             sx={{
@@ -294,30 +354,20 @@ function CheckoutFormContent({
         />
 
         {/* Place Order Button (Desktop) */}
-        {/* Disabled reason messages */}
-        {!isProcessing && (
-          <Box sx={{ display: { xs: 'none', md: 'block' }, mb: 1.5 }}>
-            {!cart.canCheckout && (
-              <Alert severity="warning" sx={{ mb: 1 }}>
-                Minimum order value required. Add more items to proceed.
-              </Alert>
-            )}
-            {paymentMethod === 'Credit Card' && (
-              <Alert severity="info" sx={{ mb: 1 }}>
-                Next: pay by card or wallet. Apple Pay on the web needs Safari, HTTPS, and a Stripe-verified domain—not Chrome on localhost.
-              </Alert>
-            )}
-          </Box>
+        {!isBusy && !cart.canCheckout && (
+          <Alert severity="warning" sx={{ display: { xs: 'none', md: 'block' }, mb: 1.5 }}>
+            Minimum order value required. Add more items to proceed.
+          </Alert>
         )}
 
         <Button
           fullWidth
           variant="contained"
           size="large"
-          onClick={handleContinueClick}
-          disabled={isProcessing || !cart.canCheckout}
+          onClick={handlePlaceOrderClick}
+          disabled={isBusy || !cart.canCheckout}
           startIcon={
-            isProcessing ? (
+            isBusy ? (
               <CircularProgress size={20} sx={{ color: '#fff' }} />
             ) : (
               <IconShoppingCart size={20} />
@@ -340,9 +390,11 @@ function CheckoutFormContent({
             },
           }}
         >
-          {isProcessing
-            ? 'Creating order…'
-            : `Continue to payment - $${totals.total.toFixed(2)}`}
+          {isPaymentSubmitting
+            ? 'Processing…'
+            : isInitializingPayment
+              ? 'Preparing payment…'
+              : `Pay $${totals.total.toFixed(2)}`}
         </Button>
         <Box
           sx={{
@@ -376,7 +428,6 @@ export default function CheckoutPage() {
   const [phone, setPhone] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Credit Card');
   const [tipPercentage, setTipPercentage] = useState(5);
-  const [isProcessing, setIsProcessing] = useState(false);
   const [orderCompleted, setOrderCompleted] = useState(false);
   const [error, setError] = useState('');
 
@@ -393,7 +444,10 @@ export default function CheckoutPage() {
   }>({});
 
   const [paymentClientSecret, setPaymentClientSecret] = useState<string | null>(null);
+  const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null);
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
+  const [isInitializingPayment, setIsInitializingPayment] = useState(false);
+  const [isPaymentSubmitting, setIsPaymentSubmitting] = useState(false);
 
   // Validation error summary shown when Place Order is clicked
   const [validationErrors, setValidationErrors] = useState<ErrorSummary[]>([]);
@@ -402,6 +456,7 @@ export default function CheckoutPage() {
   // Form container ref for scroll behavior
   const formContainerRef = useRef<HTMLDivElement>(null);
   const contactInfoRef = useRef<ContactInfoSectionRef>(null);
+  const paymentFormRef = useRef<CheckoutPaymentDetailsHandle>(null);
 
   // Error summary for displaying all validation errors
   const getErrorSummary = useCallback((): ErrorSummary[] => {
@@ -720,7 +775,188 @@ useEffect(() => {
     setError(message);
   };
 
-  const handleContinueToPayment = async (): Promise<void> => {
+  const canLoadPaymentIntent = useCallback((): boolean => {
+    if (!cart?.canCheckout || cart.days.length === 0) return false;
+    return paymentMethod === 'Credit Card';
+  }, [cart, paymentMethod]);
+
+  const initializePaymentIntent = useCallback(async (): Promise<boolean> => {
+    if (!cart || cart.days.length === 0) {
+      return false;
+    }
+
+    if (paymentMethod !== 'Credit Card') {
+      return false;
+    }
+
+    setIsInitializingPayment(true);
+
+    try {
+      const response = await authenticatedFetch('/api/checkout/payment-intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cart,
+          tipPercentage,
+          currency: 'usd',
+          paymentIntentId: paymentIntentId ?? undefined,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        setError(data.error || 'Failed to load payment options');
+        return false;
+      }
+
+      const { clientSecret, paymentIntentId: intentId } = data.data;
+
+      if (!clientSecret || !intentId) {
+        setError('Missing payment session from server');
+        return false;
+      }
+
+      setPaymentIntentId(intentId);
+      setPaymentClientSecret(clientSecret);
+      return true;
+    } catch (err) {
+      console.error('Payment intent error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load payment options.');
+      return false;
+    } finally {
+      setIsInitializingPayment(false);
+    }
+  }, [
+    authenticatedFetch,
+    cart,
+    paymentIntentId,
+    paymentMethod,
+    tipPercentage,
+  ]);
+
+  const createPendingOrder = useCallback(async (): Promise<string | null> => {
+    if (!cart || cart.days.length === 0) {
+      setError('Your cart is empty');
+      return null;
+    }
+
+    setIsInitializingPayment(true);
+
+    try {
+      const orderRequest = {
+        cart,
+        customerInfo: { name, email, phone },
+        tipPercentage,
+        paymentMethod,
+        currency: 'usd',
+        paymentIntentId: paymentIntentId ?? undefined,
+      };
+
+      const response = await authenticatedFetch('/api/orders/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(orderRequest),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        const errorMessage = data.error || 'Failed to create order';
+        router.push(`/checkout/failure?error=${encodeURIComponent(errorMessage)}`);
+        return null;
+      }
+
+      const { orderId, clientSecret } = data.data;
+
+      if (!clientSecret || !orderId) {
+        router.push(
+          `/checkout/failure?error=${encodeURIComponent('Missing payment session from server')}`
+        );
+        return null;
+      }
+
+      setPendingOrderId(orderId);
+      setPaymentClientSecret(clientSecret);
+      return orderId;
+    } catch (err) {
+      console.error('Order creation error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to create order. Please try again.');
+      return null;
+    } finally {
+      setIsInitializingPayment(false);
+    }
+  }, [
+    authenticatedFetch,
+    cart,
+    email,
+    name,
+    paymentIntentId,
+    paymentMethod,
+    phone,
+    router,
+    tipPercentage,
+  ]);
+
+  // Load Stripe payment options as soon as the cart is checkout-ready
+  useEffect(() => {
+    if (!canLoadPaymentIntent()) {
+      setPaymentClientSecret(null);
+      setPaymentIntentId(null);
+      setPendingOrderId(null);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      void (async () => {
+        if (cancelled || paymentClientSecret) return;
+        await initializePaymentIntent();
+      })();
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [canLoadPaymentIntent, initializePaymentIntent, paymentClientSecret]);
+
+  // Refresh payment intent when tip or cart total changes
+  const paymentAmountKey = `${tipPercentage}-${cart?.subtotal}-${cart?.platformFee}-${cart?.deliveryFee}-${cart?.tax}-${cart?.appliedCoupon?.discountAmount ?? 0}`;
+  const paymentAmountKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!canLoadPaymentIntent() || !paymentClientSecret) return;
+
+    if (paymentAmountKeyRef.current === null) {
+      paymentAmountKeyRef.current = paymentAmountKey;
+      return;
+    }
+
+    if (paymentAmountKeyRef.current === paymentAmountKey) return;
+
+    paymentAmountKeyRef.current = paymentAmountKey;
+
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      void (async () => {
+        if (cancelled) return;
+        await initializePaymentIntent();
+      })();
+    }, 400);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [
+    canLoadPaymentIntent,
+    initializePaymentIntent,
+    paymentAmountKey,
+    paymentClientSecret,
+  ]);
+
+  const handlePlaceOrder = async (): Promise<void> => {
     setError('');
     setShowValidationErrors(false);
     setValidationErrors([]);
@@ -729,16 +965,9 @@ useEffect(() => {
       const allErrors = collectAllValidationErrors();
       setValidationErrors(allErrors);
       setShowValidationErrors(true);
-
       setTimeout(() => {
-        if (formContainerRef.current) {
-          formContainerRef.current.scrollIntoView({
-            behavior: 'smooth',
-            block: 'start',
-          });
-        }
+        formContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }, 100);
-
       handleValidationError();
       throw new Error('Form validation failed');
     }
@@ -748,25 +977,19 @@ useEffect(() => {
       setValidationErrors(allErrors);
       setShowValidationErrors(true);
 
-      const hasAddressError = allErrors.some(
-        (error) =>
-          error.field === 'Delivery Address' &&
-          error.message.includes('complete delivery address')
-      );
-
-      if (hasAddressError) {
+      if (
+        allErrors.some(
+          (e) =>
+            e.field === 'Delivery Address' &&
+            e.message.includes('complete delivery address')
+        )
+      ) {
         setShowAddressDialog(true);
       }
 
       setTimeout(() => {
-        if (formContainerRef.current) {
-          formContainerRef.current.scrollIntoView({
-            behavior: 'smooth',
-            block: 'start',
-          });
-        }
+        formContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }, 100);
-
       throw new Error('Validation failed');
     }
 
@@ -780,55 +1003,25 @@ useEffect(() => {
       throw new Error('Unsupported payment method');
     }
 
-    setIsProcessing(true);
+    let orderIdForPayment = pendingOrderId;
 
-    try {
-      const orderRequest = {
-        cart,
-        customerInfo: {
-          name,
-          email,
-          phone,
-        },
-        tipPercentage,
-        paymentMethod,
-        currency: 'usd',
-      };
-
-      const response = await authenticatedFetch('/api/orders/create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(orderRequest),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        const errorMessage = data.error || 'Failed to create order';
-        router.push(`/checkout/failure?error=${encodeURIComponent(errorMessage)}`);
-        return;
-      }
-
-      const { orderId, clientSecret } = data.data;
-
-      if (!clientSecret || !orderId) {
-        router.push(
-          `/checkout/failure?error=${encodeURIComponent('Missing payment session from server')}`
-        );
-        return;
-      }
-
-      setPendingOrderId(orderId);
-      setPaymentClientSecret(clientSecret);
-    } catch (err) {
-      console.error('Order creation error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to start checkout. Please try again.');
-      throw err;
-    } finally {
-      setIsProcessing(false);
+    if (!paymentClientSecret) {
+      const ready = await initializePaymentIntent();
+      if (!ready) throw new Error('Payment session not ready');
+      await new Promise((resolve) => setTimeout(resolve, 300));
     }
+
+    if (!orderIdForPayment) {
+      orderIdForPayment = await createPendingOrder();
+      if (!orderIdForPayment) throw new Error('Order not created');
+    }
+
+    if (!paymentFormRef.current) {
+      setError('Payment form is still loading. Please wait a moment and try again.');
+      throw new Error('Payment form not ready');
+    }
+
+    await paymentFormRef.current.confirmPayment(orderIdForPayment);
   };
 
   if (cartLoading || authLoading) {
@@ -909,60 +1102,43 @@ useEffect(() => {
           </Alert>
         )}
 
-        {/* Checkout: details first, then Stripe Payment Element */}
+        {/* Checkout — single page with inline payment details */}
         <Box ref={formContainerRef}>
-          {!paymentClientSecret || !pendingOrderId ? (
-            <CheckoutFormContent
-              cart={cart}
-              name={name}
-              email={email}
-              phone={phone}
-              paymentMethod={paymentMethod}
-              tipPercentage={tipPercentage}
-              isProcessing={isProcessing}
-              errors={errors}
-              userAddresses={userAddresses}
-              addressesLoading={addressesLoading}
-              showAddressDialog={showAddressDialog}
-              onNameChange={handleNameChange}
-              onEmailChange={handleEmailChange}
-              onPhoneChange={handlePhoneChange}
-              onPhoneError={handlePhoneError}
-              onPaymentMethodChange={setPaymentMethod}
-              onTipChange={setTipPercentage}
-              onContinueToPayment={handleContinueToPayment}
-              onOpenAddressDialog={handleOpenAddressDialog}
-              onAddressSelect={handleAddressSelect}
-              onCloseAddressDialog={handleCloseAddressDialog}
-              contactInfoRef={contactInfoRef}
-              isAuthenticated={!!user}
-              onLoginClick={openLoginDialog}
-              onSignupClick={openSignupDialog}
-              zipcodeConfig={zipcodeConfig}
-            />
-          ) : (
-            <Elements
-              stripe={stripePromise}
-              key={paymentClientSecret}
-              options={{
-                clientSecret: paymentClientSecret,
-                appearance: stripeAppearance,
-              }}
-            >
-              <CheckoutPaymentStep
-                orderId={pendingOrderId}
-                clientSecret={paymentClientSecret}
-                cart={cart}
-                name={name}
-                email={email}
-                phone={phone}
-                tipPercentage={tipPercentage}
-                zipcodeConfig={zipcodeConfig}
-                onPaymentSuccess={handlePaymentSuccess}
-                onPaymentError={handlePaymentError}
-              />
-            </Elements>
-          )}
+          <CheckoutFormContent
+            cart={cart}
+            name={name}
+            email={email}
+            phone={phone}
+            paymentMethod={paymentMethod}
+            tipPercentage={tipPercentage}
+            errors={errors}
+            userAddresses={userAddresses}
+            addressesLoading={addressesLoading}
+            showAddressDialog={showAddressDialog}
+            onNameChange={handleNameChange}
+            onEmailChange={handleEmailChange}
+            onPhoneChange={handlePhoneChange}
+            onPhoneError={handlePhoneError}
+            onPaymentMethodChange={setPaymentMethod}
+            onTipChange={setTipPercentage}
+            onPlaceOrder={handlePlaceOrder}
+            onOpenAddressDialog={handleOpenAddressDialog}
+            onAddressSelect={handleAddressSelect}
+            onCloseAddressDialog={handleCloseAddressDialog}
+            contactInfoRef={contactInfoRef}
+            isAuthenticated={!!user}
+            onLoginClick={openLoginDialog}
+            onSignupClick={openSignupDialog}
+            zipcodeConfig={zipcodeConfig}
+            paymentClientSecret={paymentClientSecret}
+            pendingOrderId={pendingOrderId}
+            isInitializingPayment={isInitializingPayment}
+            paymentFormRef={paymentFormRef}
+            onPaymentSuccess={handlePaymentSuccess}
+            onPaymentError={handlePaymentError}
+            isPaymentSubmitting={isPaymentSubmitting}
+            onPaymentSubmittingChange={setIsPaymentSubmitting}
+          />
         </Box>
       </Container>
 
