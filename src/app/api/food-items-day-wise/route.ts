@@ -533,6 +533,8 @@ export async function GET(req: NextRequest) {
           comboItems: foodItem.comboItems || [],
           sections: populatedSections.length > 0 ? populatedSections : (foodItem.sections || []),
           availableWeekDays: availabilityMap.get(foodItemIdStr) || [],
+          subCategoryId: undefined as string | undefined,
+          subCategoryName: undefined as string | undefined,
         };
       })
     );
