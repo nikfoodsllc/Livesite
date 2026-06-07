@@ -407,8 +407,8 @@ export async function GET(req: NextRequest) {
           continue;
         }
 
-        if (mappingType === 'FLAT') {
-          // For flat listing, just collect all IDs
+        if (mappingType === 'FLAT' || mappingType == null) {
+          // For flat listing, just collect all IDs (legacy rows may omit mappingType)
           foodItemIds.add(foodItemIdStr);
         } else if (mappingType === 'DAY_WISE') {
           // For day-wise listing, organize by date string
@@ -589,7 +589,7 @@ export async function GET(req: NextRequest) {
       // Get all FLAT mappings
       if (categoryFoodMappingResult.success && categoryFoodMappingResult.data) {
         for (const mapping of categoryFoodMappingResult.data as CategoryFoodMapping[]) {
-          if (mapping.mappingType === 'FLAT') {
+          if (mapping.mappingType === 'FLAT' || mapping.mappingType == null) {
             const foodItemIdStr = mapping.foodItemId?.toString();
             if (foodItemIdStr && foodItemMap.has(foodItemIdStr)) {
               flatItems.push(foodItemMap.get(foodItemIdStr)!);

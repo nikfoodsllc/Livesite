@@ -550,6 +550,57 @@ export async function GET(req: NextRequest) {
       new Map(sortedItems.filter(item => item != null).map(item => [item._id, item])).values()
     );
 
+    // Attach sub-category tags (FLAT mappings on child categories) for day-wise menu grouping
+    const subCategoriesResult = await db.read(
+      'foodcategories',
+      {
+        parentCategoryId: new MongoObjectId(categoryId),
+        isDraft: { $ne: true },
+      },
+      { sort: { sequence: 1 } }
+    );
+
+    if (subCategoriesResult.success && subCategoriesResult.data?.length) {
+      const subs = subCategoriesResult.data as Array<{
+        _id: { toString: () => string };
+        name: string;
+      }>;
+      const subIds = subs.map((s) => new MongoObjectId(s._id.toString()));
+      const subNameById = new Map(subs.map((s) => [s._id.toString(), s.name]));
+
+      const flatMappingsResult = await db.read(
+        'categoryfoodmapping',
+        {
+          categoryId: { $in: subIds },
+          $or: [{ mappingType: 'FLAT' }, { mappingType: { $exists: false } }],
+        }
+      );
+
+      const itemSubMap = new Map<string, { subCategoryId: string; subCategoryName: string }>();
+      if (flatMappingsResult.success && flatMappingsResult.data) {
+        for (const mapping of flatMappingsResult.data as Array<{
+          foodItemId?: { toString: () => string };
+          categoryId?: { toString: () => string };
+        }>) {
+          const foodItemId = mapping.foodItemId?.toString();
+          const subId = mapping.categoryId?.toString();
+          if (!foodItemId || !subId) continue;
+          itemSubMap.set(foodItemId, {
+            subCategoryId: subId,
+            subCategoryName: subNameById.get(subId) ?? '',
+          });
+        }
+      }
+
+      for (const item of uniqueItems) {
+        const tag = itemSubMap.get(item._id);
+        if (tag) {
+          item.subCategoryId = tag.subCategoryId;
+          item.subCategoryName = tag.subCategoryName;
+        }
+      }
+    }
+
     console.log(`[food-items-day-wise] Returning ${uniqueItems.length} unique items`);
 
     // Step 7: Build and return response

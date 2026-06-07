@@ -43,6 +43,41 @@ interface CategoryDisplay {
   }>;
   /** One level of sub-categories shown under this parent on the home page */
   subCategories?: CategoryDisplay[];
+  /** FLAT-mapped food item ids for sub-categories (used to group under day-wise parents) */
+  flatTaggedItemIds?: string[];
+}
+
+function normalizeItemId(id: unknown): string {
+  if (id == null) return '';
+  if (typeof id === 'string') return id;
+  if (typeof id === 'object' && id !== null && 'toString' in id) {
+    return String(id);
+  }
+  return String(id);
+}
+
+function getSubFlatTaggedIds(sub: CategoryDisplay): Set<string> {
+  if (sub.flatTaggedItemIds?.length) {
+    return new Set(sub.flatTaggedItemIds.map(normalizeItemId));
+  }
+  return new Set((sub.foodItems ?? []).map((i) => normalizeItemId(i._id)));
+}
+
+function resolveSubCategoriesForDisplay(
+  category: CategoryDisplay,
+  categoriesList: CategoryListItem[],
+  itemsMap: Map<string, CategoryDisplay>
+): CategoryDisplay[] {
+  if (category.subCategories?.length) {
+    return category.subCategories;
+  }
+  const meta = categoriesList.find((c) => c._id === category._id);
+  if (!meta?.children?.length) return [];
+  return meta.children
+    .slice()
+    .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
+    .map((ch) => itemsMap.get(ch._id))
+    .filter((x): x is CategoryDisplay => !!x);
 }
 
 const subCategoryHeadingBoxSx = {
@@ -212,7 +247,7 @@ function applyCategoryDisplayFilters(
   return {
     ...category,
     listingType,
-    foodItems: [],
+    foodItems: category.foodItems ?? [],
     dayGroups,
     ...(subCategories && subCategories.length > 0 ? { subCategories } : {}),
   };
@@ -267,13 +302,33 @@ function filterFoodItemsForDate(
 function getItemsForSubOnDate(
   sub: CategoryDisplay,
   date: string,
-  availableDates: DayOption[]
+  availableDates: DayOption[],
+  parentDayItems?: FoodItem[]
 ): FoodItem[] {
-  if (sub.listingType === 'flat') {
-    return filterFoodItemsForDate(sub.foodItems ?? [], date, availableDates);
+  const flatTaggedIds = getSubFlatTaggedIds(sub);
+  const byId = new Map<string, FoodItem>();
+
+  const dayGroupItems = sub.dayGroups?.find((x) => x.date === date)?.foodItems ?? [];
+  for (const item of filterFoodItemsForDate(dayGroupItems, date, availableDates)) {
+    byId.set(normalizeItemId(item._id), item);
   }
-  const g = sub.dayGroups?.find((x) => x.date === date);
-  return filterFoodItemsForDate(g?.foodItems ?? [], date, availableDates);
+
+  for (const item of parentDayItems ?? []) {
+    const id = normalizeItemId(item._id);
+    const taggedSubId = item.subCategoryId ? normalizeItemId(item.subCategoryId) : '';
+    if (taggedSubId === normalizeItemId(sub._id) || flatTaggedIds.has(id)) {
+      byId.set(id, item);
+    }
+  }
+
+  for (const item of filterFoodItemsForDate(sub.foodItems ?? [], date, availableDates)) {
+    const id = normalizeItemId(item._id);
+    if (!byId.has(id)) {
+      byId.set(id, item);
+    }
+  }
+
+  return Array.from(byId.values());
 }
 
 /** Dates to show for a day-wise parent that has sub-categories (union of parent + day-wise subs, with fallback). */
@@ -486,7 +541,7 @@ export default function Home() {
             console.error(`Failed to fetch items for flat category ${category._id}:`, data.message);
           }
         } else if (listingType === 'flat' && usePerDateDayWiseMappings) {
-          // Flat sub under day-wise parent: only items with DAY_WISE mapping for each date (not all FLAT-tagged items)
+          // Flat sub under day-wise parent: DAY_WISE rows per date plus FLAT-tagged items for sub grouping
           const dayWiseItems: { [dateString: string]: FoodItem[] } = {};
           const categoryDisplay: CategoryDisplay = {
             _id: category._id,
@@ -515,6 +570,21 @@ export default function Home() {
             } catch (error) {
               console.error(`Error fetching day-wise items for date ${date}:`, error);
             }
+          }
+
+          try {
+            const flatResponse = await fetch(
+              `/api/food-items-by-category?categoryId=${category._id}`
+            );
+            const flatData: FoodItemsByCategoryResponse = await flatResponse.json();
+            if (flatResponse.ok && flatData.data?.foodItems) {
+              categoryDisplay.foodItems = flatData.data.foodItems;
+              categoryDisplay.flatTaggedItemIds = flatData.data.foodItems.map((i) =>
+                normalizeItemId(i._id)
+              );
+            }
+          } catch (error) {
+            console.error(`Error fetching flat-tagged items for sub-category ${category._id}:`, error);
           }
 
           newMap.set(category._id, categoryDisplay);
@@ -579,6 +649,40 @@ export default function Home() {
         .filter((x): x is CategoryDisplay => !!x);
       if (subCategories.length > 0) {
         parentEntry.subCategories = subCategories;
+        newMap.set(parent._id, parentEntry);
+      }
+    }
+
+    // Ensure FLAT sub-category tags are loaded for day-wise parents (grouping on the menu)
+    for (const parent of categoriesList) {
+      if (parent.listingType !== 'day-wise' || !parent.children?.length) continue;
+      for (const child of parent.children) {
+        const entry = newMap.get(child._id);
+        if (!entry) continue;
+        if (entry.flatTaggedItemIds?.length && entry.foodItems?.length) continue;
+        try {
+          const flatResponse = await fetch(
+            `/api/food-items-by-category?categoryId=${child._id}`
+          );
+          const flatData: FoodItemsByCategoryResponse = await flatResponse.json();
+          if (flatResponse.ok && flatData.data?.foodItems?.length) {
+            entry.foodItems = flatData.data.foodItems;
+            entry.flatTaggedItemIds = flatData.data.foodItems.map((i) =>
+              normalizeItemId(i._id)
+            );
+            newMap.set(child._id, entry);
+          }
+        } catch (error) {
+          console.error(`Error loading flat tags for sub-category ${child._id}:`, error);
+        }
+      }
+      const parentEntry = newMap.get(parent._id);
+      if (parentEntry?.subCategories?.length) {
+        parentEntry.subCategories = parent.children
+          .slice()
+          .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
+          .map((ch) => newMap.get(ch._id))
+          .filter((x): x is CategoryDisplay => !!x);
         newMap.set(parent._id, parentEntry);
       }
     }
@@ -1252,7 +1356,11 @@ export default function Home() {
   };
 
   const renderDayWiseParentWithSubTabs = (category: CategoryDisplay) => {
-    const subs = category.subCategories ?? [];
+    const subs = resolveSubCategoriesForDisplay(
+      category,
+      categories,
+      categoryFoodItemsMap
+    );
     if (subs.length === 0) {
       return null;
     }
@@ -1305,19 +1413,46 @@ export default function Home() {
             {displayDate}
           </Typography>
 
-          {/* PARENT CATEGORY ITEMS */}
-          {parentDg && parentDg.foodItems.length > 0 && (
-            <Box sx={{ mb: 5 }}>
-              {renderDayWiseFoodCardsGrid(parentDg)}
-            </Box>
-          )}
+          {/* PARENT CATEGORY ITEMS (exclude items shown under a sub-category) */}
+          {parentDg && (() => {
+            const subItemIds = new Set<string>();
+            for (const sub of subs) {
+              for (const item of getItemsForSubOnDate(
+                sub,
+                date,
+                availableDates,
+                parentDg.foodItems
+              )) {
+                subItemIds.add(normalizeItemId(item._id));
+              }
+            }
+            const parentOnlyItems = parentDg.foodItems.filter((item) => {
+              const id = normalizeItemId(item._id);
+              if (subItemIds.has(id)) return false;
+              const taggedSub = item.subCategoryId
+                ? normalizeItemId(item.subCategoryId)
+                : '';
+              if (taggedSub && subs.some((s) => s._id === taggedSub)) return false;
+              return true;
+            });
+            if (parentOnlyItems.length === 0) return null;
+            return (
+              <Box sx={{ mb: 5 }}>
+                {renderDayWiseFoodCardsGrid({
+                  ...parentDg,
+                  foodItems: parentOnlyItems,
+                })}
+              </Box>
+            );
+          })()}
 
           {/* SUB CATEGORIES */}
           {subs.map((sub) => {
             const items = getItemsForSubOnDate(
               sub,
               date,
-              availableDates
+              availableDates,
+              parentDg?.foodItems
             );
 
             if (items.length === 0) return null;
@@ -1551,9 +1686,15 @@ export default function Home() {
             </Box>
           ) : (
             displayFoodItemsByCategory.map((category) => {
+              const subsForCategory = resolveSubCategoriesForDisplay(
+                category,
+                categories,
+                categoryFoodItemsMap
+              );
+              const hasSubCategories = subsForCategory.length > 0;
               const isLoadingCategory =
                 loadingCategoryItems.has(category._id) ||
-                (category.subCategories ?? []).some((s) => loadingCategoryItems.has(s._id));
+                subsForCategory.some((s) => loadingCategoryItems.has(s._id));
               const hasContent = categoryOrSubsHaveItems(category);
 
               return (
@@ -1600,17 +1741,19 @@ export default function Home() {
                         categoryHasDisplayItems(category) &&
                         renderFlatCategoryGrid(category)}
                       {category.listingType === 'day-wise' &&
-                        (category.subCategories?.length ?? 0) > 0 &&
-                        renderDayWiseParentWithSubTabs(category)}
+                        hasSubCategories &&
+                        renderDayWiseParentWithSubTabs({
+                          ...category,
+                          subCategories: subsForCategory,
+                        })}
                       {category.listingType === 'day-wise' &&
-                        (category.subCategories?.length ?? 0) === 0 &&
+                        !hasSubCategories &&
                         categoryHasDisplayItems(category) &&
                         renderDayWiseCategorySections(category)}
                       {!(
-                        category.listingType === 'day-wise' &&
-                        (category.subCategories?.length ?? 0) > 0
+                        category.listingType === 'day-wise' && hasSubCategories
                       ) &&
-                        (category.subCategories ?? []).map((sub) => (
+                        subsForCategory.map((sub) => (
                         <Box key={sub._id} sx={{ mt: 4 }}>
                           <Box sx={subCategoryHeadingBoxSx}>
                             <Typography component="h3" sx={subCategoryTitleSx}>
