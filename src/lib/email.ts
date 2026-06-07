@@ -1,5 +1,6 @@
 'use server';
 
+import { MailtrapClient } from 'mailtrap';
 import { Resend } from 'resend';
 import { getOrderConfirmationEmailTemplate } from '@/templates/orderConfirmation';
 import { Order, EmailStatusInfo } from '@/types/order';
@@ -11,30 +12,114 @@ import '@/lib/emailAnalyticsInit';
 
 // Enhanced logging configuration
 const logPrefix = '[Email Service]';
+const emailProvider = process.env.EMAIL_PROVIDER === 'mailtrap' ? 'mailtrap' : 'resend';
 const resendApiKey = process.env.RESEND_API_KEY;
+const mailtrapApiToken = process.env.MAILTRAP_API_TOKEN;
+const mailtrapUseSandbox = process.env.MAILTRAP_USE_SANDBOX === 'true';
+const mailtrapInboxId = process.env.MAILTRAP_INBOX_ID
+  ? Number(process.env.MAILTRAP_INBOX_ID)
+  : undefined;
 const fromEmail = process.env.RESEND_FROM_EMAIL || '"Nikfoods" <no-reply@nikfoods-email.synngular.com>';
+const mailtrapFromEmail = process.env.MAILTRAP_FROM_EMAIL || 'hello@demomailtrap.co';
+const mailtrapFromName = process.env.MAILTRAP_FROM_NAME || 'Nikfoods Test';
 const orderConfirmationBccEmail = process.env.ORDER_CONFIRMATION_BCC_EMAIL?.trim();
 const bccEmails = orderConfirmationBccEmail ? orderConfirmationBccEmail.split(',').map(e => e.trim()) : [];
 
 // Email retry configuration
 const MAX_RETRY_ATTEMPTS = parseInt(process.env.EMAIL_MAX_RETRY_ATTEMPTS || '3');
 
+type TransactionalEmailParams = {
+  to: string[];
+  subject: string;
+  html: string;
+  bcc?: string[];
+  category?: string;
+};
+
 // Validate environment configuration
-const isConfigured = !!resendApiKey && !!fromEmail;
+const isConfigured =
+  emailProvider === 'mailtrap'
+    ? !!mailtrapApiToken &&
+      !!mailtrapFromEmail &&
+      (!mailtrapUseSandbox || !!mailtrapInboxId)
+    : !!resendApiKey && !!fromEmail;
+
 if (!isConfigured) {
-  console.warn(`${logPrefix} Email service not properly configured:`);
-  if (!resendApiKey) console.warn(`  - RESEND_API_KEY is missing`);
-  if (!fromEmail) console.warn(`  - RESEND_FROM_EMAIL is missing`);
+  console.warn(`${logPrefix} Email service not properly configured (provider: ${emailProvider}):`);
+  if (emailProvider === 'mailtrap') {
+    if (!mailtrapApiToken) console.warn(`  - MAILTRAP_API_TOKEN is missing`);
+    if (!mailtrapFromEmail) console.warn(`  - MAILTRAP_FROM_EMAIL is missing`);
+    if (mailtrapUseSandbox && !mailtrapInboxId) {
+      console.warn(`  - MAILTRAP_INBOX_ID is missing (required when MAILTRAP_USE_SANDBOX=true)`);
+    }
+  } else {
+    if (!resendApiKey) console.warn(`  - RESEND_API_KEY is missing`);
+    if (!fromEmail) console.warn(`  - RESEND_FROM_EMAIL is missing`);
+  }
 } else {
-  console.log(`${logPrefix} Email service configured with fromEmail: ${fromEmail}`);
+  console.log(
+    `${logPrefix} Email service configured with provider: ${emailProvider}` +
+      (emailProvider === 'mailtrap'
+        ? ` (${mailtrapUseSandbox ? `sandbox inbox ${mailtrapInboxId}` : 'sending API'})`
+        : '')
+  );
 }
 
-// Initialize Resend conditionally to avoid build-time errors
+// Initialize email clients conditionally to avoid build-time errors
 let resend: Resend | null = null;
-if (resendApiKey) {
+if (emailProvider === 'resend' && resendApiKey) {
   resend = new Resend(resendApiKey);
-} else {
+} else if (emailProvider === 'resend') {
   console.warn(`${logPrefix} RESEND_API_KEY not available, Resend client not initialized`);
+}
+
+let mailtrap: MailtrapClient | null = null;
+if (emailProvider === 'mailtrap' && mailtrapApiToken) {
+  mailtrap = new MailtrapClient({
+    token: mailtrapApiToken,
+    sandbox: mailtrapUseSandbox,
+    testInboxId: mailtrapUseSandbox ? mailtrapInboxId : undefined,
+  });
+} else if (emailProvider === 'mailtrap') {
+  console.warn(`${logPrefix} MAILTRAP_API_TOKEN not available, Mailtrap client not initialized`);
+}
+
+async function sendTransactionalEmail(
+  params: TransactionalEmailParams
+): Promise<{ messageId?: string }> {
+  if (emailProvider === 'mailtrap') {
+    if (!mailtrap) {
+      throw new Error('Mailtrap client not initialized - missing API token');
+    }
+
+    const result = await mailtrap.send({
+      from: {
+        email: mailtrapFromEmail,
+        name: mailtrapFromName,
+      },
+      to: params.to.map((email) => ({ email })),
+      bcc: params.bcc?.map((email) => ({ email })),
+      subject: params.subject,
+      html: params.html,
+      category: params.category || 'Transactional',
+    });
+
+    return { messageId: result.message_ids[0] };
+  }
+
+  if (!resend) {
+    throw new Error('Resend client not initialized - missing API key');
+  }
+
+  const result = await resend.emails.send({
+    from: fromEmail,
+    to: params.to,
+    bcc: params.bcc,
+    subject: params.subject,
+    html: params.html,
+  });
+
+  return { messageId: result.data?.id };
 }
 
 /**
@@ -72,29 +157,23 @@ export async function sendPasswordResetOTP(
       otpLength: otp?.length || 0,
     });
 
-    const emailData = {
-      from: fromEmail,
-      to: [email], // Resend expects array of emails
+    const result = await sendTransactionalEmail({
+      to: [email],
       subject: 'Reset Your Password - NikFoods',
       html: getPasswordResetEmailTemplate(otp),
-    };
-
-    if (!resend) {
-      throw new Error('Resend client not initialized - missing API key');
-    }
-
-    const result = await resend.emails.send(emailData);
+      category: 'Password Reset',
+    });
 
     console.log(`${logPrefix} ${functionName} - Email sent successfully:`, {
-      messageId: result.data?.id,
+      messageId: result.messageId,
       to: email,
     });
 
     // Track email sent event
-    if (result.data?.id) {
+    if (result.messageId && emailProvider === 'resend') {
       try {
         await emailAnalytics.trackEmailSent(
-          result.data.id,
+          result.messageId,
           'password_reset' as EmailType,
           email,
           undefined, // No order ID for password reset
@@ -316,36 +395,20 @@ export async function sendOrderConfirmationEmail(
       };
     }
 
-    const emailData: {
-      from: string;
-      to: string[];
-      subject: string;
-      html: string;
-      bcc?: string[];
-    } = {
-      from: fromEmail,
-      to: [email], // Resend expects array of emails
-      subject: subject,
+    const result = await sendTransactionalEmail({
+      to: [email],
+      subject,
       html: emailHtml,
-    };
-
-    // Add BCC recipients if configured
-    if (bccEmails.length > 0) {
-      emailData.bcc = bccEmails;
-    }
-
-    if (!resend) {
-      throw new Error('Resend client not initialized - missing API key');
-    }
-
-    const result = await resend.emails.send(emailData);
+      bcc: bccEmails.length > 0 ? bccEmails : undefined,
+      category: 'Order Confirmation',
+    });
 
     const successStatus: EmailStatusInfo = {
       status: 'sent',
       attempts: attemptStatus.attempts,
       lastAttempt: new Date(),
       error: undefined,
-      messageId: result.data?.id,
+      messageId: result.messageId,
     };
 
     // Update status to 'sent' on success
@@ -353,7 +416,7 @@ export async function sendOrderConfirmationEmail(
 
     console.log(`${logPrefix} ${functionName} - Order confirmation email sent successfully:`, {
       orderId: order.orderId,
-      messageId: result.data?.id,
+      messageId: result.messageId,
       to: email,
       bcc: bccEmails.length > 0 ? bccEmails : undefined,
       status: order.status,
@@ -362,10 +425,10 @@ export async function sendOrderConfirmationEmail(
     });
 
     // Track email sent event
-    if (result.data?.id) {
+    if (result.messageId && emailProvider === 'resend') {
       try {
         await emailAnalytics.trackEmailSent(
-          result.data.id,
+          result.messageId,
           'order_confirmation' as EmailType,
           email,
           order.orderId,
@@ -381,7 +444,7 @@ export async function sendOrderConfirmationEmail(
 
     return {
       success: true,
-      messageId: result.data?.id,
+      messageId: result.messageId,
       statusInfo: successStatus
     };
   } catch (error) {
@@ -441,29 +504,23 @@ export async function sendPasswordResetConfirmation(
 
     console.log(`${logPrefix} ${functionName} - Sending password reset confirmation email to: ${email}`);
 
-    const emailData = {
-      from: fromEmail,
-      to: [email], // Resend expects array of emails
+    const result = await sendTransactionalEmail({
+      to: [email],
       subject: 'Password Reset Successful - NikFoods',
       html: getPasswordResetConfirmationTemplate(),
-    };
-
-    if (!resend) {
-      throw new Error('Resend client not initialized - missing API key');
-    }
-
-    const result = await resend.emails.send(emailData);
+      category: 'Password Reset Confirmation',
+    });
 
     console.log(`${logPrefix} ${functionName} - Password reset confirmation email sent successfully:`, {
-      messageId: result.data?.id,
+      messageId: result.messageId,
       to: email,
     });
 
     // Track email sent event
-    if (result.data?.id) {
+    if (result.messageId && emailProvider === 'resend') {
       try {
         await emailAnalytics.trackEmailSent(
-          result.data.id,
+          result.messageId,
           'password_reset_confirmation' as EmailType,
           email,
           undefined, // No order ID for password reset

@@ -1,6 +1,70 @@
 import { Order, OrderDay, OrderDayItem } from '@/types/order';
 import { PST_TIMEZONE } from '@/lib/timezone';
 
+function hasValue(value: string | undefined | null): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function optionalDetailRow(label: string, value: string | undefined | null): string {
+  if (!hasValue(value)) return '';
+  return `
+    <tr>
+      <td style="padding: 8px 0; color: #6B7280; font-size: 14px; width: 40%; font-weight: 600;">${label}</td>
+      <td style="padding: 8px 0; color: #1A1106; font-size: 15px;">${value.trim()}</td>
+    </tr>
+  `;
+}
+
+function optionalPriceRow(
+  label: string,
+  amount: number,
+  currency: string,
+  formatCurrency: (amount: number, currency?: string) => string
+): string {
+  if (amount <= 0) return '';
+  return `
+    <tr>
+      <td style="padding: 8px 0; color: #1A1106; font-size: 15px; width: 40%;">${label}</td>
+      <td style="padding: 8px 0; color: #1A1106; font-size: 15px; text-align: right; font-weight: 600;">${formatCurrency(amount, currency)}</td>
+    </tr>
+  `;
+}
+
+function renderComboToppings(item: OrderDayItem): string {
+  if (!item.comboSelections || !item.food.sections) return '';
+
+  const toppingLines = item.food.sections
+    .flatMap((section) => {
+      const selectedItemIds = item.comboSelections?.[section._id];
+      if (!selectedItemIds?.length) return [];
+
+      return selectedItemIds
+        .map((selectedItemId) => {
+          const selectedItem = section.selectedItems.find((si) => si._id === selectedItemId);
+          if (!selectedItem) return '';
+          return `<p style="margin: 0; color: #6B7280; font-size: 12px; padding-left: 10px;">${selectedItem.item.name}</p>`;
+        })
+        .filter(Boolean);
+    })
+    .join('');
+
+  if (!toppingLines) return '';
+
+  return `
+    <p style="margin: 8px 0 4px 0; color: #6B7280; font-size: 13px;">
+      Special toppings
+    </p>
+    ${toppingLines}
+  `;
+}
+
+function formatItemName(item: OrderDayItem): string {
+  if (item.food.spiceLevel?.length && hasValue(item.spiceLevel)) {
+    return `${item.food.name} (spice: ${item.spiceLevel.trim()})`;
+  }
+  return item.food.name;
+}
+
 /**
  * Get order confirmation email HTML template
  */
@@ -35,6 +99,11 @@ export function getOrderConfirmationEmailTemplate(order: Order): string {
 
   // Calculate tips and service fees
   const tipsAndServiceFees = order.platformFee + order.tip;
+  const logoUrl =
+    process.env.EMAIL_LOGO_URL ||
+    'https://res.cloudinary.com/dz30kdodd/image/upload/v1780207579/nikfoods/qwcozcqazeb8cuna8j2q.png';
+  const deliveryInstructions = (order.deliveryMessages ?? []).filter(hasValue);
+  const cityPostalCode = [order.address.city, order.address.zipCode].filter(hasValue).join(', ');
 
   return `
     <!DOCTYPE html>
@@ -50,9 +119,21 @@ export function getOrderConfirmationEmailTemplate(order: Order): string {
           <td align="center">
             <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);">
 
+              <!-- Logo -->
+              <tr>
+                <td style="padding: 32px 40px 0 40px; text-align: left;">
+                  <img
+                    src="${logoUrl}"
+                    alt="Nikfoods"
+                    width="120"
+                    style="display: block; border: 0; outline: none; text-decoration: none;"
+                  />
+                </td>
+              </tr>
+
               <!-- Content -->
               <tr>
-                <td style="padding: 40px 40px 20px 40px;">
+                <td style="padding: 24px 40px 20px 40px;">
                   <h2 style="margin: 0 0 30px 0; color: #1A1106; font-size: 20px; font-weight: 700;">
                     We just got your Order ${order.orderId}.
                   </h2>
@@ -62,18 +143,9 @@ export function getOrderConfirmationEmailTemplate(order: Order): string {
                     Customer Details:
                   </h3>
                   <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 30px;">
-                    <tr>
-                      <td style="padding: 8px 0; color: #6B7280; font-size: 14px; width: 40%; font-weight: 600;">Name</td>
-                      <td style="padding: 8px 0; color: #1A1106; font-size: 15px;">${order.customerInfo.name} ${order.customerInfo.name}</td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 8px 0; color: #6B7280; font-size: 14px; width: 40%; font-weight: 600;">Phone</td>
-                      <td style="padding: 8px 0; color: #1A1106; font-size: 15px;">${order.customerInfo.phone}</td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 8px 0; color: #6B7280; font-size: 14px; width: 40%; font-weight: 600;">Email</td>
-                      <td style="padding: 8px 0; color: #1A1106; font-size: 15px;">${order.customerInfo.email}</td>
-                    </tr>
+                    ${optionalDetailRow('Name', order.customerInfo.name)}
+                    ${optionalDetailRow('Phone', order.customerInfo.phone)}
+                    ${optionalDetailRow('Email', order.customerInfo.email)}
                   </table>
 
                   <!-- Order Details - Grouped by Day -->
@@ -99,30 +171,17 @@ export function getOrderConfirmationEmailTemplate(order: Order): string {
                             <!-- Left: Item Details -->
                             <div style="margin-bottom: 8px;">
                               <p style="margin: 0 0 8px 0; color: #1A1106; font-size: 15px; font-weight: 600;">
-                                ${item.food.name}
+                                ${formatItemName(item)}
                               </p>
-                              ${item.selectedPortion ? `
+                              ${hasValue(item.selectedPortion) ? `
                                 <p style="margin: 0 0 4px 0; color: #6B7280; font-size: 13px;">
-                                  ${item.selectedPortion}
+                                  ${item.selectedPortion.trim()}
                                 </p>
                               ` : ''}
-                              ${item.comboSelections && item.food.sections && Object.keys(item.comboSelections).length > 0 ? `
-                                <p style="margin: 8px 0 4px 0; color: #6B7280; font-size: 13px;">
-                                  Special toppings
-                                </p>
-                                ${item.food.sections.map(section => {
-                                  const selectedItemIds = item.comboSelections?.[section._id];
-                                  if (!selectedItemIds || selectedItemIds.length === 0) return '';
-                                  return selectedItemIds.map(selectedItemId => {
-                                    const selectedItem = section.selectedItems.find(si => si._id === selectedItemId);
-                                    if (!selectedItem) return '';
-                                    return `<p style="margin: 0; color: #6B7280; font-size: 12px; padding-left: 10px;">${selectedItem.item.name}</p>`;
-                                  }).join('');
-                                }).join('')}
-                              ` : ''}
-                              ${item.notes ? `
+                              ${renderComboToppings(item)}
+                              ${hasValue(item.notes) ? `
                                 <p style="margin: 8px 0 0 0; color: #059669; font-size: 12px; font-style: italic;">
-                                  ${item.notes}
+                                  ${item.notes.trim()}
                                 </p>
                               ` : ''}
                             </div>
@@ -147,14 +206,14 @@ export function getOrderConfirmationEmailTemplate(order: Order): string {
                       <td style="padding: 8px 0; color: #1A1106; font-size: 15px; width: 40%;">Subtotal</td>
                       <td style="padding: 8px 0; color: #1A1106; font-size: 15px; text-align: right; font-weight: 600;">${formatCurrency(order.subtotal, order.currency)}</td>
                     </tr>
+                    ${optionalPriceRow('Tips, service fees', tipsAndServiceFees, order.currency, formatCurrency)}
+                    ${optionalPriceRow('Delivery', order.deliveryFee, order.currency, formatCurrency)}
+                    ${order.discount && order.discount.amount > 0 ? `
                     <tr>
-                      <td style="padding: 8px 0; color: #1A1106; font-size: 15px; width: 40%;">Tips, service fees</td>
-                      <td style="padding: 8px 0; color: #1A1106; font-size: 15px; text-align: right; font-weight: 600;">${tipsAndServiceFees > 0 ? formatCurrency(tipsAndServiceFees, order.currency) : '$0'}</td>
+                      <td style="padding: 8px 0; color: #1A1106; font-size: 15px; width: 40%;">Discount${hasValue(order.discount.code) ? ` (${order.discount.code.trim()})` : ''}</td>
+                      <td style="padding: 8px 0; color: #1A1106; font-size: 15px; text-align: right; font-weight: 600;">-${formatCurrency(order.discount.amount, order.currency)}</td>
                     </tr>
-                    <tr>
-                      <td style="padding: 8px 0; color: #1A1106; font-size: 15px; width: 40%;">Delivery</td>
-                      <td style="padding: 8px 0; color: #1A1106; font-size: 15px; text-align: right; font-weight: 600;">${formatCurrency(order.deliveryFee, order.currency)}</td>
-                    </tr>
+                    ` : ''}
                     <tr>
                       <td style="padding: 8px 0; color: #1A1106; font-size: 15px; width: 40%;">Tax (10.3%)</td>
                       <td style="padding: 8px 0; color: #1A1106; font-size: 15px; text-align: right; font-weight: 600;">${formatCurrency(order.taxes, order.currency)}</td>
@@ -170,19 +229,23 @@ export function getOrderConfirmationEmailTemplate(order: Order): string {
                     Delivery Details:
                   </h3>
                   <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 30px;">
-                    <tr>
-                      <td style="padding: 8px 0; color: #6B7280; font-size: 14px; width: 40%; font-weight: 600;">Customer Name</td>
-                      <td style="padding: 8px 0; color: #1A1106; font-size: 15px;">${order.customerInfo.name}</td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 8px 0; color: #6B7280; font-size: 14px; width: 40%; font-weight: 600;">Address</td>
-                      <td style="padding: 8px 0; color: #1A1106; font-size: 15px;">${order.address.street}</td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 8px 0; color: #6B7280; font-size: 14px; width: 40%; font-weight: 600;">City, Postal Code</td>
-                      <td style="padding: 8px 0; color: #1A1106; font-size: 15px;">${order.address.city}, ${order.address.zipCode}</td>
-                    </tr>
+                    ${optionalDetailRow('Customer Name', order.customerInfo.name)}
+                    ${optionalDetailRow('Address', order.address.street)}
+                    ${optionalDetailRow('Apartment', order.address.apartment)}
+                    ${optionalDetailRow('Delivery Instruction', order.address.floor)}
+                    ${optionalDetailRow('Gate Code', order.address.entrance)}
+                    ${optionalDetailRow('Landmark', order.address.landmark)}
+                    ${optionalDetailRow('City, Postal Code', cityPostalCode || undefined)}
                   </table>
+
+                  ${deliveryInstructions.length > 0 ? `
+                  <h3 style="margin: 0 0 15px 0; color: #1A1106; font-size: 16px; font-weight: 700; text-transform: uppercase;">
+                    Delivery Notes:
+                  </h3>
+                  <ul style="margin: 0 0 30px 0; padding-left: 20px; color: #1A1106; font-size: 14px; line-height: 1.8;">
+                    ${deliveryInstructions.map((message) => `<li>${message.trim()}</li>`).join('')}
+                  </ul>
+                  ` : ''}
 
                 </td>
               </tr>
@@ -232,3 +295,6 @@ export function getOrderConfirmationEmailTemplate(order: Order): string {
     </html>
   `;
 }
+}
+
+

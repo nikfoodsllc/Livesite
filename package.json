@@ -9,8 +9,10 @@
     "build": "NODE_OPTIONS=\"--max-old-space-size=4096\" next build",
     "start": "NODE_OPTIONS=\"--max-old-space-size=4096\" next start",
     "lint": "NODE_OPTIONS=\"--max-old-space-size=4096\" eslint",
-    "migrate:address-user-ids": "ts-node src/scripts/migrate-address-user-ids.ts",
-    "verify:address-user-ids": "ts-node src/scripts/verify-address-user-ids.ts"
+    "migrate:address-user-ids": "tsx src/scripts/migrate-address-user-ids.ts",
+    "verify:address-user-ids": "tsx src/scripts/verify-address-user-ids.ts",
+    "export:users-multiple-default-addresses": "tsx src/scripts/export-users-multiple-default-addresses.ts",
+    "export:duplicate-food-item-names": "tsx src/scripts/export-duplicate-food-item-names.ts"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -21,6 +23,7 @@
     "@tabler/icons-react": "^3.35.0",
     "bcryptjs": "^3.0.3",
     "jsonwebtoken": "^9.0.2",
+    "mailtrap": "^4.6.0",
     "mongodb": "^6.20.0",
     "next": "16.0.7",
     "react": "19.2.0",
@@ -40,6 +43,7 @@
     "cross-env": "^10.1.0",
     "eslint": "^9",
     "eslint-config-next": "^15.3.6",
+    "tsx": "^4.19.4",
     "typescript": "^5"
   }
 }
