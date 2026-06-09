@@ -205,6 +205,8 @@ function CheckoutFormContent({
             onApplePayAvailable={onApplePayAvailable}
             onApplePayPaymentMethod={async (e) => {
               console.log('🍎 Apple Pay: paymentmethod event fired');
+              console.log('🍎 Apple Pay: token in localStorage =', !!localStorage.getItem('accessToken'));
+console.log('🍎 Apple Pay: token value =', localStorage.getItem('accessToken')?.substring(0, 20) + '...');
               console.log('🍎 Apple Pay: paymentMethod.id =', e.paymentMethod.id);
               try {
                 const orderRequest = {
