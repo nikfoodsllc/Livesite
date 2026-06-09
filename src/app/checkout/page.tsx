@@ -83,6 +83,7 @@ interface CheckoutFormContentProps {
   setOrderCompleted: (v: boolean) => void;
   refreshCart: () => Promise<void>;
   router: any;
+  authenticatedFetch: (url: string, options?: RequestInit) => Promise<Response>;
 }
 
 function CheckoutFormContent({
@@ -122,6 +123,7 @@ function CheckoutFormContent({
   setOrderCompleted,
   refreshCart,
   router,
+  authenticatedFetch,
 }: CheckoutFormContentProps) {
   const stripe = useStripe();
   const elements = useElements();
@@ -213,11 +215,10 @@ function CheckoutFormContent({
                   currency: 'usd',
                 };
                 console.log('🍎 Apple Pay: creating order...');
-                const response = await fetch('/api/orders/create', {
+                const response = await authenticatedFetch('/api/orders/create', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify(orderRequest),
-                  credentials: 'include',
                 });
                 const data = await response.json();
                 console.log('🍎 Apple Pay: order create response', response.status, data);
@@ -869,6 +870,7 @@ export default function CheckoutPage() {
               setOrderCompleted={setOrderCompleted}
               refreshCart={refreshCart}
               router={router}
+              authenticatedFetch={authenticatedFetch}
             />
           </Elements>
         </Box>
