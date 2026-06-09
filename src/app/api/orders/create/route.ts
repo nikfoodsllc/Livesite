@@ -196,7 +196,7 @@ export async function POST(request: NextRequest) {
     };
 
     // Handle payment method specific logic
-    if (paymentMethod === 'Credit Card') {
+   if (paymentMethod === 'Credit Card' || paymentMethod === 'Apple Pay') {
       // Check if Stripe is properly configured
       if (!stripeSecretKey || stripeSecretKey === 'sk_test_dummy_key_for_build') {
         return NextResponse.json(
