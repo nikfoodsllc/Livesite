@@ -217,6 +217,7 @@ console.log('🍎 Apple Pay: token value =', localStorage.getItem('accessToken')
                   currency: 'usd',
                 };
                 console.log('🍎 Apple Pay: creating order...');
+                console.log('APPLEPAY_BUILD_CHECK_20260609');
                 const response = await authenticatedFetch('/api/orders/create', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
