@@ -200,8 +200,10 @@ function CheckoutFormContent({
             show={false}
             showApplePay={true}
             amount={totals.total}
-            onApplePayAvailable={() => {}}
+            onApplePayAvailable={onApplePayAvailable}
             onApplePayPaymentMethod={async (e) => {
+              console.log('🍎 Apple Pay: paymentmethod event fired');
+              console.log('🍎 Apple Pay: paymentMethod.id =', e.paymentMethod.id);
               try {
                 const orderRequest = {
                   cart,
@@ -210,6 +212,7 @@ function CheckoutFormContent({
                   paymentMethod: 'Apple Pay',
                   currency: 'usd',
                 };
+                console.log('🍎 Apple Pay: creating order...');
                 const response = await fetch('/api/orders/create', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
@@ -217,39 +220,68 @@ function CheckoutFormContent({
                   credentials: 'include',
                 });
                 const data = await response.json();
+                console.log('🍎 Apple Pay: order create response', response.status, data);
+
                 if (!response.ok || !data.success) {
+                  console.error('🍎 Apple Pay: order creation failed', data.error);
                   e.complete('fail');
                   return;
                 }
+
                 const { orderId, clientSecret } = data.data;
+                console.log('🍎 Apple Pay: orderId =', orderId);
+                console.log('🍎 Apple Pay: clientSecret present =', !!clientSecret);
+
+                console.log('🍎 Apple Pay: confirming card payment...');
                 const { error: stripeError, paymentIntent } = await stripe!.confirmCardPayment(
                   clientSecret,
                   { payment_method: e.paymentMethod.id },
                   { handleActions: false }
                 );
+                console.log('🍎 Apple Pay: confirmCardPayment result', { stripeError, status: paymentIntent?.status });
+
                 if (stripeError) {
+                  console.error('🍎 Apple Pay: stripe error', stripeError);
                   e.complete('fail');
                   return;
                 }
+
                 e.complete('success');
+                console.log('🍎 Apple Pay: e.complete(success) called');
+
                 if (paymentIntent?.status === 'requires_action') {
+                  console.log('🍎 Apple Pay: requires_action, confirming again...');
                   const { error } = await stripe!.confirmCardPayment(clientSecret);
-                  if (error) return;
+                  if (error) {
+                    console.error('🍎 Apple Pay: requires_action confirmation failed', error);
+                    return;
+                  }
                 }
+
+                console.log('🍎 Apple Pay: polling order status...');
                 await pollOrderStatus(orderId);
                 setOrderCompleted(true);
                 localCart.clearCart();
                 await refreshCart();
+                console.log('🍎 Apple Pay: redirecting to success page');
                 router.push(`/checkout/success?orderId=${orderId}`);
               } catch (err) {
+                console.error('🍎 Apple Pay: caught error', err);
                 e.complete('fail');
-                console.error('Apple Pay error:', err);
               }
             }}
           />
         )}
 
-    
+        {/* Hidden Apple Pay detector - always rendered to check availability */}
+        {paymentMethod !== 'Apple Pay' && (
+          <StripePaymentForm
+            show={false}
+            showApplePay={true}
+            amount={totals.total}
+            onApplePayAvailable={onApplePayAvailable}
+          />
+        )}
 
         <TipSection
           selectedTipPercentage={tipPercentage}
@@ -276,31 +308,33 @@ function CheckoutFormContent({
             </Box>
           )}
 
-          <Button
-            fullWidth
-            variant="contained"
-            size="large"
-            onClick={handlePlaceOrderClick}
-            disabled={isProcessing || !cart.canCheckout || (paymentMethod === 'Credit Card' && !isPaymentComplete)}
-            startIcon={
-              isProcessing ? (
-                <CircularProgress size={20} sx={{ color: '#fff' }} />
-              ) : (
-                <IconShoppingCart size={20} />
-              )
-            }
-            sx={{
-              bgcolor: '#FF9F0D',
-              color: '#fff',
-              py: 1.5,
-              fontSize: '16px',
-              fontWeight: 600,
-              '&:hover': { bgcolor: '#e68f0c' },
-              '&:disabled': { bgcolor: '#ccc', color: '#666' },
-            }}
-          >
-            {isProcessing ? 'Processing...' : `Place Order - $${totals.total.toFixed(2)}`}
-          </Button>
+          {paymentMethod !== 'Apple Pay' && (
+            <Button
+              fullWidth
+              variant="contained"
+              size="large"
+              onClick={handlePlaceOrderClick}
+              disabled={isProcessing || !cart.canCheckout || (paymentMethod === 'Credit Card' && !isPaymentComplete)}
+              startIcon={
+                isProcessing ? (
+                  <CircularProgress size={20} sx={{ color: '#fff' }} />
+                ) : (
+                  <IconShoppingCart size={20} />
+                )
+              }
+              sx={{
+                bgcolor: '#FF9F0D',
+                color: '#fff',
+                py: 1.5,
+                fontSize: '16px',
+                fontWeight: 600,
+                '&:hover': { bgcolor: '#e68f0c' },
+                '&:disabled': { bgcolor: '#ccc', color: '#666' },
+              }}
+            >
+              {isProcessing ? 'Processing...' : `Place Order - $${totals.total.toFixed(2)}`}
+            </Button>
+          )}
 
           <Box
             sx={{
@@ -351,33 +385,35 @@ function CheckoutFormContent({
           </Box>
         )}
 
-        <Button
-          fullWidth
-          variant="contained"
-          size="large"
-          onClick={handlePlaceOrderClick}
-          disabled={isProcessing || !cart.canCheckout || (paymentMethod === 'Credit Card' && !isPaymentComplete)}
-          startIcon={
-            isProcessing ? (
-              <CircularProgress size={20} sx={{ color: '#fff' }} />
-            ) : (
-              <IconShoppingCart size={20} />
-            )
-          }
-          sx={{
-            display: { xs: 'none', md: 'block' },
-            mt: 2,
-            bgcolor: '#FF9F0D',
-            color: '#fff',
-            py: 1.5,
-            fontSize: '16px',
-            fontWeight: 600,
-            '&:hover': { bgcolor: '#e68f0c' },
-            '&:disabled': { bgcolor: '#ccc', color: '#666' },
-          }}
-        >
-          {isProcessing ? 'Processing...' : `Place Order - $${totals.total.toFixed(2)}`}
-        </Button>
+        {paymentMethod !== 'Apple Pay' && (
+          <Button
+            fullWidth
+            variant="contained"
+            size="large"
+            onClick={handlePlaceOrderClick}
+            disabled={isProcessing || !cart.canCheckout || (paymentMethod === 'Credit Card' && !isPaymentComplete)}
+            startIcon={
+              isProcessing ? (
+                <CircularProgress size={20} sx={{ color: '#fff' }} />
+              ) : (
+                <IconShoppingCart size={20} />
+              )
+            }
+            sx={{
+              display: { xs: 'none', md: 'block' },
+              mt: 2,
+              bgcolor: '#FF9F0D',
+              color: '#fff',
+              py: 1.5,
+              fontSize: '16px',
+              fontWeight: 600,
+              '&:hover': { bgcolor: '#e68f0c' },
+              '&:disabled': { bgcolor: '#ccc', color: '#666' },
+            }}
+          >
+            {isProcessing ? 'Processing...' : `Place Order - $${totals.total.toFixed(2)}`}
+          </Button>
+        )}
 
         <Box
           sx={{
