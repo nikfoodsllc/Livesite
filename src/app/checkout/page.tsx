@@ -206,7 +206,6 @@ function CheckoutFormContent({
             onApplePayPaymentMethod={async (e) => {
               console.log('🍎 Apple Pay: paymentmethod event fired');
               console.log('🍎 Apple Pay: token in localStorage =', !!localStorage.getItem('accessToken'));
-console.log('🍎 Apple Pay: token value =', localStorage.getItem('accessToken')?.substring(0, 20) + '...');
               console.log('🍎 Apple Pay: paymentMethod.id =', e.paymentMethod.id);
               try {
                 const orderRequest = {
@@ -217,7 +216,6 @@ console.log('🍎 Apple Pay: token value =', localStorage.getItem('accessToken')
                   currency: 'usd',
                 };
                 console.log('🍎 Apple Pay: creating order...');
-                console.log('APPLEPAY_BUILD_CHECK_20260609');
                 const response = await authenticatedFetch('/api/orders/create', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
@@ -236,7 +234,7 @@ console.log('🍎 Apple Pay: token value =', localStorage.getItem('accessToken')
                 console.log('🍎 Apple Pay: orderId =', orderId);
                 console.log('🍎 Apple Pay: clientSecret present =', !!clientSecret);
 
-                console.log('🍎 Apple Pay: confirming card payment...');
+                console.log('🍎 Apple Pay: confirming payment...');
                 const { error: stripeError, paymentIntent } = await stripe!.confirmCardPayment(
                   clientSecret,
                   { payment_method: e.paymentMethod.id },
@@ -244,20 +242,22 @@ console.log('🍎 Apple Pay: token value =', localStorage.getItem('accessToken')
                 );
                 console.log('🍎 Apple Pay: confirmCardPayment result', { stripeError, status: paymentIntent?.status });
 
-                if (stripeError) {
+                if (stripeError && stripeError.code !== 'payment_intent_unexpected_state') {
                   console.error('🍎 Apple Pay: stripe error', stripeError);
                   e.complete('fail');
                   return;
                 }
 
+                // Complete Apple Pay sheet before any further actions
                 e.complete('success');
                 console.log('🍎 Apple Pay: e.complete(success) called');
 
-                if (paymentIntent?.status === 'requires_action') {
-                  console.log('🍎 Apple Pay: requires_action, confirming again...');
-                  const { error } = await stripe!.confirmCardPayment(clientSecret);
-                  if (error) {
-                    console.error('🍎 Apple Pay: requires_action confirmation failed', error);
+                // Handle additional actions if needed
+                if (paymentIntent?.status === 'requires_action' || paymentIntent?.status === 'requires_confirmation') {
+                  console.log('🍎 Apple Pay: requires additional action, confirming again...');
+                  const { error: actionError } = await stripe!.confirmCardPayment(clientSecret);
+                  if (actionError) {
+                    console.error('🍎 Apple Pay: action error', actionError);
                     return;
                   }
                 }
