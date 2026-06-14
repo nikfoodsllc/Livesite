@@ -6,6 +6,7 @@ import {
   PST_TIMEZONE,
 } from './timezone';
 import { DeliveryCalculationResult } from '@/lib/deliveryCalculator';
+import { normalizeCartSelectedAddress } from '@/lib/normalizeCartAddress';
 
 /**
  * Generates a unique order ID
@@ -78,13 +79,16 @@ export function convertCartToOrderItems(
  * Creates address snapshot from cart selected address
  */
 export function createAddressSnapshot(address: NonNullable<Cart['selectedAddress']>): AddressSnapshot {
+  const a = normalizeCartSelectedAddress(address);
   return {
-    street: address.addressLine1,
-    apartment: address.addressLine2,
-    city: address.city,
-    state: address.state,
-    zipCode: address.zipCode,
-    landmark: address.landmark,
+    street: a.addressLine1,
+    apartment: a.addressLine2,
+    floor: a.floor,
+    city: a.city,
+    state: a.state,
+    zipCode: a.zipCode,
+    landmark: a.landmark,
+    entrance: a.entrance,
   };
 }
 

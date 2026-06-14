@@ -81,6 +81,8 @@ export interface AddressSnapshot {
   state: string;
   zipCode: string;
   landmark?: string;
+  /** Gate / buzzer code captured at order time */
+  entrance?: string;
 }
 
 export interface CustomerInfo {

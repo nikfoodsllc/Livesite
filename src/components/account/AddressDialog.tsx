@@ -95,37 +95,40 @@ export default function AddressDialog({
   // Debouncing for zip code validation
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Zip code validation function with debouncing
+  // Dialog content ref
+  const dialogContentRef = useRef<HTMLDivElement>(null);
+
+  // Zip code validation function
   const validateZipcode = useCallback(async (zipcode: string) => {
-    // Clear any existing timeout
     if (debounceTimeoutRef.current) {
       clearTimeout(debounceTimeoutRef.current);
     }
 
-    // If zipcode is empty, clear validation
     if (!zipcode || zipcode.trim().length === 0) {
       setZipcodeError(null);
       setZipcodeServiceable(null);
       return;
     }
 
-    // Basic format check first
     const zipcodeRegex = /^\d{5}(-\d{4})?$/;
+
     if (!zipcodeRegex.test(zipcode)) {
-      setZipcodeError('Invalid zip code format. Expected format: 12345 or 12345-6789');
+      setZipcodeError(
+        'Invalid zip code format. Expected format: 12345 or 12345-6789'
+      );
       setZipcodeServiceable(false);
       return;
     }
 
-    // Set loading state
     setIsValidatingZipcode(true);
     setZipcodeError(null);
 
-    // Debounce the validation call
     debounceTimeoutRef.current = setTimeout(async () => {
       try {
         const result = await validateZipcodeServiceability(zipcode);
+
         setZipcodeServiceable(result.isServiceable);
+
         if (!result.isServiceable) {
           setZipcodeError(result.message || 'This area is not serviceable');
         } else {
@@ -133,16 +136,19 @@ export default function AddressDialog({
         }
       } catch (error) {
         console.error('Zip code validation error:', error);
-        setZipcodeError('Unable to verify serviceability. Please try again.');
+
+        setZipcodeError(
+          'Unable to verify serviceability. Please try again.'
+        );
+
         setZipcodeServiceable(false);
       } finally {
         setIsValidatingZipcode(false);
       }
-    }, 500); // 500ms debounce delay
+    }, 500);
   }, []);
 
   useEffect(() => {
-    // Use setTimeout to avoid synchronous setState in useEffect
     setTimeout(() => {
       if (address && mode === 'edit') {
         setFormData(address);
@@ -158,12 +164,13 @@ export default function AddressDialog({
           apartment: '',
           floor: '',
           entrance: '',
-          isDefault: existingAddressCount === 0, // Pre-check if it's the first address
+          isDefault: existingAddressCount === 0,
         });
+
         setAddressSelected(false);
       }
+
       setError('');
-      // Reset validation states
       setZipcodeError(null);
       setZipcodeServiceable(null);
       setIsValidatingZipcode(false);
@@ -171,11 +178,9 @@ export default function AddressDialog({
     }, 0);
   }, [address, mode, open, userProfile, existingAddressCount]);
 
-  // Effect to validate zip code when postal_code changes
   useEffect(() => {
     validateZipcode(formData.postal_code);
 
-    // Cleanup function to clear timeout on unmount
     return () => {
       if (debounceTimeoutRef.current) {
         clearTimeout(debounceTimeoutRef.current);
@@ -183,7 +188,6 @@ export default function AddressDialog({
     };
   }, [formData.postal_code, validateZipcode]);
 
-  // Cleanup effect to clear timeout on unmount
   useEffect(() => {
     return () => {
       if (debounceTimeoutRef.current) {
@@ -192,17 +196,12 @@ export default function AddressDialog({
     };
   }, []);
 
-  // Dialog content ref for scroll-to-error functionality
-  const dialogContentRef = useRef<HTMLDivElement>(null);
-
-  // Scroll to top when error occurs to ensure visibility
   useEffect(() => {
     if (error || phoneError) {
-      // Scroll dialog content to top to show the error Alert
       if (dialogContentRef.current) {
         dialogContentRef.current.scrollTo({
           top: 0,
-          behavior: 'smooth'
+          behavior: 'smooth',
         });
       }
     }
@@ -211,10 +210,12 @@ export default function AddressDialog({
   const handleAddressSelect = (placeDetails: PlaceDetails) => {
     setFormData((prev) => ({
       ...prev,
-      street_address: placeDetails.full_address || placeDetails.street,
+      street_address:
+        placeDetails.full_address || placeDetails.street,
       city: placeDetails.city || placeDetails.town,
       postal_code: placeDetails.pincode,
     }));
+
     setAddressSelected(true);
   };
 
@@ -225,38 +226,47 @@ export default function AddressDialog({
       city: '',
       postal_code: '',
     }));
+
     setAddressSelected(false);
   };
 
-  const handleChange = (field: keyof Address) => (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    setFormData((prev) => ({
-      ...prev,
-      [field]: e.target.value,
-    }));
+  const handleChange =
+    (field: keyof Address) =>
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const value = e.target.value;
 
-    // Clear phone error when user types in phone field
-    if (field === 'phone' && phoneError) {
-      setPhoneError(null);
-    }
-  };
+      setError('');
+
+      setFormData((prev) => ({
+        ...prev,
+        [field]: value,
+      }));
+
+      if (field === 'phone' && phoneError) {
+        setPhoneError(null);
+      }
+    };
 
   const handleSubmit = async () => {
     setError('');
 
-    // Validation
     if (!formData.name || formData.name.trim().length < 2) {
       setError('Name must be at least 2 characters');
       return;
     }
 
-    if (!formData.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+    if (
+      !formData.email ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)
+    ) {
       setError('Please enter a valid email address');
       return;
     }
 
-    if (!formData.street_address || formData.street_address.trim().length < 5) {
+    if (
+      !formData.street_address ||
+      formData.street_address.trim().length < 5
+    ) {
       setError('Street address is too short');
       return;
     }
@@ -266,27 +276,33 @@ export default function AddressDialog({
       return;
     }
 
-    if (!formData.postal_code || formData.postal_code.trim().length < 4) {
+    if (
+      !formData.postal_code ||
+      formData.postal_code.trim().length < 4
+    ) {
       setError('Postal code is required');
       return;
     }
 
-    // Check zip code serviceability
     if (zipcodeServiceable === false) {
-      setError(zipcodeError || 'This area is not serviceable. We currently don\'t deliver to this zip code.');
+      setError(
+        zipcodeError ||
+          "This area is not serviceable. We currently don't deliver to this zip code."
+      );
       return;
     }
 
-    // Don't submit if zip code is still being validated
     if (isValidatingZipcode) {
       setError('Please wait while we verify your zip code...');
       return;
     }
 
-    // Phone number validation
     const phoneValidation = validateUSPhone(formData.phone || '');
+
     if (!phoneValidation.valid) {
-      setPhoneError(phoneValidation.error || 'Phone number must be 10 digits');
+      setPhoneError(
+        phoneValidation.error || 'Phone number must be 10 digits'
+      );
       return;
     } else {
       setPhoneError(null);
@@ -298,7 +314,11 @@ export default function AddressDialog({
       await onSave(formData);
       onClose();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to save address');
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Failed to save address'
+      );
     } finally {
       setIsLoading(false);
     }
@@ -329,7 +349,12 @@ export default function AddressDialog({
         }}
       >
         {mode === 'add' ? 'Add New Address' : 'Edit Address'}
-        <IconButton onClick={onClose} disabled={isLoading} size="small">
+
+        <IconButton
+          onClick={onClose}
+          disabled={isLoading}
+          size="small"
+        >
           <IconX size={20} />
         </IconButton>
       </DialogTitle>
@@ -347,22 +372,36 @@ export default function AddressDialog({
           </Alert>
         )}
 
-        {/* Address Search - Show only for add mode or if not selected */}
         {mode === 'add' && !addressSelected && (
           <Box sx={{ mb: 3 }}>
-            <AddressSearch onAddressSelect={handleAddressSelect} />
-            <Typography variant="caption" sx={{ color: 'text.secondary', mt: 1, display: 'block' }}>
+            <AddressSearch
+              onAddressSelect={handleAddressSelect}
+            />
+
+            <Typography
+              variant="caption"
+              sx={{
+                color: 'text.secondary',
+                mt: 1,
+                display: 'block',
+              }}
+            >
               Select an address to continue
             </Typography>
           </Box>
         )}
 
-        {/* Show form only after address is selected or in edit mode */}
         {(addressSelected || mode === 'edit') && (
           <>
-            {/* Address Details Section */}
             <Box sx={{ mb: 3 }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Box
+                sx={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  mb: 2,
+                }}
+              >
                 <Typography
                   variant="subtitle2"
                   sx={{
@@ -372,6 +411,7 @@ export default function AddressDialog({
                 >
                   Address Details
                 </Typography>
+
                 {mode === 'add' && (
                   <Button
                     size="small"
@@ -398,7 +438,10 @@ export default function AddressDialog({
                 sx={{
                   mb: 2,
                   '& .MuiInputBase-input': {
-                    cursor: mode === 'add' ? 'not-allowed' : 'text',
+                    cursor:
+                      mode === 'add'
+                        ? 'not-allowed'
+                        : 'text',
                   },
                 }}
               />
@@ -410,6 +453,7 @@ export default function AddressDialog({
                   value={formData.city}
                   onChange={handleChange('city')}
                 />
+
                 <TextField
                   fullWidth
                   label="Postal Code *"
@@ -421,46 +465,61 @@ export default function AddressDialog({
                     endAdornment: (
                       <InputAdornment position="end">
                         {isValidatingZipcode ? (
-                          <CircularProgress size={20} color="inherit" />
+                          <CircularProgress
+                            size={20}
+                            color="inherit"
+                          />
                         ) : zipcodeServiceable === true ? (
-                          <IconCheck size={20} color={theme.palette.success.main} />
+                          <IconCheck
+                            size={20}
+                            color={
+                              theme.palette.success.main
+                            }
+                          />
                         ) : zipcodeServiceable === false ? (
-                          <IconError size={20} color={theme.palette.error.main} />
+                          <IconError
+                            size={20}
+                            color={
+                              theme.palette.error.main
+                            }
+                          />
                         ) : null}
                       </InputAdornment>
                     ),
                   }}
-                  sx={{
-                    '& .MuiInputBase-input': {
-                      paddingRight: zipcodeError || isValidatingZipcode ? '48px' : '16px',
-                    },
-                  }}
                 />
               </Box>
 
-              <Box sx={{ display: 'flex', gap: 2 }}>
-                <TextField
-                  fullWidth
-                  label="Apartment"
-                  value={formData.apartment}
-                  onChange={handleChange('apartment')}
-                />
-                <TextField
-                  fullWidth
-                  label="Delivery instruction"
-                  value={formData.floor}
-                  onChange={handleChange('floor')}
-                />
-                <TextField
-                  fullWidth
-                  label="Gate Code"
-                  value={formData.entrance}
-                  onChange={handleChange('entrance')}
-                />
-              </Box>
+            <Box sx={{ display: 'flex', gap: 2 }}>
+  <TextField
+    fullWidth
+    label="Apartment"
+    value={formData.apartment}
+    onChange={handleChange('apartment')}
+    inputProps={{ maxLength: 10 }}
+    error={(formData.apartment?.length || 0) === 10}
+  />
+
+  <TextField
+    fullWidth
+    label="Delivery Instruction"
+    value={formData.floor}
+    onChange={handleChange('floor')}
+    inputProps={{ maxLength: 30 }}
+    error={(formData.floor?.length || 0) === 30}
+  />
+
+  <TextField
+    fullWidth
+    label="Gate Code"
+    value={formData.entrance}
+    onChange={handleChange('entrance')}
+    inputProps={{ maxLength: 10 }}
+    error={(formData.entrance?.length || 0) === 10}
+  />
+</Box>
             </Box>
 
-            {/* Personal Details Section */}
             <Box>
               <Typography
                 variant="subtitle2"
@@ -501,7 +560,6 @@ export default function AddressDialog({
                 sx={{ mb: 2 }}
               />
 
-              {/* Set as Default Address Checkbox */}
               <FormControlLabel
                 control={
                   <Checkbox
@@ -515,7 +573,8 @@ export default function AddressDialog({
                     sx={{
                       color: theme.palette.primary.main,
                       '&.Mui-checked': {
-                        color: theme.palette.primary.main,
+                        color:
+                          theme.palette.primary.main,
                       },
                     }}
                   />
@@ -551,9 +610,15 @@ export default function AddressDialog({
         >
           Cancel
         </Button>
+
         <Button
           onClick={handleSubmit}
-          disabled={isLoading || isValidatingZipcode || zipcodeServiceable === false || !!phoneError}
+          disabled={
+            isLoading ||
+            isValidatingZipcode ||
+            zipcodeServiceable === false ||
+            !!phoneError
+          }
           variant="contained"
           sx={{
             textTransform: 'none',
@@ -563,12 +628,16 @@ export default function AddressDialog({
             borderRadius: '12px',
             backgroundColor: theme.palette.primary.main,
             '&:hover': {
-              backgroundColor: theme.palette.primary.dark,
+              backgroundColor:
+                theme.palette.primary.dark,
             },
           }}
         >
           {isLoading ? (
-            <CircularProgress size={20} color="inherit" />
+            <CircularProgress
+              size={20}
+              color="inherit"
+            />
           ) : mode === 'add' ? (
             'Add Address'
           ) : (

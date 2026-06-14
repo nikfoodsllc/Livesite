@@ -8,11 +8,12 @@ import {
   Button,
   CircularProgress,
   Alert,
+  Paper,
 } from '@mui/material';
 import { useRouter } from 'next/navigation';
 import { loadStripe } from '@stripe/stripe-js';
-import { Elements, useStripe, useElements, CardElement } from '@stripe/react-stripe-js';
-import type { Stripe as StripeType, StripeElements } from '@stripe/stripe-js';
+import { Elements } from '@stripe/react-stripe-js';
+import type { StripeElementsOptions } from '@stripe/stripe-js';
 import { IconShoppingCart, IconLock } from '@tabler/icons-react';
 import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -20,7 +21,9 @@ import { useHeader } from '@/contexts/HeaderContext';
 import { useApiClient } from '@/hooks/useApiClient';
 import ContactInfoSection, { ContactInfoSectionRef } from '@/components/checkout/ContactInfoSection';
 import PaymentMethodSection from '@/components/checkout/PaymentMethodSection';
-import StripePaymentForm from '@/components/checkout/StripePaymentForm';
+import CheckoutPaymentDetails, {
+  CheckoutPaymentDetailsHandle,
+} from '@/components/checkout/CheckoutPaymentDetails';
 import TipSection from '@/components/checkout/TipSection';
 import DeliveryAddressDisplay from '@/components/checkout/DeliveryAddressDisplay';
 import AddressSelectionDialog from '@/components/checkout/AddressSelectionDialog';
@@ -33,6 +36,9 @@ import * as localCart from '@/lib/localStorageCart';
 import { calculateDeliveryDates, type DayDeliveryInfo } from '@/lib/deliveryCalculator';
 import { DEFAULT_MIN_CART_VALUE } from '@/lib/cartLogic';
 
+/**
+ * Interface for error summary items
+ */
 interface ErrorSummary {
   field: string;
   message: string;
@@ -42,6 +48,16 @@ const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || ''
 );
 
+const stripeAppearance: StripeElementsOptions['appearance'] = {
+  theme: 'stripe',
+  variables: {
+    colorPrimary: '#FF9F0D',
+  },
+};
+
+/**
+ * Checkout details (address, contact, tip) before Stripe Payment Element step
+ */
 interface CheckoutFormContentProps {
   cart: Cart;
   name: string;
@@ -49,7 +65,6 @@ interface CheckoutFormContentProps {
   phone: string;
   paymentMethod: PaymentMethod;
   tipPercentage: number;
-  isProcessing: boolean;
   errors: {
     name?: string;
     email?: string;
@@ -62,7 +77,7 @@ interface CheckoutFormContentProps {
   onPhoneError: (error: string | null) => void;
   onPaymentMethodChange: (method: PaymentMethod) => void;
   onTipChange: (percentage: number) => void;
-  onPlaceOrder: (stripe: StripeType | null, elements: StripeElements | null) => Promise<void>;
+  onPlaceOrder: () => Promise<void>;
   onOpenAddressDialog: () => void;
   contactInfoRef: React.RefObject<ContactInfoSectionRef | null>;
   addressesLoading?: boolean;
@@ -73,16 +88,14 @@ interface CheckoutFormContentProps {
   onLoginClick: () => void;
   onSignupClick: () => void;
   zipcodeConfig: ZipcodeConfig | null;
-  onPaymentValidationChange?: (isValid: boolean, isEmpty: boolean, error?: string) => void;
-  isPaymentComplete: boolean;
-  isPaymentEmpty?: boolean;
-  paymentError?: string;
-  applePayAvailable: boolean;
-  onApplePayAvailable: (available: boolean) => void;
-  pollOrderStatus: (orderId: string) => Promise<void>;
-  setOrderCompleted: (v: boolean) => void;
-  refreshCart: () => Promise<void>;
-  router: any;
+  paymentClientSecret: string | null;
+  pendingOrderId: string | null;
+  isInitializingPayment: boolean;
+  paymentFormRef: React.RefObject<CheckoutPaymentDetailsHandle | null>;
+  onPaymentSuccess: (orderId: string) => Promise<void>;
+  onPaymentError: (message: string) => void;
+  isPaymentSubmitting: boolean;
+  onPaymentSubmittingChange: (value: boolean) => void;
 }
 
 function CheckoutFormContent({
@@ -92,7 +105,6 @@ function CheckoutFormContent({
   phone,
   paymentMethod,
   tipPercentage,
-  isProcessing,
   errors,
   userAddresses,
   onNameChange,
@@ -112,20 +124,15 @@ function CheckoutFormContent({
   onLoginClick,
   onSignupClick,
   zipcodeConfig,
-  onPaymentValidationChange,
-  isPaymentComplete,
-  isPaymentEmpty,
-  paymentError,
-  applePayAvailable,
-  onApplePayAvailable,
-  pollOrderStatus,
-  setOrderCompleted,
-  refreshCart,
-  router,
+  paymentClientSecret,
+  pendingOrderId,
+  isInitializingPayment,
+  paymentFormRef,
+  onPaymentSuccess,
+  onPaymentError,
+  isPaymentSubmitting,
+  onPaymentSubmittingChange,
 }: CheckoutFormContentProps) {
-  const stripe = useStripe();
-  const elements = useElements();
-
   const calculateTotals = () => {
     const subtotal = cart.subtotal;
     const platformFee = cart.platformFee;
@@ -134,20 +141,49 @@ function CheckoutFormContent({
     const tip = (subtotal * tipPercentage) / 100;
     const discount = cart.appliedCoupon?.discountAmount || 0;
     const total = subtotal + platformFee + deliveryFee + tax + tip - discount;
-    return { subtotal, platformFee, deliveryFee, tax, tip, discount, total };
+
+    return {
+      subtotal,
+      platformFee,
+      deliveryFee,
+      tax,
+      tip,
+      discount,
+      total,
+    };
   };
 
   const totals = calculateTotals();
 
-  const deliveryCalculation = calculateDeliveryDates(
-    cart.days,
-    zipcodeConfig?.minCartValue || DEFAULT_MIN_CART_VALUE
-  );
+  // Calculate delivery dates
+  console.log('=== DELIVERY DATE CALCULATION START ===');
+  console.log('Cart days:', cart.days);
+  console.log('Number of cart days:', cart.days.length);
+  console.log('Cart days details:', cart.days.map(d => ({
+    date: d.date,
+    day: d.day,
+    dayTotal: d.dayTotal,
+    itemsCount: d.items.length
+  })));
+
+  const deliveryCalculation = calculateDeliveryDates(cart.days, zipcodeConfig?.minCartValue || DEFAULT_MIN_CART_VALUE);
+  console.log('Raw delivery calculation result:', deliveryCalculation);
+
   const deliveryCalculations: DayDeliveryInfo[] = deliveryCalculation.deliveryDays;
+  console.log('Delivery calculations array:', deliveryCalculations);
+  console.log('Number of delivery calculations:', deliveryCalculations.length);
+  console.log('=== DELIVERY DATE CALCULATION END ===');
 
   const handlePlaceOrderClick = async () => {
-    await onPlaceOrder(stripe, elements);
+    try {
+      await onPlaceOrder();
+    } catch {
+      // Validation and API errors are already shown in the UI
+    }
   };
+
+  const isBusy = isInitializingPayment || isPaymentSubmitting;
+  const canShowPaymentDetails = paymentMethod === 'Credit Card';
 
   return (
     <Box
@@ -157,8 +193,9 @@ function CheckoutFormContent({
         gap: 3,
       }}
     >
-      {/* Left column */}
+      {/* Left column - Forms */}
       <Box>
+        {/* Delivery Address */}
         <DeliveryAddressDisplay
           address={cart.selectedAddress}
           onChangeAddress={onOpenAddressDialog}
@@ -168,6 +205,7 @@ function CheckoutFormContent({
           onSignupClick={onSignupClick}
         />
 
+        {/* Contact Information */}
         <ContactInfoSection
           ref={contactInfoRef}
           name={name}
@@ -180,77 +218,61 @@ function CheckoutFormContent({
           errors={errors}
         />
 
+        {/* Payment Method */}
         <PaymentMethodSection
           selectedMethod={paymentMethod}
           onMethodChange={onPaymentMethodChange}
-          applePayAvailable={applePayAvailable}
         />
 
-        {/* Credit Card Form */}
-        {paymentMethod === 'Credit Card' && (
-          <StripePaymentForm
-            show={true}
-            onValidationChange={onPaymentValidationChange}
-          />
+        {/* Stripe payment details — inline below payment method */}
+        {canShowPaymentDetails && (
+          <>
+            {isInitializingPayment && !paymentClientSecret && (
+              <Paper
+                elevation={0}
+                sx={{
+                  p: 3,
+                  mb: 3,
+                  border: '1px solid #EDEDED',
+                  borderRadius: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1.5,
+                }}
+              >
+                <CircularProgress size={22} sx={{ color: '#FF9F0D' }} />
+                <Typography variant="body2" sx={{ color: '#666' }}>
+                  Loading payment options…
+                </Typography>
+              </Paper>
+            )}
+            {paymentClientSecret && (
+              <Elements
+                stripe={stripePromise}
+                key={paymentClientSecret}
+                options={{
+                  clientSecret: paymentClientSecret,
+                  appearance: stripeAppearance,
+                }}
+              >
+                <CheckoutPaymentDetails
+                  ref={paymentFormRef}
+                  orderId={pendingOrderId}
+                  clientSecret={paymentClientSecret}
+                  name={name}
+                  email={email}
+                  phone={phone}
+                  onPaymentSuccess={onPaymentSuccess}
+                  onPaymentError={onPaymentError}
+                  isSubmitting={isPaymentSubmitting}
+                  onSubmittingChange={onPaymentSubmittingChange}
+                />
+              </Elements>
+            )}
+          </>
         )}
 
-        {/* Apple Pay Form */}
-        {paymentMethod === 'Apple Pay' && (
-          <StripePaymentForm
-            show={false}
-            showApplePay={true}
-            amount={totals.total}
-            onApplePayAvailable={() => {}}
-            onApplePayPaymentMethod={async (e) => {
-              try {
-                const orderRequest = {
-                  cart,
-                  customerInfo: { name, email, phone },
-                  tipPercentage,
-                  paymentMethod: 'Apple Pay',
-                  currency: 'usd',
-                };
-                const response = await fetch('/api/orders/create', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify(orderRequest),
-                  credentials: 'include',
-                });
-                const data = await response.json();
-                if (!response.ok || !data.success) {
-                  e.complete('fail');
-                  return;
-                }
-                const { orderId, clientSecret } = data.data;
-                const { error: stripeError, paymentIntent } = await stripe!.confirmCardPayment(
-                  clientSecret,
-                  { payment_method: e.paymentMethod.id },
-                  { handleActions: false }
-                );
-                if (stripeError) {
-                  e.complete('fail');
-                  return;
-                }
-                e.complete('success');
-                if (paymentIntent?.status === 'requires_action') {
-                  const { error } = await stripe!.confirmCardPayment(clientSecret);
-                  if (error) return;
-                }
-                await pollOrderStatus(orderId);
-                setOrderCompleted(true);
-                localCart.clearCart();
-                await refreshCart();
-                router.push(`/checkout/success?orderId=${orderId}`);
-              } catch (err) {
-                e.complete('fail');
-                console.error('Apple Pay error:', err);
-              }
-            }}
-          />
-        )}
-
-    
-
+        {/* Tip Section */}
         <TipSection
           selectedTipPercentage={tipPercentage}
           onTipChange={onTipChange}
@@ -259,21 +281,10 @@ function CheckoutFormContent({
 
         {/* Place Order Button (Mobile) */}
         <Box sx={{ display: { xs: 'block', md: 'none' }, mb: 3 }}>
-          {!isProcessing && (
-            <Box sx={{ mb: 1.5 }}>
-              {!cart.canCheckout && (
-                <Alert severity="warning" sx={{ mb: 1 }}>
-                  Minimum order value required. Add more items to proceed.
-                </Alert>
-              )}
-              {paymentMethod === 'Credit Card' && !isPaymentComplete && (
-                <Alert severity="warning" sx={{ mb: 1 }}>
-                  {isPaymentEmpty
-                    ? 'Please enter your card details to proceed.'
-                    : paymentError || 'Please complete your card details to proceed.'}
-                </Alert>
-              )}
-            </Box>
+          {!isBusy && !cart.canCheckout && (
+            <Alert severity="warning" sx={{ mb: 1.5 }}>
+              Minimum order value required. Add more items to proceed.
+            </Alert>
           )}
 
           <Button
@@ -281,9 +292,9 @@ function CheckoutFormContent({
             variant="contained"
             size="large"
             onClick={handlePlaceOrderClick}
-            disabled={isProcessing || !cart.canCheckout || (paymentMethod === 'Credit Card' && !isPaymentComplete)}
+            disabled={isBusy || !cart.canCheckout}
             startIcon={
-              isProcessing ? (
+              isBusy ? (
                 <CircularProgress size={20} sx={{ color: '#fff' }} />
               ) : (
                 <IconShoppingCart size={20} />
@@ -295,13 +306,21 @@ function CheckoutFormContent({
               py: 1.5,
               fontSize: '16px',
               fontWeight: 600,
-              '&:hover': { bgcolor: '#e68f0c' },
-              '&:disabled': { bgcolor: '#ccc', color: '#666' },
+              '&:hover': {
+                bgcolor: '#e68f0c',
+              },
+              '&:disabled': {
+                bgcolor: '#ccc',
+                color: '#666',
+              },
             }}
           >
-            {isProcessing ? 'Processing...' : `Place Order - $${totals.total.toFixed(2)}`}
+            {isPaymentSubmitting
+              ? 'Processing…'
+              : isInitializingPayment
+                ? 'Preparing payment…'
+                : `Pay $${totals.total.toFixed(2)}`}
           </Button>
-
           <Box
             sx={{
               display: 'flex',
@@ -334,21 +353,11 @@ function CheckoutFormContent({
           discountCode={cart.appliedCoupon?.code}
         />
 
-        {!isProcessing && (
-          <Box sx={{ display: { xs: 'none', md: 'block' }, mb: 1.5 }}>
-            {!cart.canCheckout && (
-              <Alert severity="warning" sx={{ mb: 1 }}>
-                Minimum order value required. Add more items to proceed.
-              </Alert>
-            )}
-            {paymentMethod === 'Credit Card' && !isPaymentComplete && (
-              <Alert severity="warning" sx={{ mb: 1 }}>
-                {isPaymentEmpty
-                  ? 'Please enter your card details to proceed.'
-                  : paymentError || 'Please complete your card details to proceed.'}
-              </Alert>
-            )}
-          </Box>
+        {/* Place Order Button (Desktop) */}
+        {!isBusy && !cart.canCheckout && (
+          <Alert severity="warning" sx={{ display: { xs: 'none', md: 'block' }, mb: 1.5 }}>
+            Minimum order value required. Add more items to proceed.
+          </Alert>
         )}
 
         <Button
@@ -356,9 +365,9 @@ function CheckoutFormContent({
           variant="contained"
           size="large"
           onClick={handlePlaceOrderClick}
-          disabled={isProcessing || !cart.canCheckout || (paymentMethod === 'Credit Card' && !isPaymentComplete)}
+          disabled={isBusy || !cart.canCheckout}
           startIcon={
-            isProcessing ? (
+            isBusy ? (
               <CircularProgress size={20} sx={{ color: '#fff' }} />
             ) : (
               <IconShoppingCart size={20} />
@@ -372,13 +381,21 @@ function CheckoutFormContent({
             py: 1.5,
             fontSize: '16px',
             fontWeight: 600,
-            '&:hover': { bgcolor: '#e68f0c' },
-            '&:disabled': { bgcolor: '#ccc', color: '#666' },
+            '&:hover': {
+              bgcolor: '#e68f0c',
+            },
+            '&:disabled': {
+              bgcolor: '#ccc',
+              color: '#666',
+            },
           }}
         >
-          {isProcessing ? 'Processing...' : `Place Order - $${totals.total.toFixed(2)}`}
+          {isPaymentSubmitting
+            ? 'Processing…'
+            : isInitializingPayment
+              ? 'Preparing payment…'
+              : `Pay $${totals.total.toFixed(2)}`}
         </Button>
-
         <Box
           sx={{
             display: 'flex',
@@ -402,103 +419,159 @@ export default function CheckoutPage() {
   const router = useRouter();
   const { cart, isLoading: cartLoading, refreshCart, updateAddress, zipcodeConfig, selectedAddressId } = useCart();
   const { user, isLoading: authLoading } = useAuth();
-  const { openLoginDialog, openSignupDialog } = useHeader();
+  const { openLoginDialog, closeLoginDialog, openSignupDialog, closeSignupDialog, openForgotPasswordDialog, closeForgotPasswordDialog } = useHeader();
   const { authenticatedFetch } = useApiClient();
 
+  // Form state
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Credit Card');
   const [tipPercentage, setTipPercentage] = useState(5);
-  const [isProcessing, setIsProcessing] = useState(false);
   const [orderCompleted, setOrderCompleted] = useState(false);
   const [error, setError] = useState('');
-  const [applePayAvailable, setApplePayAvailable] = useState(false);
 
+  // Address dialog states
   const [showAddressDialog, setShowAddressDialog] = useState(false);
   const [userAddresses, setUserAddresses] = useState<IAddress[]>([]);
   const [addressesLoading, setAddressesLoading] = useState(false);
 
+  // Form validation errors
   const [errors, setErrors] = useState<{
     name?: string;
     email?: string;
     phone?: string;
   }>({});
 
-  const [isPaymentComplete, setIsPaymentComplete] = useState(false);
-  const [isPaymentEmpty, setIsPaymentEmpty] = useState(true);
-  const [paymentError, setPaymentError] = useState<string | undefined>();
+  const [paymentClientSecret, setPaymentClientSecret] = useState<string | null>(null);
+  const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null);
+  const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
+  const [isInitializingPayment, setIsInitializingPayment] = useState(false);
+  const [isPaymentSubmitting, setIsPaymentSubmitting] = useState(false);
 
+  // Validation error summary shown when Place Order is clicked
   const [validationErrors, setValidationErrors] = useState<ErrorSummary[]>([]);
   const [showValidationErrors, setShowValidationErrors] = useState(false);
 
+  // Form container ref for scroll behavior
   const formContainerRef = useRef<HTMLDivElement>(null);
   const contactInfoRef = useRef<ContactInfoSectionRef>(null);
+  const paymentFormRef = useRef<CheckoutPaymentDetailsHandle>(null);
 
+  // Error summary for displaying all validation errors
   const getErrorSummary = useCallback((): ErrorSummary[] => {
     const summary: ErrorSummary[] = [];
-    if (errors.name) summary.push({ field: 'name', message: errors.name });
-    if (errors.email) summary.push({ field: 'email', message: errors.email });
-    if (errors.phone) summary.push({ field: 'phone', message: errors.phone });
+
+    if (errors.name) {
+      summary.push({ field: 'name', message: errors.name });
+    }
+    if (errors.email) {
+      summary.push({ field: 'email', message: errors.email });
+    }
+    if (errors.phone) {
+      summary.push({ field: 'phone', message: errors.phone });
+    }
+
     return summary;
   }, [errors]);
 
+  // Check if address is complete (not zipcode-derived)
   const isAddressComplete = useCallback((address: any): boolean => {
     if (!address) return false;
+
+    // Check if address ID starts with 'zipcode-' (indicates incomplete address)
     const isZipcodeAddress = address._id?.startsWith('zipcode-');
-    const hasPlaceholderAddress =
-      address.addressLine1 === 'Delivery Area' ||
-      address.addressLine1 === 'Delivery Area:';
+
+    // Check if addressLine1 contains placeholder values
+    const hasPlaceholderAddress = address.addressLine1 === 'Delivery Area' ||
+                                  address.addressLine1 === 'Delivery Area:';
+
+    // Address is complete if it's not a zipcode address AND doesn't have placeholder
     return !isZipcodeAddress && !hasPlaceholderAddress;
   }, []);
 
+  // Collect all validation errors when Place Order is clicked
   const collectAllValidationErrors = useCallback((): ErrorSummary[] => {
     const allErrors: ErrorSummary[] = [];
+
+    // Check for delivery address
     if (!cart?.selectedAddress) {
-      allErrors.push({ field: 'Delivery Address', message: 'Please select a delivery address to complete your order' });
-    } else if (!isAddressComplete(cart.selectedAddress)) {
-      allErrors.push({ field: 'Delivery Address', message: 'Please provide your complete delivery address including street address to complete your order' });
-    }
-    if (cart && !cart.canCheckout) {
-      allErrors.push({ field: 'Cart Requirements', message: 'Your cart does not meet the minimum order requirements. Please check the delivery messages.' });
-    }
-    if (errors.name) allErrors.push({ field: 'name', message: errors.name });
-    if (errors.email) allErrors.push({ field: 'email', message: errors.email });
-    if (errors.phone) allErrors.push({ field: 'phone', message: errors.phone });
-    if (paymentMethod === 'Credit Card' && !isPaymentComplete) {
       allErrors.push({
-        field: 'Payment Details',
-        message: isPaymentEmpty
-          ? 'Please enter your card details to complete your order'
-          : 'Please complete all required card details correctly',
+        field: 'Delivery Address',
+        message: 'Please select a delivery address to complete your order'
+      });
+    } else if (!isAddressComplete(cart.selectedAddress)) {
+      // Address exists but is incomplete (zipcode-derived or placeholder)
+      allErrors.push({
+        field: 'Delivery Address',
+        message: 'Please provide your complete delivery address including street address to complete your order'
       });
     }
-    return allErrors;
-  }, [cart, errors, isAddressComplete, paymentMethod, isPaymentComplete, isPaymentEmpty]);
 
+    // Check if cart can checkout
+    if (cart && !cart.canCheckout) {
+      allErrors.push({
+        field: 'Cart Requirements',
+        message: 'Your cart does not meet the minimum order requirements. Please check the delivery messages.'
+      });
+    }
+
+    // Check form fields
+    if (errors.name) {
+      allErrors.push({ field: 'name', message: errors.name });
+    }
+    if (errors.email) {
+      allErrors.push({ field: 'email', message: errors.email });
+    }
+    if (errors.phone) {
+      allErrors.push({ field: 'phone', message: errors.phone });
+    }
+
+    return allErrors;
+  }, [cart, errors, isAddressComplete]);
+
+  // Scroll to first error and show detailed error summary
   const handleValidationError = useCallback(() => {
     const errorSummary = getErrorSummary();
+
     if (errorSummary.length > 0) {
+      // Scroll to form container first
       if (formContainerRef.current) {
-        formContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        formContainerRef.current.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start'
+        });
       }
+
+      // Scroll to first error field using ContactInfoSection ref
       setTimeout(() => {
-        if (contactInfoRef.current) contactInfoRef.current.scrollToFirstError();
-      }, 300);
+        if (contactInfoRef.current) {
+          contactInfoRef.current.scrollToFirstError();
+        }
+      }, 300); // Small delay to ensure form is in view
     }
   }, [getErrorSummary]);
 
+  // Auto-scroll to first error when validation errors change
   useEffect(() => {
-    if (Object.keys(errors).length > 0) handleValidationError();
+    if (Object.keys(errors).length > 0) {
+      handleValidationError();
+    }
   }, [errors, handleValidationError]);
 
+  // Check authentication and show login dialog if not authenticated
   useEffect(() => {
+    // Use setTimeout to avoid synchronous setState in useEffect
     setTimeout(() => {
-      if (!authLoading && !user) openLoginDialog();
+      if (!authLoading && !user) {
+        openLoginDialog();
+      }
     }, 0);
   }, [authLoading, user, openLoginDialog]);
 
+  // Pre-fill form with user data
   useEffect(() => {
+    // Use setTimeout to avoid synchronous setState in useEffect
     setTimeout(() => {
       if (user) {
         setName(user.name || '');
@@ -508,20 +581,32 @@ export default function CheckoutPage() {
     }, 0);
   }, [user]);
 
+  // Redirect if cart is empty (but not after order completion)
   useEffect(() => {
-    if (orderCompleted) return;
-    if (!cartLoading && (!cart || cart.days.length === 0)) router.push('/cart');
+    // Don't redirect if order was just completed - user is being redirected to success page
+    if (orderCompleted) {
+      return;
+    }
+
+    if (!cartLoading && (!cart || cart.days.length === 0)) {
+      router.push('/cart');
+    }
   }, [cart, cartLoading, router, orderCompleted]);
 
+  // Fetch user addresses on mount
   useEffect(() => {
     const fetchUserAddresses = async () => {
       if (!user) return;
+
       setAddressesLoading(true);
       try {
         const response = await authenticatedFetch('/api/address');
+
         if (response.ok) {
           const data = await response.json();
-          if (data.success) setUserAddresses(data.data.items || []);
+          if (data.success) {
+            setUserAddresses(data.data.items || []);
+          }
         }
       } catch (error) {
         console.error('Error fetching user addresses:', error);
@@ -529,19 +614,38 @@ export default function CheckoutPage() {
         setAddressesLoading(false);
       }
     };
+
+    // Use setTimeout to avoid synchronous setState in useEffect
     setTimeout(fetchUserAddresses, 0);
   }, [user, authenticatedFetch]);
 
-  useEffect(() => {
-    if (userAddresses.length > 0 && !selectedAddressId) {
-      const defaultAddress = userAddresses.find(addr => addr.isDefault === true);
-      const addressToSelect = defaultAddress || userAddresses[0];
-      if (addressToSelect?._id) updateAddress(addressToSelect._id);
-    }
-  }, [userAddresses, selectedAddressId, updateAddress]);
+useEffect(() => {
 
-  const handleOpenAddressDialog = () => setShowAddressDialog(true);
-  const handleCloseAddressDialog = () => setShowAddressDialog(false);
+  if (userAddresses.length > 0 && !selectedAddressId) {
+
+    const defaultAddress = userAddresses.find(
+      addr => addr.isDefault === true
+    );
+
+    const addressToSelect = defaultAddress || userAddresses[0];
+
+    if (addressToSelect?._id) {
+      updateAddress(addressToSelect._id);
+    }
+
+  }
+
+}, [userAddresses, selectedAddressId, updateAddress]);
+
+
+  // Address dialog handlers
+  const handleOpenAddressDialog = () => {
+    setShowAddressDialog(true);
+  };
+
+  const handleCloseAddressDialog = () => {
+    setShowAddressDialog(false);
+  };
 
   const handleAddressSelect = async (addressId: string) => {
     try {
@@ -549,6 +653,7 @@ export default function CheckoutPage() {
       await refreshCart();
       setShowAddressDialog(false);
       setError('');
+      // Clear validation errors when address is updated
       setShowValidationErrors(false);
       setValidationErrors([]);
     } catch (error) {
@@ -557,14 +662,19 @@ export default function CheckoutPage() {
     }
   };
 
+  // Fetch user addresses to refresh after adding new address
   const handleAddressRefresh = async () => {
     if (!user) return;
+
     setAddressesLoading(true);
     try {
       const response = await authenticatedFetch('/api/address');
+
       if (response.ok) {
         const data = await response.json();
-        if (data.success) setUserAddresses(data.data.items || []);
+        if (data.success) {
+          setUserAddresses(data.data.items || []);
+        }
       }
     } catch (error) {
       console.error('Error fetching user addresses:', error);
@@ -573,103 +683,165 @@ export default function CheckoutPage() {
     }
   };
 
+  // Handle phone validation errors from ContactInfoSection
   const handlePhoneError = (error: string | null) => {
-    setErrors(prev => ({ ...prev, phone: error || undefined }));
+    setErrors(prev => ({
+      ...prev,
+      phone: error || undefined,
+    }));
   };
 
-  const handlePaymentValidationChange = useCallback((isValid: boolean, isEmpty: boolean, error?: string) => {
-    setIsPaymentComplete(isValid);
-    setIsPaymentEmpty(isEmpty);
-    setPaymentError(error);
-  }, []);
-
+  // Clear validation errors when user starts fixing form fields
   const handleNameChange = (value: string) => {
     setName(value);
-    if (showValidationErrors) { setShowValidationErrors(false); setValidationErrors([]); }
+    if (showValidationErrors) {
+      setShowValidationErrors(false);
+      setValidationErrors([]);
+    }
   };
 
   const handleEmailChange = (value: string) => {
     setEmail(value);
-    if (showValidationErrors) { setShowValidationErrors(false); setValidationErrors([]); }
+    if (showValidationErrors) {
+      setShowValidationErrors(false);
+      setValidationErrors([]);
+    }
   };
 
   const handlePhoneChange = (value: string) => {
     setPhone(value);
-    if (showValidationErrors) { setShowValidationErrors(false); setValidationErrors([]); }
+    if (showValidationErrors) {
+      setShowValidationErrors(false);
+      setValidationErrors([]);
+    }
   };
 
+  // Form validation
   const validateForm = (): boolean => {
     const newErrors: typeof errors = {};
-    if (!name.trim()) newErrors.name = 'Name is required';
+
+    if (!name.trim()) {
+      newErrors.name = 'Name is required';
+    }
+
     if (!email.trim()) {
       newErrors.email = 'Email is required';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       newErrors.email = 'Invalid email format';
     }
+
     if (!phone.trim()) {
       newErrors.phone = 'Phone number is required';
     } else if (!/^\d{10}$/.test(phone.replace(/[-()\s]/g, ''))) {
       newErrors.phone = 'Invalid phone number (10 digits required)';
     }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const pollOrderStatus = async (orderId: string, maxAttempts: number = 10): Promise<void> => {
+  // Poll order status to wait for webhook confirmation
+  const pollOrderStatus = async (
+    orderId: string,
+    maxAttempts: number = 10
+  ): Promise<void> => {
     for (let i = 0; i < maxAttempts; i++) {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait 1 second
+
       const response = await authenticatedFetch(`/api/orders/${orderId}`);
+
       if (response.ok) {
         const data = await response.json();
-        if (data.success && data.data.status === 'confirmed') return;
+        if (data.success && data.data.status === 'confirmed') {
+          return; // Order confirmed
+        }
       }
     }
+
+    // If we reach here, order is still pending (webhook might be delayed)
+    // We'll let the user proceed anyway
     console.warn('Order confirmation polling timed out, proceeding anyway');
   };
 
-  const handlePlaceOrderCallback = async (
-    stripe: StripeType | null,
-    elements: StripeElements | null
-  ): Promise<void> => {
-    setError('');
-    setShowValidationErrors(false);
-    setValidationErrors([]);
+  const handlePaymentSuccess = async (orderId: string) => {
+    await pollOrderStatus(orderId);
+    setOrderCompleted(true);
+    localCart.clearCart();
+    await refreshCart();
+    router.push(`/checkout/success?orderId=${orderId}`);
+  };
 
-    if (!validateForm()) {
-      const allErrors = collectAllValidationErrors();
-      setValidationErrors(allErrors);
-      setShowValidationErrors(true);
-      setTimeout(() => {
-        if (formContainerRef.current) {
-          formContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-      }, 100);
-      handleValidationError();
-      throw new Error('Form validation failed');
+  const handlePaymentError = (message: string) => {
+    setError(message);
+  };
+
+  const canLoadPaymentIntent = useCallback((): boolean => {
+    if (!cart?.canCheckout || cart.days.length === 0) return false;
+    return paymentMethod === 'Credit Card';
+  }, [cart, paymentMethod]);
+
+  const initializePaymentIntent = useCallback(async (): Promise<boolean> => {
+    if (!cart || cart.days.length === 0) {
+      return false;
     }
 
-    const allErrors = collectAllValidationErrors();
-    if (allErrors.length > 0) {
-      setValidationErrors(allErrors);
-      setShowValidationErrors(true);
-      const hasAddressError = allErrors.some(
-        error => error.field === 'Delivery Address' && error.message.includes('complete delivery address')
-      );
-      if (hasAddressError) setShowAddressDialog(true);
-      setTimeout(() => {
-        if (formContainerRef.current) {
-          formContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-      }, 100);
-      throw new Error('Validation failed');
+    if (paymentMethod !== 'Credit Card') {
+      return false;
     }
 
+    setIsInitializingPayment(true);
+
+    try {
+      const response = await authenticatedFetch('/api/checkout/payment-intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cart,
+          tipPercentage,
+          currency: 'usd',
+          paymentIntentId: paymentIntentId ?? undefined,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        setError(data.error || 'Failed to load payment options');
+        return false;
+      }
+
+      const { clientSecret, paymentIntentId: intentId } = data.data;
+
+      if (!clientSecret || !intentId) {
+        setError('Missing payment session from server');
+        return false;
+      }
+
+      setPaymentIntentId(intentId);
+      setPaymentClientSecret(clientSecret);
+      return true;
+    } catch (err) {
+      console.error('Payment intent error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load payment options.');
+      return false;
+    } finally {
+      setIsInitializingPayment(false);
+    }
+  }, [
+    authenticatedFetch,
+    cart,
+    paymentIntentId,
+    paymentMethod,
+    tipPercentage,
+  ]);
+
+  const createPendingOrder = useCallback(async (): Promise<string | null> => {
     if (!cart || cart.days.length === 0) {
       setError('Your cart is empty');
-      throw new Error('Cart is empty');
+      return null;
     }
 
-    setIsProcessing(true);
+    setIsInitializingPayment(true);
 
     try {
       const orderRequest = {
@@ -678,6 +850,7 @@ export default function CheckoutPage() {
         tipPercentage,
         paymentMethod,
         currency: 'usd',
+        paymentIntentId: paymentIntentId ?? undefined,
       };
 
       const response = await authenticatedFetch('/api/orders/create', {
@@ -691,54 +864,176 @@ export default function CheckoutPage() {
       if (!response.ok || !data.success) {
         const errorMessage = data.error || 'Failed to create order';
         router.push(`/checkout/failure?error=${encodeURIComponent(errorMessage)}`);
-        return;
+        return null;
       }
 
       const { orderId, clientSecret } = data.data;
 
-      if (!stripe || !elements) throw new Error('Stripe not initialized');
-
-      const cardElement = elements.getElement(CardElement);
-      if (!cardElement) throw new Error('Card element not found');
-
-      const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(
-        clientSecret,
-        {
-          payment_method: {
-            card: cardElement,
-            billing_details: { name, email, phone },
-          },
-        }
-      );
-
-      if (stripeError) {
-        const errorMessage = stripeError.message || 'Payment failed';
-        router.push(`/checkout/failure?error=${encodeURIComponent(errorMessage)}`);
-        return;
+      if (!clientSecret || !orderId) {
+        router.push(
+          `/checkout/failure?error=${encodeURIComponent('Missing payment session from server')}`
+        );
+        return null;
       }
 
-      if (paymentIntent?.status === 'succeeded') {
-        await pollOrderStatus(orderId);
-        setOrderCompleted(true);
-        localCart.clearCart();
-        await refreshCart();
-        router.push(`/checkout/success?orderId=${orderId}`);
-      } else {
-        const errorMessage = 'Payment confirmation failed. Please try again.';
-        router.push(`/checkout/failure?error=${encodeURIComponent(errorMessage)}`);
-      }
+      setPendingOrderId(orderId);
+      setPaymentClientSecret(clientSecret);
+      return orderId;
     } catch (err) {
-      console.error('Order placement error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to place order. Please try again.');
-      throw err;
+      console.error('Order creation error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to create order. Please try again.');
+      return null;
     } finally {
-      setIsProcessing(false);
+      setIsInitializingPayment(false);
     }
+  }, [
+    authenticatedFetch,
+    cart,
+    email,
+    name,
+    paymentIntentId,
+    paymentMethod,
+    phone,
+    router,
+    tipPercentage,
+  ]);
+
+  // Load Stripe payment options as soon as the cart is checkout-ready
+  useEffect(() => {
+    if (!canLoadPaymentIntent()) {
+      setPaymentClientSecret(null);
+      setPaymentIntentId(null);
+      setPendingOrderId(null);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      void (async () => {
+        if (cancelled || paymentClientSecret) return;
+        await initializePaymentIntent();
+      })();
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [canLoadPaymentIntent, initializePaymentIntent, paymentClientSecret]);
+
+  // Refresh payment intent when tip or cart total changes
+  const paymentAmountKey = `${tipPercentage}-${cart?.subtotal}-${cart?.platformFee}-${cart?.deliveryFee}-${cart?.tax}-${cart?.appliedCoupon?.discountAmount ?? 0}`;
+  const paymentAmountKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!canLoadPaymentIntent() || !paymentClientSecret) return;
+
+    if (paymentAmountKeyRef.current === null) {
+      paymentAmountKeyRef.current = paymentAmountKey;
+      return;
+    }
+
+    if (paymentAmountKeyRef.current === paymentAmountKey) return;
+
+    paymentAmountKeyRef.current = paymentAmountKey;
+
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      void (async () => {
+        if (cancelled) return;
+        await initializePaymentIntent();
+      })();
+    }, 400);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [
+    canLoadPaymentIntent,
+    initializePaymentIntent,
+    paymentAmountKey,
+    paymentClientSecret,
+  ]);
+
+  const handlePlaceOrder = async (): Promise<void> => {
+    setError('');
+    setShowValidationErrors(false);
+    setValidationErrors([]);
+
+    if (!validateForm()) {
+      const allErrors = collectAllValidationErrors();
+      setValidationErrors(allErrors);
+      setShowValidationErrors(true);
+      setTimeout(() => {
+        formContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+      handleValidationError();
+      throw new Error('Form validation failed');
+    }
+
+    const allErrors = collectAllValidationErrors();
+    if (allErrors.length > 0) {
+      setValidationErrors(allErrors);
+      setShowValidationErrors(true);
+
+      if (
+        allErrors.some(
+          (e) =>
+            e.field === 'Delivery Address' &&
+            e.message.includes('complete delivery address')
+        )
+      ) {
+        setShowAddressDialog(true);
+      }
+
+      setTimeout(() => {
+        formContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+      throw new Error('Validation failed');
+    }
+
+    if (!cart || cart.days.length === 0) {
+      setError('Your cart is empty');
+      throw new Error('Cart is empty');
+    }
+
+    if (paymentMethod !== 'Credit Card') {
+      setError('This payment flow supports card and digital wallets only.');
+      throw new Error('Unsupported payment method');
+    }
+
+    let orderIdForPayment = pendingOrderId;
+
+    if (!paymentClientSecret) {
+      const ready = await initializePaymentIntent();
+      if (!ready) throw new Error('Payment session not ready');
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    }
+
+    if (!orderIdForPayment) {
+      orderIdForPayment = await createPendingOrder();
+      if (!orderIdForPayment) throw new Error('Order not created');
+    }
+
+    if (!paymentFormRef.current) {
+      setError('Payment form is still loading. Please wait a moment and try again.');
+      throw new Error('Payment form not ready');
+    }
+
+    await paymentFormRef.current.confirmPayment(orderIdForPayment);
   };
 
   if (cartLoading || authLoading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: '60vh',
+        }}
+      >
         <CircularProgress sx={{ color: '#FF9F0D' }} />
       </Box>
     );
@@ -746,15 +1041,23 @@ export default function CheckoutPage() {
 
   if (!cart || cart.days.length === 0) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: '60vh',
+        }}
+      >
         <CircularProgress sx={{ color: '#FF9F0D' }} />
       </Box>
-    );
+    ); // Will redirect
   }
 
   return (
     <Box sx={{ bgcolor: '#FAFAFA', minHeight: '100vh', py: 4 }}>
       <Container maxWidth="lg">
+        {/* Header */}
         <Box sx={{ mb: 4 }}>
           <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
             Checkout
@@ -764,17 +1067,22 @@ export default function CheckoutPage() {
           </Typography>
         </Box>
 
+        {/* Error Alert */}
         {error && (
           <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
             {error}
           </Alert>
         )}
 
+        {/* Validation Error Summary Banner - shown when Place Order is clicked */}
         {showValidationErrors && validationErrors.length > 0 && (
           <Alert
             severity="error"
             sx={{ mb: 3 }}
-            onClose={() => { setShowValidationErrors(false); setValidationErrors([]); }}
+            onClose={() => {
+              setShowValidationErrors(false);
+              setValidationErrors([]);
+            }}
           >
             <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
               Please fix the following issues before placing your order:
@@ -794,50 +1102,47 @@ export default function CheckoutPage() {
           </Alert>
         )}
 
+        {/* Checkout — single page with inline payment details */}
         <Box ref={formContainerRef}>
-          <Elements stripe={stripePromise} options={{}}>
-            <CheckoutFormContent
-              cart={cart}
-              name={name}
-              email={email}
-              phone={phone}
-              paymentMethod={paymentMethod}
-              tipPercentage={tipPercentage}
-              isProcessing={isProcessing}
-              errors={errors}
-              userAddresses={userAddresses}
-              addressesLoading={addressesLoading}
-              showAddressDialog={showAddressDialog}
-              onNameChange={handleNameChange}
-              onEmailChange={handleEmailChange}
-              onPhoneChange={handlePhoneChange}
-              onPhoneError={handlePhoneError}
-              onPaymentMethodChange={setPaymentMethod}
-              onTipChange={setTipPercentage}
-              onPlaceOrder={handlePlaceOrderCallback}
-              onOpenAddressDialog={handleOpenAddressDialog}
-              onAddressSelect={handleAddressSelect}
-              onCloseAddressDialog={handleCloseAddressDialog}
-              contactInfoRef={contactInfoRef}
-              isAuthenticated={!!user}
-              onLoginClick={openLoginDialog}
-              onSignupClick={openSignupDialog}
-              zipcodeConfig={zipcodeConfig}
-              onPaymentValidationChange={handlePaymentValidationChange}
-              isPaymentComplete={isPaymentComplete}
-              isPaymentEmpty={isPaymentEmpty}
-              paymentError={paymentError}
-              applePayAvailable={applePayAvailable}
-              onApplePayAvailable={setApplePayAvailable}
-              pollOrderStatus={pollOrderStatus}
-              setOrderCompleted={setOrderCompleted}
-              refreshCart={refreshCart}
-              router={router}
-            />
-          </Elements>
+          <CheckoutFormContent
+            cart={cart}
+            name={name}
+            email={email}
+            phone={phone}
+            paymentMethod={paymentMethod}
+            tipPercentage={tipPercentage}
+            errors={errors}
+            userAddresses={userAddresses}
+            addressesLoading={addressesLoading}
+            showAddressDialog={showAddressDialog}
+            onNameChange={handleNameChange}
+            onEmailChange={handleEmailChange}
+            onPhoneChange={handlePhoneChange}
+            onPhoneError={handlePhoneError}
+            onPaymentMethodChange={setPaymentMethod}
+            onTipChange={setTipPercentage}
+            onPlaceOrder={handlePlaceOrder}
+            onOpenAddressDialog={handleOpenAddressDialog}
+            onAddressSelect={handleAddressSelect}
+            onCloseAddressDialog={handleCloseAddressDialog}
+            contactInfoRef={contactInfoRef}
+            isAuthenticated={!!user}
+            onLoginClick={openLoginDialog}
+            onSignupClick={openSignupDialog}
+            zipcodeConfig={zipcodeConfig}
+            paymentClientSecret={paymentClientSecret}
+            pendingOrderId={pendingOrderId}
+            isInitializingPayment={isInitializingPayment}
+            paymentFormRef={paymentFormRef}
+            onPaymentSuccess={handlePaymentSuccess}
+            onPaymentError={handlePaymentError}
+            isPaymentSubmitting={isPaymentSubmitting}
+            onPaymentSubmittingChange={setIsPaymentSubmitting}
+          />
         </Box>
       </Container>
 
+      {/* Address Selection Dialog */}
       <AddressSelectionDialog
         open={showAddressDialog}
         onClose={handleCloseAddressDialog}

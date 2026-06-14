@@ -21,6 +21,9 @@ export interface FoodItem {
   spiceLevel?: string[];
   hasCombo?: boolean;
   sections?: ComboSection[];
+  /** Set when item is FLAT-tagged to a sub-category under a day-wise parent */
+  subCategoryId?: string;
+  subCategoryName?: string;
   createdAt?: Date;
   updatedAt?: Date;
 }

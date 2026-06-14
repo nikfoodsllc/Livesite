@@ -136,9 +136,16 @@ export async function POST(request: NextRequest) {
  */
 export async function GET() {
   try {
+    const emailProvider = process.env.EMAIL_PROVIDER === 'mailtrap' ? 'mailtrap' : 'resend';
     const config = {
+      emailProvider,
       resendApiKey: process.env.RESEND_API_KEY ? 'Configured ✓' : 'Not configured ✗',
+      mailtrapApiToken: process.env.MAILTRAP_API_TOKEN ? 'Configured ✓' : 'Not configured ✗',
+      mailtrapUseSandbox: process.env.MAILTRAP_USE_SANDBOX === 'true',
+      mailtrapInboxId: process.env.MAILTRAP_INBOX_ID || 'Not configured',
       fromEmail: process.env.RESEND_FROM_EMAIL || 'Not configured',
+      mailtrapFromEmail: process.env.MAILTRAP_FROM_EMAIL || 'hello@demomailtrap.co (default)',
+      mailtrapFromName: process.env.MAILTRAP_FROM_NAME || 'Nikfoods Test (default)',
       orderConfirmationBccEmail: process.env.ORDER_CONFIRMATION_BCC_EMAIL || 'Not configured',
       timestamp: formatAPITimestamp(new Date()),
     };

@@ -25,7 +25,7 @@ export default function PaymentMethodSection({
       value: 'Credit Card',
       label: 'Credit or Debit Card',
       icon: <IconCreditCard size={24} />,
-      description: 'Pay securely with your card via Stripe',
+      description: 'Pay with card, Apple Pay, or other methods shown at checkout (Stripe)',
     },
     ...(applePayAvailable ? [{
       value: 'Apple Pay' as PaymentMethod,
