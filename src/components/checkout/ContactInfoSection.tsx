@@ -108,7 +108,7 @@ const ContactInfoSection = forwardRef<ContactInfoSectionRef, ContactInfoSectionP
   return (
     <Paper elevation={0} sx={{ p: 3, mb: 3, border: '1px solid #EDEDED' }}>
       <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-        Contact Information
+        Delivery Contact Information
       </Typography>
 
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>

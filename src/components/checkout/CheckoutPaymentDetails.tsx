@@ -19,6 +19,8 @@ export interface CheckoutPaymentDetailsProps {
   onPaymentError: (message: string) => void;
   isSubmitting: boolean;
   onSubmittingChange: (value: boolean) => void;
+
+   onCardDetailsChange?: (complete: boolean) => void;
 }
 
 const CheckoutPaymentDetails = forwardRef<
@@ -35,6 +37,7 @@ const CheckoutPaymentDetails = forwardRef<
     onPaymentError,
     isSubmitting,
     onSubmittingChange,
+    onCardDetailsChange
   },
   ref
 ) {
@@ -145,21 +148,24 @@ const CheckoutPaymentDetails = forwardRef<
       ) : (
         <Box sx={{ mb: 1 }}>
           <PaymentElement
-            options={{
-              layout: { type: 'accordion', defaultCollapsed: false },
-              wallets: {
-                applePay: 'auto',
-                googlePay: 'auto',
-              },
-              defaultValues: {
-                billingDetails: {
-                  name,
-                  email,
-                  phone,
-                },
-              },
-            }}
-          />
+  onChange={(event) => {
+    onCardDetailsChange?.(event.complete);
+  }}
+  options={{
+    layout: { type: 'accordion', defaultCollapsed: false },
+    wallets: {
+      applePay: 'auto',
+      googlePay: 'auto',
+    },
+    defaultValues: {
+      billingDetails: {
+        name,
+        email,
+        phone,
+      },
+    },
+  }}
+/>
         </Box>
       )}
 
