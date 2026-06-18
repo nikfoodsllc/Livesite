@@ -96,6 +96,8 @@ interface CheckoutFormContentProps {
   onPaymentError: (message: string) => void;
   isPaymentSubmitting: boolean;
   onPaymentSubmittingChange: (value: boolean) => void;
+  cardDetailsComplete: boolean;
+  onCardDetailsChange: (complete: boolean) => void;
 }
 
 function CheckoutFormContent({
@@ -132,6 +134,9 @@ function CheckoutFormContent({
   onPaymentError,
   isPaymentSubmitting,
   onPaymentSubmittingChange,
+  cardDetailsComplete,
+  onCardDetailsChange
+
 }: CheckoutFormContentProps) {
   const calculateTotals = () => {
     const subtotal = cart.subtotal;
@@ -219,10 +224,10 @@ function CheckoutFormContent({
         />
 
         {/* Payment Method */}
-        <PaymentMethodSection
+        {/* <PaymentMethodSection
           selectedMethod={paymentMethod}
           onMethodChange={onPaymentMethodChange}
-        />
+        /> */}
 
         {/* Stripe payment details — inline below payment method */}
         {canShowPaymentDetails && (
@@ -266,6 +271,7 @@ function CheckoutFormContent({
                   onPaymentError={onPaymentError}
                   isSubmitting={isPaymentSubmitting}
                   onSubmittingChange={onPaymentSubmittingChange}
+                  onCardDetailsChange={onCardDetailsChange}
                 />
               </Elements>
             )}
@@ -292,7 +298,11 @@ function CheckoutFormContent({
             variant="contained"
             size="large"
             onClick={handlePlaceOrderClick}
-            disabled={isBusy || !cart.canCheckout}
+            disabled={
+              isBusy ||
+              !cart.canCheckout ||
+              (paymentMethod === 'Credit Card' && !cardDetailsComplete)
+            }
             startIcon={
               isBusy ? (
                 <CircularProgress size={20} sx={{ color: '#fff' }} />
@@ -365,7 +375,11 @@ function CheckoutFormContent({
           variant="contained"
           size="large"
           onClick={handlePlaceOrderClick}
-          disabled={isBusy || !cart.canCheckout}
+          disabled={
+            isBusy ||
+            !cart.canCheckout ||
+            (paymentMethod === 'Credit Card' && !cardDetailsComplete)
+          }
           startIcon={
             isBusy ? (
               <CircularProgress size={20} sx={{ color: '#fff' }} />
@@ -458,6 +472,8 @@ export default function CheckoutPage() {
   const contactInfoRef = useRef<ContactInfoSectionRef>(null);
   const paymentFormRef = useRef<CheckoutPaymentDetailsHandle>(null);
 
+  const [cardDetailsComplete, setCardDetailsComplete] = useState(false);
+
   // Error summary for displaying all validation errors
   const getErrorSummary = useCallback((): ErrorSummary[] => {
     const summary: ErrorSummary[] = [];
@@ -484,7 +500,7 @@ export default function CheckoutPage() {
 
     // Check if addressLine1 contains placeholder values
     const hasPlaceholderAddress = address.addressLine1 === 'Delivery Area' ||
-                                  address.addressLine1 === 'Delivery Area:';
+      address.addressLine1 === 'Delivery Area:';
 
     // Address is complete if it's not a zipcode address AND doesn't have placeholder
     return !isZipcodeAddress && !hasPlaceholderAddress;
@@ -580,7 +596,19 @@ export default function CheckoutPage() {
       }
     }, 0);
   }, [user]);
+useEffect(() => {
+  if (userAddresses.length === 0) return;
 
+  const defaultAddress =
+    userAddresses.find(addr => addr.isDefault) ||
+    userAddresses[0];
+
+  if (defaultAddress) {
+    setName(defaultAddress.name || '');
+    setEmail(defaultAddress.email || '');
+    setPhone(defaultAddress.phone || '');
+  }
+}, [userAddresses]);
   // Redirect if cart is empty (but not after order completion)
   useEffect(() => {
     // Don't redirect if order was just completed - user is being redirected to success page
@@ -619,23 +647,23 @@ export default function CheckoutPage() {
     setTimeout(fetchUserAddresses, 0);
   }, [user, authenticatedFetch]);
 
-useEffect(() => {
+  useEffect(() => {
 
-  if (userAddresses.length > 0 && !selectedAddressId) {
+    if (userAddresses.length > 0 && !selectedAddressId) {
 
-    const defaultAddress = userAddresses.find(
-      addr => addr.isDefault === true
-    );
+      const defaultAddress = userAddresses.find(
+        addr => addr.isDefault === true
+      );
 
-    const addressToSelect = defaultAddress || userAddresses[0];
+      const addressToSelect = defaultAddress || userAddresses[0];
 
-    if (addressToSelect?._id) {
-      updateAddress(addressToSelect._id);
+      if (addressToSelect?._id) {
+        updateAddress(addressToSelect._id);
+      }
+
     }
 
-  }
-
-}, [userAddresses, selectedAddressId, updateAddress]);
+  }, [userAddresses, selectedAddressId, updateAddress]);
 
 
   // Address dialog handlers
@@ -649,6 +677,15 @@ useEffect(() => {
 
   const handleAddressSelect = async (addressId: string) => {
     try {
+      const selectedAddress = userAddresses.find(
+  addr => addr._id === addressId
+);
+
+if (selectedAddress) {
+  setName(selectedAddress.name || '');
+  setEmail(selectedAddress.email || '');
+  setPhone(selectedAddress.phone || '');
+}
       await updateAddress(addressId);
       await refreshCart();
       setShowAddressDialog(false);
@@ -1138,6 +1175,8 @@ useEffect(() => {
             onPaymentError={handlePaymentError}
             isPaymentSubmitting={isPaymentSubmitting}
             onPaymentSubmittingChange={setIsPaymentSubmitting}
+            cardDetailsComplete={cardDetailsComplete}
+             onCardDetailsChange={setCardDetailsComplete}
           />
         </Box>
       </Container>
