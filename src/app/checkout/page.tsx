@@ -648,22 +648,30 @@ useEffect(() => {
   }, [user, authenticatedFetch]);
 
   useEffect(() => {
+    if (userAddresses.length === 0 || cartLoading) return;
 
-    if (userAddresses.length > 0 && !selectedAddressId) {
+    const storedId =
+      selectedAddressId ||
+      (typeof window !== 'undefined' ? localStorage.getItem('selectedAddressId') : null);
 
-      const defaultAddress = userAddresses.find(
-        addr => addr.isDefault === true
-      );
+    const addressToSelect =
+      (storedId
+        ? userAddresses.find((addr) => addr._id?.toString() === storedId)
+        : undefined) ||
+      userAddresses.find((addr) => addr.isDefault === true) ||
+      userAddresses[0];
 
-      const addressToSelect = defaultAddress || userAddresses[0];
+    if (!addressToSelect?._id) return;
 
-      if (addressToSelect?._id) {
-        updateAddress(addressToSelect._id);
-      }
+    const targetId = addressToSelect._id.toString();
+    const cartAddressId = cart?.selectedAddress?._id;
 
+    if (targetId !== selectedAddressId || targetId !== cartAddressId) {
+      void updateAddress(targetId).catch((err) => {
+        console.error('Error syncing checkout delivery address:', err);
+      });
     }
-
-  }, [userAddresses, selectedAddressId, updateAddress]);
+  }, [userAddresses, selectedAddressId, cart?.selectedAddress?._id, cartLoading, updateAddress]);
 
 
   // Address dialog handlers
@@ -678,14 +686,14 @@ useEffect(() => {
   const handleAddressSelect = async (addressId: string) => {
     try {
       const selectedAddress = userAddresses.find(
-  addr => addr._id === addressId
-);
+        (addr) => addr._id?.toString() === addressId
+      );
 
-if (selectedAddress) {
-  setName(selectedAddress.name || '');
-  setEmail(selectedAddress.email || '');
-  setPhone(selectedAddress.phone || '');
-}
+      if (selectedAddress) {
+        setName(selectedAddress.name || '');
+        setEmail(selectedAddress.email || '');
+        setPhone(selectedAddress.phone || '');
+      }
       await updateAddress(addressId);
       await refreshCart();
       setShowAddressDialog(false);
