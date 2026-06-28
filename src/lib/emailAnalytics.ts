@@ -1039,6 +1039,7 @@ class EmailAnalyticsService {
   private getDefaultSubject(emailType: EmailType): string {
     const subjects = {
       order_confirmation: 'Order Confirmation - NikFoods',
+      payment_failed: 'Payment Failed - NikFoods',
       password_reset: 'Reset Your Password - NikFoods',
       password_reset_confirmation: 'Password Reset Successful - NikFoods',
       marketing: 'Special Offer from NikFoods',
@@ -1053,6 +1054,7 @@ class EmailAnalyticsService {
   private getEmailTypeLabel(emailType: EmailType): string {
     const labels = {
       order_confirmation: 'Order Confirmation',
+      payment_failed: 'Payment Failed',
       password_reset: 'Password Reset',
       password_reset_confirmation: 'Password Reset Confirmation',
       marketing: 'Marketing Email',

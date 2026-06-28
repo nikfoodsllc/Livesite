@@ -12,7 +12,9 @@
     "migrate:address-user-ids": "tsx src/scripts/migrate-address-user-ids.ts",
     "verify:address-user-ids": "tsx src/scripts/verify-address-user-ids.ts",
     "export:users-multiple-default-addresses": "tsx src/scripts/export-users-multiple-default-addresses.ts",
-    "export:duplicate-food-item-names": "tsx src/scripts/export-duplicate-food-item-names.ts"
+    "export:duplicate-food-item-names": "tsx src/scripts/export-duplicate-food-item-names.ts",
+    "stripe:listen": "bash scripts/stripe-listen.sh",
+    "stripe:trigger:payment-failed": "stripe trigger payment_intent.payment_failed"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
