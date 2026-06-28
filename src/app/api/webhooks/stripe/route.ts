@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/server/db';
 import { Order } from '@/types/order';
-import { sendOrderConfirmationEmail } from '@/lib/email';
+import { sendOrderConfirmationEmail, sendPaymentFailedEmail } from '@/lib/email';
 import Stripe from 'stripe';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
@@ -241,6 +241,36 @@ export async function POST(request: NextRequest) {
         }
 
         console.log(`[Webhook] Order ${order.orderId} marked as failed`);
+
+        if (order.paymentFailedEmailStatus?.status === 'sent') {
+          console.log(`[Webhook] Payment failed email already sent for order: ${order.orderId}`);
+          break;
+        }
+
+        const failureReason =
+          paymentIntent.last_payment_error?.message ?? 'Payment could not be processed.';
+
+        try {
+          console.log(`[Webhook] Sending payment failed email for order: ${order.orderId}`);
+          const emailResult = await sendPaymentFailedEmail(order, failureReason);
+
+          if (emailResult.skipped) {
+            console.log(`[Webhook] Payment failed email skipped for order: ${order.orderId}`);
+          } else if (emailResult.success) {
+            console.log(`[Webhook] Payment failed email sent successfully for order: ${order.orderId}`, {
+              messageId: emailResult.messageId,
+              statusInfo: emailResult.statusInfo,
+            });
+          } else {
+            console.error(`[Webhook] Failed to send payment failed email for order: ${order.orderId}`, {
+              error: emailResult.error,
+              statusInfo: emailResult.statusInfo,
+            });
+          }
+        } catch (emailError) {
+          console.error(`[Webhook] Exception sending payment failed email for order: ${order.orderId}:`, emailError);
+        }
+
         break;
       }
 
