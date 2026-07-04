@@ -1,4 +1,4 @@
-import { Order, OrderDay, OrderDayItem } from '@/types/order';
+import { Order, OrderDay, OrderDayItem, CustomerInfo } from '@/types/order';
 import { PST_TIMEZONE } from '@/lib/timezone';
 
 function hasValue(value: string | undefined | null): value is string {
@@ -17,8 +17,18 @@ function detailLine(label: string, value: string | undefined | null): string {
   if (!hasValue(value)) return '';
   return `
     <tr>
-      <td style="padding: 3px 0; color: #6B7280; font-size: 12px; width: 42%; vertical-align: top;">${label}</td>
-      <td style="padding: 3px 0 3px 8px; color: #1A1106; font-size: 13px; vertical-align: top;">${value.trim()}</td>
+      <td style="padding: 2px 0; color: #6B7280; font-size: 12px; width: 34%; vertical-align: top; white-space: nowrap;">${label}</td>
+      <td style="padding: 2px 0 2px 4px; color: #1A1106; font-size: 13px; vertical-align: top;">${value.trim()}</td>
+    </tr>
+  `;
+}
+
+function compactDetailLine(label: string, value: string | undefined | null): string {
+  if (!hasValue(value)) return '';
+  return `
+    <tr>
+      <td style="padding: 1px 6px 1px 0; color: #6B7280; font-size: 12px; width: 1%; vertical-align: top; white-space: nowrap;">${label}</td>
+      <td style="padding: 1px 0; color: #1A1106; font-size: 13px; vertical-align: top;">${value.trim()}</td>
     </tr>
   `;
 }
@@ -78,6 +88,9 @@ function renderOrderItemRow(
 ): string {
   return `
     <tr>
+      <td style="padding: 8px 6px 8px 0; border-bottom: 1px solid #F3F4F6; vertical-align: top; text-align: center; color: #374151; font-size: 13px; white-space: nowrap; width: 36px;">
+        ${item.quantity}
+      </td>
       <td style="padding: 8px 0; border-bottom: 1px solid #F3F4F6; vertical-align: top;">
         <p style="margin: 0; color: #1A1106; font-size: 13px; font-weight: 600; line-height: 1.4;">
           ${formatItemName(item)}
@@ -94,9 +107,6 @@ function renderOrderItemRow(
           </p>
         ` : ''}
       </td>
-      <td style="padding: 8px 6px; border-bottom: 1px solid #F3F4F6; vertical-align: top; text-align: center; color: #374151; font-size: 13px; white-space: nowrap; width: 36px;">
-        x${item.quantity}
-      </td>
       <td style="padding: 8px 0; border-bottom: 1px solid #F3F4F6; vertical-align: top; text-align: right; color: #1A1106; font-size: 13px; font-weight: 600; white-space: nowrap; width: 72px;">
         ${formatCurrency(item.price * item.quantity, currency)}
       </td>
@@ -104,38 +114,69 @@ function renderOrderItemRow(
   `;
 }
 
+function formatDeliverDateParts(date: Date | string): { weekday: string; dateRest: string } {
+  const dateObj =
+    typeof date === 'string'
+      ? (() => {
+          const [year, month, day] = date.split('-').map(Number);
+          return new Date(Date.UTC(year, month - 1, day, 20));
+        })()
+      : date;
+
+  const weekday = dateObj.toLocaleDateString('en-US', {
+    weekday: 'long',
+    timeZone: PST_TIMEZONE,
+  });
+
+  const dateRest = dateObj.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    timeZone: PST_TIMEZONE,
+  });
+
+  return { weekday, dateRest };
+}
+
 function renderDayBlock(
   day: OrderDay,
   dayIndex: number,
   currency: string,
-  formatCurrency: (amount: number, currency?: string) => string,
-  formatDate: (date: Date | string) => string
+  formatCurrency: (amount: number, currency?: string) => string
 ): string {
+  const { weekday, dateRest } = formatDeliverDateParts(day.actualDeliveryDate || day.deliveryDate);
+  const dayTotal =
+    day.dayTotal ??
+    day.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
   return `
     <table width="100%" cellpadding="0" cellspacing="0" style="margin-top: ${dayIndex > 0 ? '12px' : '0'}; border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden;">
       <tr>
         <td style="padding: 10px 12px; background-color: #FFF9F2; border-bottom: 1px solid #E5E7EB;">
-          <table width="100%" cellpadding="0" cellspacing="0">
-            <tr>
-              <td style="vertical-align: middle;">
-                <p style="margin: 0; color: #1A1106; font-size: 14px; font-weight: 700;">${day.day}</p>
-              </td>
-              <td style="vertical-align: middle; text-align: right;">
-                <p style="margin: 0; color: #6B7280; font-size: 12px;">Deliver on ${formatDate(day.actualDeliveryDate || day.deliveryDate)}</p>
-              </td>
-            </tr>
-          </table>
+          <p style="margin: 0; color: #1A1106; font-size: 14px; font-weight: 700; line-height: 1.2;">${day.day}</p>
+          <p style="margin: 2px 0 0 0; color: #6B7280; font-size: 12px; line-height: 1.3;">
+            Deliver on <span style="font-weight: 700;">${weekday}</span>, ${dateRest}
+          </p>
         </td>
       </tr>
       <tr>
         <td style="padding: 0 12px 4px 12px;">
           <table width="100%" cellpadding="0" cellspacing="0">
             <tr>
-              <td style="padding: 6px 0 4px 0; color: #9CA3AF; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;">Item</td>
               <td style="padding: 6px 6px 4px 0; color: #9CA3AF; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; text-align: center; width: 36px;">Qty</td>
+              <td style="padding: 6px 0 4px 0; color: #9CA3AF; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;">Item</td>
               <td style="padding: 6px 0 4px 0; color: #9CA3AF; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; text-align: right; width: 72px;">Price</td>
             </tr>
             ${day.items.map((item) => renderOrderItemRow(item, currency, formatCurrency)).join('')}
+            <tr>
+              <td style="padding: 10px 6px 10px 0; border-top: 1px solid #E5E7EB;"></td>
+              <td style="padding: 10px 0; border-top: 1px solid #E5E7EB; color: #1A1106; font-size: 13px; font-weight: 700; text-align: right;">
+                Day Total
+              </td>
+              <td style="padding: 10px 0; border-top: 1px solid #E5E7EB; color: #1A1106; font-size: 13px; font-weight: 700; text-align: right; white-space: nowrap;">
+                ${formatCurrency(dayTotal, currency)}
+              </td>
+            </tr>
           </table>
         </td>
       </tr>
@@ -146,7 +187,11 @@ function renderDayBlock(
 /**
  * Get order confirmation email HTML template
  */
-export function getOrderConfirmationEmailTemplate(order: Order): string {
+export function getOrderConfirmationEmailTemplate(
+  order: Order,
+  profileCustomerDetails?: CustomerInfo
+): string {
+  const customerDetails = profileCustomerDetails ?? order.customerInfo;
   const formatCurrency = (amount: number, currency: string = 'usd') => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -154,33 +199,10 @@ export function getOrderConfirmationEmailTemplate(order: Order): string {
     }).format(amount);
   };
 
-  const formatDate = (date: Date | string) => {
-    if (typeof date === 'string') {
-      const [year, month, day] = date.split('-').map(Number);
-      const d = new Date(Date.UTC(year, month - 1, day, 20));
-      return d.toLocaleDateString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        timeZone: PST_TIMEZONE,
-      });
-    }
-    return date.toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      timeZone: PST_TIMEZONE,
-    });
-  };
-
   const tipsAndServiceFees = order.platformFee + order.tip;
   const logoUrl =
     process.env.EMAIL_LOGO_URL ||
     'https://res.cloudinary.com/dz30kdodd/image/upload/v1780207579/nikfoods/qwcozcqazeb8cuna8j2q.png';
-  const deliveryInstructions = (order.deliveryMessages ?? []).filter(hasValue);
-  const cityPostalCode = [order.address.city, order.address.zipCode].filter(hasValue).join(', ');
 
   return `
     <!DOCTYPE html>
@@ -199,25 +221,13 @@ export function getOrderConfirmationEmailTemplate(order: Order): string {
               <!-- Header -->
               <tr>
                 <td style="padding: 20px 24px 12px 24px; border-bottom: 1px solid #E5E7EB;">
-                  <table width="100%" cellpadding="0" cellspacing="0">
-                    <tr>
-                      <td style="vertical-align: middle; width: 120px;">
-                        <img
-                          src="${logoUrl}"
-                          alt="Nikfoods"
-                          width="100"
-                          style="display: block; border: 0; outline: none; text-decoration: none;"
-                        />
-                      </td>
-                      <td style="vertical-align: middle; text-align: right;">
-                        <p style="margin: 0 0 4px 0; color: #059669; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;">
-                          Order confirmed
-                        </p>
-                        <p style="margin: 0; color: #6B7280; font-size: 13px;">Total ${formatCurrency(order.totalPaid, order.currency)}</p>
-                      </td>
-                    </tr>
-                  </table>
-                  <p style="margin: 12px 0 0 0; color: #1A1106; font-size: 20px; font-weight: 700; line-height: 1.3;">
+                  <img
+                    src="${logoUrl}"
+                    alt="Nikfoods"
+                    width="100"
+                    style="display: block; border: 0; outline: none; text-decoration: none; margin-bottom: 16px;"
+                  />
+                  <p style="margin: 0; color: #1A1106; font-size: 20px; font-weight: 700; line-height: 1.3;">
                     We just got your Order ${order.orderId}.
                   </p>
                 </td>
@@ -231,21 +241,21 @@ export function getOrderConfirmationEmailTemplate(order: Order): string {
                       <td style="vertical-align: top; width: 50%; padding-right: 10px;">
                         ${sectionLabel('Customer Details:')}
                         <table width="100%" cellpadding="0" cellspacing="0">
-                          ${detailLine('Name', order.customerInfo.name)}
-                          ${detailLine('Phone', order.customerInfo.phone)}
-                          ${detailLine('Email', order.customerInfo.email)}
+                          ${compactDetailLine('Name', customerDetails.name)}
+                          ${compactDetailLine('Mobile', customerDetails.phone)}
+                          ${compactDetailLine('Email', customerDetails.email)}
                         </table>
                       </td>
                       <td style="vertical-align: top; width: 50%; padding-left: 10px; border-left: 1px solid #F3F4F6;">
                         ${sectionLabel('Delivery Details:')}
                         <table width="100%" cellpadding="0" cellspacing="0">
                           ${detailLine('Customer Name', order.customerInfo.name)}
+                          ${detailLine('Mobile', order.customerInfo.phone)}
                           ${detailLine('Address', order.address.street)}
                           ${detailLine('Apartment', order.address.apartment)}
-                          ${detailLine('Delivery Instruction', order.address.floor)}
                           ${detailLine('Gate Code', order.address.entrance)}
+                          ${detailLine('Delivery Instruction', order.address.floor)}
                           ${detailLine('Landmark', order.address.landmark)}
-                          ${detailLine('City, Postal Code', cityPostalCode || undefined)}
                         </table>
                       </td>
                     </tr>
@@ -257,7 +267,7 @@ export function getOrderConfirmationEmailTemplate(order: Order): string {
               <tr>
                 <td style="padding: 14px 24px;">
                   ${sectionLabel('Order Details')}
-                  ${order.items.map((day, dayIndex) => renderDayBlock(day, dayIndex, order.currency, formatCurrency, formatDate)).join('')}
+                  ${order.items.map((day, dayIndex) => renderDayBlock(day, dayIndex, order.currency, formatCurrency)).join('')}
 
                   <!-- Price summary -->
                   <table width="100%" cellpadding="0" cellspacing="0" style="margin-top: 14px; background-color: #FAFAFA; border: 1px solid #E5E7EB; border-radius: 8px;">
@@ -289,19 +299,6 @@ export function getOrderConfirmationEmailTemplate(order: Order): string {
                       </td>
                     </tr>
                   </table>
-
-                  ${deliveryInstructions.length > 0 ? `
-                  <table width="100%" cellpadding="0" cellspacing="0" style="margin-top: 12px; background-color: #FFFBEB; border: 1px solid #FDE68A; border-radius: 8px;">
-                    <tr>
-                      <td style="padding: 10px 12px;">
-                        ${sectionLabel('Delivery Notes:')}
-                        <ul style="margin: 0; padding-left: 16px; color: #92400E; font-size: 12px; line-height: 1.6;">
-                          ${deliveryInstructions.map((message) => `<li style="margin: 0 0 4px 0;">${message.trim()}</li>`).join('')}
-                        </ul>
-                      </td>
-                    </tr>
-                  </table>
-                  ` : ''}
                 </td>
               </tr>
 

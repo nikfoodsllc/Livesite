@@ -1038,8 +1038,8 @@ class EmailAnalyticsService {
    */
   private getDefaultSubject(emailType: EmailType): string {
     const subjects = {
-      order_confirmation: 'Order Confirmation - NikFoods',
-      payment_failed: 'Payment Failed - NikFoods',
+      order_confirmation: 'NikFoods order confirmation',
+      payment_failed: 'Action Required: Nikfoods Order Could Not Be Placed',
       password_reset: 'Reset Your Password - NikFoods',
       password_reset_confirmation: 'Password Reset Successful - NikFoods',
       marketing: 'Special Offer from NikFoods',
