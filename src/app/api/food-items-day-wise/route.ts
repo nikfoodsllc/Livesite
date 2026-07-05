@@ -535,8 +535,6 @@ export async function GET(req: NextRequest) {
           availableWeekDays: availabilityMap.get(foodItemIdStr) || [],
           subCategoryId: undefined as string | undefined,
           subCategoryName: undefined as string | undefined,
-          subCategoryIds: [] as string[],
-          subCategoryNames: [] as string[],
         };
       })
     );
@@ -580,7 +578,7 @@ export async function GET(req: NextRequest) {
         }
       );
 
-      const itemSubMap = new Map<string, { subCategoryIds: string[]; subCategoryNames: string[] }>();
+      const itemSubMap = new Map<string, { subCategoryId: string; subCategoryName: string }>();
       if (flatMappingsResult.success && flatMappingsResult.data) {
         for (const mapping of flatMappingsResult.data as Array<{
           foodItemId?: { toString: () => string };
@@ -589,22 +587,18 @@ export async function GET(req: NextRequest) {
           const foodItemId = mapping.foodItemId?.toString();
           const subId = mapping.categoryId?.toString();
           if (!foodItemId || !subId) continue;
-          const existing = itemSubMap.get(foodItemId) ?? { subCategoryIds: [], subCategoryNames: [] };
-          if (!existing.subCategoryIds.includes(subId)) {
-            existing.subCategoryIds.push(subId);
-            existing.subCategoryNames.push(subNameById.get(subId) ?? '');
-          }
-          itemSubMap.set(foodItemId, existing);
+          itemSubMap.set(foodItemId, {
+            subCategoryId: subId,
+            subCategoryName: subNameById.get(subId) ?? '',
+          });
         }
       }
 
       for (const item of uniqueItems) {
         const tag = itemSubMap.get(item._id);
         if (tag) {
-          item.subCategoryIds = tag.subCategoryIds;
-          item.subCategoryNames = tag.subCategoryNames;
-          item.subCategoryId = tag.subCategoryIds[0];
-          item.subCategoryName = tag.subCategoryNames[0];
+          item.subCategoryId = tag.subCategoryId;
+          item.subCategoryName = tag.subCategoryName;
         }
       }
     }
