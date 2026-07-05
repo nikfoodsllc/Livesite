@@ -63,6 +63,19 @@ function getSubFlatTaggedIds(sub: CategoryDisplay): Set<string> {
   return new Set((sub.foodItems ?? []).map((i) => normalizeItemId(i._id)));
 }
 
+function itemTaggedToSub(item: FoodItem, subId: string): boolean {
+  const normSub = normalizeItemId(subId);
+  if (item.subCategoryIds?.length) {
+    return item.subCategoryIds.some((id) => normalizeItemId(id) === normSub);
+  }
+  const taggedSubId = item.subCategoryId ? normalizeItemId(item.subCategoryId) : '';
+  return taggedSubId === normSub;
+}
+
+function itemTaggedToAnySub(item: FoodItem, subs: CategoryDisplay[]): boolean {
+  return subs.some((sub) => itemTaggedToSub(item, sub._id));
+}
+
 function resolveSubCategoriesForDisplay(
   category: CategoryDisplay,
   categoriesList: CategoryListItem[],
@@ -315,8 +328,7 @@ function getItemsForSubOnDate(
 
   for (const item of parentDayItems ?? []) {
     const id = normalizeItemId(item._id);
-    const taggedSubId = item.subCategoryId ? normalizeItemId(item.subCategoryId) : '';
-    if (taggedSubId === normalizeItemId(sub._id) || flatTaggedIds.has(id)) {
+    if (itemTaggedToSub(item, sub._id) || flatTaggedIds.has(id)) {
       byId.set(id, item);
     }
   }
@@ -1429,10 +1441,7 @@ export default function Home() {
             const parentOnlyItems = parentDg.foodItems.filter((item) => {
               const id = normalizeItemId(item._id);
               if (subItemIds.has(id)) return false;
-              const taggedSub = item.subCategoryId
-                ? normalizeItemId(item.subCategoryId)
-                : '';
-              if (taggedSub && subs.some((s) => s._id === taggedSub)) return false;
+              if (itemTaggedToAnySub(item, subs)) return false;
               return true;
             });
             if (parentOnlyItems.length === 0) return null;
