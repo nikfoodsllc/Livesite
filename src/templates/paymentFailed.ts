@@ -9,6 +9,38 @@ function escapeHtml(value: string): string {
     .replace(/'/g, '&#39;');
 }
 
+function formatOrderAmount(amount: number, currency: string = 'usd'): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: currency.toUpperCase(),
+  }).format(amount);
+}
+
+function getGracefulFailureMessage(failureReason?: string): string {
+  const reason = failureReason?.trim().toLowerCase() || '';
+
+  if (reason.includes('declined') || reason.includes('insufficient')) {
+    return 'Your card was declined.';
+  }
+  if (reason.includes('expired') || reason.includes('session')) {
+    return 'Your payment session expired.';
+  }
+  if (reason.includes('timeout') || reason.includes('timed out')) {
+    return 'Payment authorization timed out.';
+  }
+  if (failureReason?.trim()) {
+    const trimmed = failureReason.trim();
+    return trimmed.endsWith('.') ? trimmed : `${trimmed}.`;
+  }
+
+  return 'Your card was declined, payment authorization timed out, or your session expired.';
+}
+
+export function getPaymentFailedEmailSubject(order: Order): string {
+  const amount = formatOrderAmount(order.totalPaid, order.currency);
+  return `Action Required: Your Recent Nikfoods Order for ${amount} Could Not Be Placed – Please Resubmit`;
+}
+
 /**
  * Payment failed email HTML template
  */
@@ -16,18 +48,12 @@ export function getPaymentFailedEmailTemplate(
   order: Order,
   failureReason?: string
 ): string {
-  const formatCurrency = (amount: number, currency: string = 'usd') => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: currency.toUpperCase(),
-    }).format(amount);
-  };
-
   const logoUrl =
     process.env.EMAIL_LOGO_URL ||
     'https://res.cloudinary.com/dz30kdodd/image/upload/v1780207579/nikfoods/qwcozcqazeb8cuna8j2q.png';
-  const reason = failureReason?.trim() || 'Your payment could not be processed.';
-  const customerName = order.customerInfo.name?.trim() || 'there';
+  const checkoutUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://nikfoods.com'}/checkout`;
+  const amount = formatOrderAmount(order.totalPaid, order.currency);
+  const gracefulFailureMessage = getGracefulFailureMessage(failureReason);
 
   return `
     <!DOCTYPE html>
@@ -35,80 +61,71 @@ export function getPaymentFailedEmailTemplate(
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Payment Failed - ${escapeHtml(order.orderId)}</title>
+      <title>Order Could Not Be Placed</title>
     </head>
-    <body style="margin: 0; padding: 0; font-family: 'Arial', sans-serif; background-color: #f5f5f5; line-height: 1.6;">
-      <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 40px 20px;">
+    <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5; line-height: 1.6;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 24px 12px;">
         <tr>
           <td align="center">
-            <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);">
+            <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);">
 
               <tr>
-                <td style="padding: 32px 40px 0 40px; text-align: left;">
+                <td style="padding: 24px 32px 0 32px; text-align: left;">
                   <img
                     src="${logoUrl}"
                     alt="Nikfoods"
-                    width="120"
+                    width="100"
                     style="display: block; border: 0; outline: none; text-decoration: none;"
                   />
                 </td>
               </tr>
 
               <tr>
-                <td style="padding: 24px 40px 20px 40px;">
-                  <h2 style="margin: 0 0 16px 0; color: #dc2626; font-size: 22px; font-weight: 700;">
-                    Payment could not be completed
-                  </h2>
+                <td style="padding: 24px 32px 28px 32px; color: #374151; font-size: 15px; line-height: 1.7;">
+                  <p style="margin: 0 0 16px 0; color: #1A1106;">Dear Customer,</p>
 
-                  <p style="margin: 0 0 24px 0; color: #1A1106; font-size: 16px;">
-                    Hi ${escapeHtml(customerName)}, we were unable to process payment for order <strong>${escapeHtml(order.orderId)}</strong>.
+                  <p style="margin: 0 0 16px 0;">
+                    Unfortunately, we were unable to process your recent order for <strong style="color: #1A1106;">${amount}</strong>, and <strong style="color: #1A1106;">your card has not been charged.</strong>
                   </p>
 
-                  <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 24px; background-color: #FEF2F2; border-left: 4px solid #dc2626; border-radius: 8px;">
-                    <tr>
-                      <td style="padding: 16px;">
-                        <p style="margin: 0 0 8px 0; color: #991B1B; font-size: 14px; font-weight: 700; text-transform: uppercase;">
-                          What went wrong
-                        </p>
-                        <p style="margin: 0; color: #7F1D1D; font-size: 15px;">
-                          ${escapeHtml(reason)}
-                        </p>
-                      </td>
-                    </tr>
-                  </table>
-
-                  <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 30px;">
-                    <tr>
-                      <td style="padding: 8px 0; color: #6B7280; font-size: 14px; width: 40%; font-weight: 600;">Order ID</td>
-                      <td style="padding: 8px 0; color: #1A1106; font-size: 15px;">${escapeHtml(order.orderId)}</td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 8px 0; color: #6B7280; font-size: 14px; width: 40%; font-weight: 600;">Amount</td>
-                      <td style="padding: 8px 0; color: #1A1106; font-size: 15px; font-weight: 600;">${formatCurrency(order.totalPaid, order.currency)}</td>
-                    </tr>
-                  </table>
-
-                  <p style="margin: 0 0 30px 0; color: #666666; font-size: 15px;">
-                    Your order was not confirmed and you have not been charged. You can try again with the same or a different payment method.
+                  <p style="margin: 0 0 8px 0; color: #1A1106; font-weight: 700;">
+                    What went wrong?
+                  </p>
+                  <p style="margin: 0 0 16px 0;">
+                    ${escapeHtml(gracefulFailureMessage)}
                   </p>
 
-                  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #FFF4E4; border-left: 4px solid #FFB82E; border-radius: 8px;">
-                    <tr>
-                      <td style="padding: 16px;">
-                        <p style="margin: 0 0 8px 0; color: #996B00; font-size: 14px; font-weight: 700;">
-                          Need help?
-                        </p>
-                        <p style="margin: 0; color: #996B00; font-size: 14px; line-height: 1.6;">
-                          Double-check your card details, ensure sufficient balance, or contact your bank if the issue continues.
-                        </p>
-                      </td>
-                    </tr>
-                  </table>
+                  <p style="margin: 0 0 16px 0;">
+                    To complete your order, please click the link below and <strong style="color: #1A1106;">resubmit your order</strong>
+                  </p>
+
+                  <p style="margin: 0 0 16px 0; color: #1A1106;">
+                    👉 <strong>Resubmit My Order:</strong>
+                    <a href="${escapeHtml(checkoutUrl)}" style="color: #FF9F0D; font-weight: 400; text-decoration: underline;">${escapeHtml(checkoutUrl.replace(/^https?:\/\//, ''))}</a>
+                  </p>
+
+                  <p style="margin: 0 0 16px 0;">
+                    We apologise for the inconvenience and appreciate your understanding.
+                  </p>
+
+                  <p style="margin: 0 0 16px 0;">
+                    If you continue to experience any issues, simply reply to this email or contact our support team—we'll be happy to help.
+                  </p>
+
+                  <p style="margin: 0 0 16px 0;">
+                    Thank you for choosing Nikfoods. We look forward to serving you soon!
+                  </p>
+
+                  <p style="margin: 0 0 8px 0; color: #1A1106;">Warm regards,</p>
+                  <p style="margin: 0 0 8px 0; color: #1A1106; font-weight: 700;">Team Nikfoods</p>
+                  <p style="margin: 0; color: #6B7280; font-size: 14px; line-height: 1.5;">
+                    Fresh Homemade Meals Delivered Across Greater Seattle
+                  </p>
                 </td>
               </tr>
 
               <tr>
-                <td style="background-color: #f9f9f9; padding: 20px; text-align: center; border-top: 1px solid #eeeeee;">
+                <td style="background-color: #f9f9f9; padding: 16px 32px; text-align: center; border-top: 1px solid #eeeeee;">
                   <p style="margin: 0; color: #999999; font-size: 12px;">
                     © ${new Date().getFullYear()} NikFoods. All rights reserved.
                   </p>

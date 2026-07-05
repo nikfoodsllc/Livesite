@@ -3,10 +3,12 @@
 import { MailtrapClient } from 'mailtrap';
 import { Resend } from 'resend';
 import { getOrderConfirmationEmailTemplate } from '@/templates/orderConfirmation';
-import { getPaymentFailedEmailTemplate } from '@/templates/paymentFailed';
-import { Order, EmailStatusInfo } from '@/types/order';
+import { getPaymentFailedEmailTemplate, getPaymentFailedEmailSubject } from '@/templates/paymentFailed';
+import { Order, EmailStatusInfo, CustomerInfo } from '@/types/order';
 import { EmailType } from '@/types/email';
 import { emailAnalytics } from '@/lib/emailAnalytics';
+import { IUser } from '@/types/auth';
+import { Filter, ObjectId } from 'mongodb';
 
 // Initialize email analytics (this will be called when the module is imported)
 import '@/lib/emailAnalyticsInit';
@@ -245,6 +247,35 @@ async function updateOrderEmailStatus(
   }
 }
 
+async function resolveProfileCustomerDetails(order: Order): Promise<CustomerInfo> {
+  const fallback = order.customerInfo;
+
+  if (!order.user) {
+    return fallback;
+  }
+
+  try {
+    const { db } = await import('@/lib/server/db');
+    const userResult = await db.readOne<IUser>('users', {
+      _id: new ObjectId(order.user),
+    } as unknown as Filter<IUser>);
+
+    if (!userResult.success || !userResult.data) {
+      return fallback;
+    }
+
+    const user = userResult.data;
+
+    return {
+      name: user.name?.trim() || fallback.name,
+      email: user.email?.trim() || fallback.email,
+      phone: user.phone?.trim() || fallback.phone,
+    };
+  } catch (error) {
+    console.error(`${logPrefix} Failed to load profile customer details for order ${order.orderId}:`, error);
+    return fallback;
+  }
+}
 
 /**
  * Send order confirmation email with enhanced tracking
@@ -262,6 +293,11 @@ export async function sendOrderConfirmationEmail(
     error: undefined,
     messageId: undefined,
   };
+
+  if (currentStatus.status === 'sent') {
+    console.log(`${logPrefix} ${functionName} - Confirmation email already sent for order: ${order.orderId}`);
+    return { success: true, statusInfo: currentStatus, messageId: currentStatus.messageId };
+  }
 
   try {
     // Check configuration
@@ -302,7 +338,8 @@ export async function sendOrderConfirmationEmail(
     }
 
     const email = order.customerInfo.email;
-    const subject = `Order Confirmation - NikFoods (${order.orderId})`;
+    const subject = 'NikFoods order confirmation';
+    const profileCustomerDetails = await resolveProfileCustomerDetails(order);
 
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -372,12 +409,13 @@ export async function sendOrderConfirmationEmail(
       status: order.status,
       attempt: attemptStatus.attempts,
       maxAttempts: MAX_RETRY_ATTEMPTS,
+      displayProfileCustomerDetails: !!order.user,
     });
 
     // Generate email template
     let emailHtml: string;
     try {
-      emailHtml = getOrderConfirmationEmailTemplate(order);
+      emailHtml = getOrderConfirmationEmailTemplate(order, profileCustomerDetails);
       if (!emailHtml || emailHtml.trim().length === 0) {
         throw new Error('Email template is empty');
       }
@@ -560,7 +598,7 @@ export async function sendPaymentFailedEmail(
     }
 
     const email = order.customerInfo.email;
-    const subject = `Payment Failed - NikFoods (${order.orderId})`;
+    const subject = getPaymentFailedEmailSubject(order);
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     if (!emailRegex.test(email)) {
