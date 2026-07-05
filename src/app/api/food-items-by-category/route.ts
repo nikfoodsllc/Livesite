@@ -583,21 +583,15 @@ export async function GET(req: NextRequest) {
     };
 
     if (listingType === 'flat') {
-      // Step 6a: For flat categories, return foodItems array (deduped by item id)
+      // Step 6a: For flat categories, return foodItems array
       const flatItems: Record<string, unknown>[] = [];
-      const addedFlatItemIds = new Set<string>();
 
       // Get all FLAT mappings
       if (categoryFoodMappingResult.success && categoryFoodMappingResult.data) {
         for (const mapping of categoryFoodMappingResult.data as CategoryFoodMapping[]) {
           if (mapping.mappingType === 'FLAT' || mapping.mappingType == null) {
             const foodItemIdStr = mapping.foodItemId?.toString();
-            if (
-              foodItemIdStr &&
-              !addedFlatItemIds.has(foodItemIdStr) &&
-              foodItemMap.has(foodItemIdStr)
-            ) {
-              addedFlatItemIds.add(foodItemIdStr);
+            if (foodItemIdStr && foodItemMap.has(foodItemIdStr)) {
               flatItems.push(foodItemMap.get(foodItemIdStr)!);
             }
           }
@@ -643,11 +637,7 @@ export async function GET(req: NextRequest) {
               dayWiseItems[dateString] = [];
             }
 
-            const alreadyOnDate = dayWiseItems[dateString].some(
-              (entry) => entry._id === foodItemIdStr
-            );
-
-            if (!alreadyOnDate && foodItemMap.has(foodItemIdStr)) {
+            if (foodItemMap.has(foodItemIdStr)) {
               dayWiseItems[dateString].push(foodItemMap.get(foodItemIdStr)!);
             }
           }

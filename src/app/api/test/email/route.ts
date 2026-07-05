@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sendOrderConfirmationEmail, sendPasswordResetOTP, sendPasswordResetConfirmation, sendPaymentFailedEmail } from '@/lib/email';
+import { sendOrderConfirmationEmail, sendPasswordResetOTP, sendPasswordResetConfirmation } from '@/lib/email';
 import { Order } from '@/types/order';
 import { formatAPITimestamp } from '@/lib/apiDateFormat';
 
@@ -101,46 +101,9 @@ export async function POST(request: NextRequest) {
         result = await sendOrderConfirmationEmail(testOrder);
         break;
 
-      case 'payment-failed':
-        const failedOrder: Order = orderData || {
-          _id: 'test-order-id',
-          orderId: 'TEST-123456',
-          user: 'test-user-id',
-          items: [],
-          address: {
-            street: '123 Test Street',
-            city: 'Test City',
-            state: 'TS',
-            zipCode: '12345',
-          },
-          customerInfo: {
-            name: 'Test Customer',
-            email: testEmail,
-            phone: '555-123-4567',
-          },
-          subtotal: 25.99,
-          platformFee: 2.99,
-          deliveryFee: 4.99,
-          taxes: 3.50,
-          tip: 5.00,
-          totalPaid: 37.97,
-          currency: 'usd',
-          status: 'cancelled',
-          paymentStatus: 'failed',
-          paymentMethod: 'Credit Card',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        };
-
-        result = await sendPaymentFailedEmail(
-          failedOrder,
-          body.failureReason || 'Your card was declined.'
-        );
-        break;
-
       default:
         return NextResponse.json(
-          { success: false, error: 'Invalid test type. Use: password-reset, password-reset-confirmation, order-confirmation, or payment-failed' },
+          { success: false, error: 'Invalid test type. Use: password-reset, password-reset-confirmation, or order-confirmation' },
           { status: 400 }
         );
     }

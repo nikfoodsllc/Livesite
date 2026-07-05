@@ -254,7 +254,6 @@ const EmailAnalytics: React.FC<EmailAnalyticsProps> = ({ authToken }) => {
                     <em>All Types</em>
                   </MenuItem>
                   <MenuItem value="order_confirmation">Order Confirmation</MenuItem>
-                  <MenuItem value="payment_failed">Payment Failed</MenuItem>
                   <MenuItem value="password_reset">Password Reset</MenuItem>
                   <MenuItem value="password_reset_confirmation">Password Reset Confirmation</MenuItem>
                   <MenuItem value="marketing">Marketing</MenuItem>

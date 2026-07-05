@@ -50,7 +50,7 @@ export default function OrderDetailsDialog({ open, order, onClose }: OrderDetail
           <Typography sx={{ fontSize: '20px', fontWeight: 700, color: '#111827' }}>
             Order #{order.orderId}
           </Typography>
-          <StatusBadge status={order.status} paymentStatus={order.paymentStatus} size="medium" />
+          <StatusBadge status={order.status} size="medium" />
         </Box>
         <IconButton onClick={onClose} size="small">
           <IconX size={20} />

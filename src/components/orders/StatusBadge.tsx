@@ -1,19 +1,17 @@
 'use client';
 
 import { Chip } from '@mui/material';
-import { OrderStatus, PaymentStatus } from '@/types/order';
+import { OrderStatus } from '@/types/order';
 import { getStatusColor, getStatusLabel } from '@/lib/orderHelpers';
 
 interface StatusBadgeProps {
   status: OrderStatus;
-  paymentStatus?: PaymentStatus;
   size?: 'small' | 'medium';
 }
 
-export default function StatusBadge({ status, paymentStatus, size = 'small' }: StatusBadgeProps) {
-  const isUnpaidPending = status === 'pending' && paymentStatus === 'unpaid';
-  const color = isUnpaidPending ? '#EF4444' : getStatusColor(status);
-  const label = isUnpaidPending ? 'Failed' : getStatusLabel(status);
+export default function StatusBadge({ status, size = 'small' }: StatusBadgeProps) {
+  const color = getStatusColor(status);
+  const label = getStatusLabel(status);
 
   return (
     <Chip

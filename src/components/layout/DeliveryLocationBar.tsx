@@ -32,9 +32,11 @@ export default function DeliveryLocationBar({
   const { user } = useAuth();
   const {
     selectedAddressId,
+    selectedZipcode,
     minOrderValue,
     updateAddress,
     updateZipcode,
+    setSelectedAddressId,
   } = useCart();
 
   const [addresses, setAddresses] = useState<IAddress[]>([]);
@@ -78,15 +80,17 @@ export default function DeliveryLocationBar({
   }, [user]);
 
   const handleAddressSelect = useCallback((addressId: string) => {
-    const selectedAddress = addresses.find((addr) => addr._id?.toString() === addressId);
-    if (!selectedAddress) return;
-
-    setZipcodeInput(selectedAddress.postal_code);
-    setZipcodeError('');
-    void updateAddress(addressId).catch((err) => {
-      console.error('Error updating delivery address:', err);
-    });
-  }, [addresses, updateAddress]);
+    // Update the zipcode input field with the selected address's postal_code
+    // Update the selected address ID in CartContext so the dropdown reflects the selection
+    const selectedAddress = addresses.find(addr => addr._id?.toString() === addressId);
+    if (selectedAddress) {
+      setZipcodeInput(selectedAddress.postal_code);
+      setZipcodeError('');
+      setSelectedAddressId(addressId);
+      // Store in localStorage for persistence
+      localStorage.setItem('selectedAddressId', addressId);
+    }
+  }, [addresses, setSelectedAddressId]);
 
   // Load saved addresses for logged-in users
   useEffect(() => {
@@ -95,25 +99,39 @@ export default function DeliveryLocationBar({
     }
   }, [user, fetchAddresses]);
 
-  // Auto-select stored address, default, or first — and sync cart/checkout state
+  // Auto-select default address (or first address if no default) for logged-in users with addresses
   useEffect(() => {
-    if (!user || addresses.length === 0 || hasAutoSelectedRef.current) return;
+    if (user && addresses.length > 0) {
+      // Only auto-select if:
+      // 1. We haven't already auto-selected an address
+      // 2. localStorage doesn't have a saved selectedAddressId
+      const hasStoredAddressId = localStorage.getItem('selectedAddressId');
 
-    const storedId = localStorage.getItem('selectedAddressId') || selectedAddressId;
-    const defaultAddress = addresses.find((address) => address.isDefault === true);
-    const addressToSelect =
-      (storedId ? addresses.find((a) => a._id?.toString() === storedId) : undefined) ||
-      defaultAddress ||
-      addresses[0];
+     if (!hasAutoSelectedRef.current) {
 
-    const addressId = addressToSelect?._id?.toString();
-    if (!addressId) return;
+  // always check default address first
+  const defaultAddress = addresses.find(
+    (address) => address.isDefault === true
+  );
+
+  const addressToSelect =
+    defaultAddress ||
+    addresses.find(a => a._id?.toString() === selectedAddressId) ||
+    addresses[0];
+
+  const addressId = addressToSelect?._id?.toString();
+
+  if (addressId && addressId !== selectedAddressId) {
+    handleAddressSelect(addressId);
+
+    // update CartContext also
+    updateAddress(addressId);
 
     hasAutoSelectedRef.current = true;
-    void updateAddress(addressId).catch((err) => {
-      console.error('Error auto-selecting delivery address:', err);
-    });
-  }, [user, addresses, selectedAddressId, updateAddress]);
+  }
+}
+    }
+  }, [user, addresses, selectedAddressId, handleAddressSelect]);
 
   const validateZipcode = (value: string): boolean => {
     const zipcodeRegex = /^\d{5}(-\d{4})?$/;
