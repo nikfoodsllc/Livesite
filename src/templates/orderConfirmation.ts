@@ -170,7 +170,7 @@ function renderDayBlock(
             ${day.items.map((item) => renderOrderItemRow(item, currency, formatCurrency)).join('')}
             <tr>
               <td style="padding: 10px 6px 10px 0; border-top: 1px solid #E5E7EB;"></td>
-              <td style="padding: 10px 0; border-top: 1px solid #E5E7EB; color: #1A1106; font-size: 13px; font-weight: 700; text-align: right;">
+              <td style="padding: 10px 0; border-top: 1px solid #E5E7EB; color: #1A1106; font-size: 13px; font-weight: 700; text-align: left;">
                 Day Total
               </td>
               <td style="padding: 10px 0; border-top: 1px solid #E5E7EB; color: #1A1106; font-size: 13px; font-weight: 700; text-align: right; white-space: nowrap;">
