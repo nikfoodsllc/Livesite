@@ -3,9 +3,12 @@
 import { MailtrapClient } from 'mailtrap';
 import { Resend } from 'resend';
 import { getOrderConfirmationEmailTemplate } from '@/templates/orderConfirmation';
-import { Order, EmailStatusInfo } from '@/types/order';
+import { getPaymentFailedEmailTemplate, getPaymentFailedEmailSubject } from '@/templates/paymentFailed';
+import { Order, EmailStatusInfo, CustomerInfo } from '@/types/order';
 import { EmailType } from '@/types/email';
 import { emailAnalytics } from '@/lib/emailAnalytics';
+import { IUser } from '@/types/auth';
+import { Filter, ObjectId } from 'mongodb';
 
 // Initialize email analytics (this will be called when the module is imported)
 import '@/lib/emailAnalyticsInit';
@@ -244,6 +247,35 @@ async function updateOrderEmailStatus(
   }
 }
 
+async function resolveProfileCustomerDetails(order: Order): Promise<CustomerInfo> {
+  const fallback = order.customerInfo;
+
+  if (!order.user) {
+    return fallback;
+  }
+
+  try {
+    const { db } = await import('@/lib/server/db');
+    const userResult = await db.readOne<IUser>('users', {
+      _id: new ObjectId(order.user),
+    } as unknown as Filter<IUser>);
+
+    if (!userResult.success || !userResult.data) {
+      return fallback;
+    }
+
+    const user = userResult.data;
+
+    return {
+      name: user.name?.trim() || fallback.name,
+      email: user.email?.trim() || fallback.email,
+      phone: user.phone?.trim() || fallback.phone,
+    };
+  } catch (error) {
+    console.error(`${logPrefix} Failed to load profile customer details for order ${order.orderId}:`, error);
+    return fallback;
+  }
+}
 
 /**
  * Send order confirmation email with enhanced tracking
@@ -261,6 +293,11 @@ export async function sendOrderConfirmationEmail(
     error: undefined,
     messageId: undefined,
   };
+
+  if (currentStatus.status === 'sent') {
+    console.log(`${logPrefix} ${functionName} - Confirmation email already sent for order: ${order.orderId}`);
+    return { success: true, statusInfo: currentStatus, messageId: currentStatus.messageId };
+  }
 
   try {
     // Check configuration
@@ -301,7 +338,8 @@ export async function sendOrderConfirmationEmail(
     }
 
     const email = order.customerInfo.email;
-    const subject = `Order Confirmation - NikFoods (${order.orderId})`;
+    const subject = 'NikFoods order confirmation';
+    const profileCustomerDetails = await resolveProfileCustomerDetails(order);
 
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -371,12 +409,13 @@ export async function sendOrderConfirmationEmail(
       status: order.status,
       attempt: attemptStatus.attempts,
       maxAttempts: MAX_RETRY_ATTEMPTS,
+      displayProfileCustomerDetails: !!order.user,
     });
 
     // Generate email template
     let emailHtml: string;
     try {
-      emailHtml = getOrderConfirmationEmailTemplate(order);
+      emailHtml = getOrderConfirmationEmailTemplate(order, profileCustomerDetails);
       if (!emailHtml || emailHtml.trim().length === 0) {
         throw new Error('Email template is empty');
       }
@@ -467,6 +506,185 @@ export async function sendOrderConfirmationEmail(
 
     // Update status to 'failed' or 'retrying'
     await updateOrderEmailStatus(order.orderId, errorStatus);
+
+    return {
+      success: false,
+      error: errorMessage,
+      statusInfo: errorStatus,
+    };
+  }
+}
+
+async function updateOrderPaymentFailedEmailStatus(
+  orderId: string,
+  statusInfo: EmailStatusInfo
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { db } = await import('@/lib/server/db');
+    const result = await db.updateOne(
+      'orders',
+      { orderId },
+      {
+        $set: {
+          paymentFailedEmailStatus: statusInfo,
+          updatedAt: new Date(),
+        },
+      }
+    );
+
+    if (!result.success) {
+      console.error(`${logPrefix} Failed to update payment failed email status for order ${orderId}:`, result.error);
+      return { success: false, error: result.error };
+    }
+
+    return { success: true };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`${logPrefix} Exception updating payment failed email status for order ${orderId}:`, error);
+    return { success: false, error: errorMessage };
+  }
+}
+
+/**
+ * Send payment failed email when Stripe payment does not succeed
+ */
+export async function sendPaymentFailedEmail(
+  order: Order,
+  failureReason?: string
+): Promise<{ success: boolean; error?: string; messageId?: string; statusInfo?: EmailStatusInfo; skipped?: boolean }> {
+  const functionName = 'sendPaymentFailedEmail';
+
+  const currentStatus: EmailStatusInfo = order.paymentFailedEmailStatus || {
+    status: 'pending',
+    attempts: 0,
+    lastAttempt: undefined,
+    error: undefined,
+    messageId: undefined,
+  };
+
+  if (currentStatus.status === 'sent') {
+    console.log(`${logPrefix} ${functionName} - Payment failed email already sent for order: ${order.orderId}`);
+    return { success: true, statusInfo: currentStatus, skipped: true };
+  }
+
+  try {
+    if (!isConfigured) {
+      console.warn(`${logPrefix} ${functionName} - Email service not configured, skipping payment failed email`);
+      const skippedStatus: EmailStatusInfo = {
+        ...currentStatus,
+        status: 'failed',
+        lastAttempt: new Date(),
+        error: 'Email service not configured',
+        attempts: currentStatus.attempts + 1,
+      };
+      await updateOrderPaymentFailedEmailStatus(order.orderId, skippedStatus);
+      return { success: false, error: 'Email service not configured', statusInfo: skippedStatus };
+    }
+
+    if (!order.orderId || !order.customerInfo?.email) {
+      const errorStatus: EmailStatusInfo = {
+        ...currentStatus,
+        status: 'failed',
+        lastAttempt: new Date(),
+        error: 'Missing required order data for email send',
+        attempts: currentStatus.attempts + 1,
+      };
+      await updateOrderPaymentFailedEmailStatus(order.orderId, errorStatus);
+      return {
+        success: false,
+        error: 'Missing required order data for email send',
+        statusInfo: errorStatus,
+      };
+    }
+
+    const email = order.customerInfo.email;
+    const subject = getPaymentFailedEmailSubject(order);
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailRegex.test(email)) {
+      const errorStatus: EmailStatusInfo = {
+        ...currentStatus,
+        status: 'failed',
+        lastAttempt: new Date(),
+        error: 'Invalid customer email format',
+        attempts: currentStatus.attempts + 1,
+      };
+      await updateOrderPaymentFailedEmailStatus(order.orderId, errorStatus);
+      return {
+        success: false,
+        error: 'Invalid customer email format',
+        statusInfo: errorStatus,
+      };
+    }
+
+    const attemptStatus: EmailStatusInfo = {
+      ...currentStatus,
+      status: currentStatus.attempts > 0 ? 'retrying' : 'pending',
+      lastAttempt: new Date(),
+      attempts: currentStatus.attempts + 1,
+    };
+
+    await updateOrderPaymentFailedEmailStatus(order.orderId, attemptStatus);
+
+    const emailHtml = getPaymentFailedEmailTemplate(order, failureReason);
+    if (!emailHtml.trim()) {
+      throw new Error('Email template is empty');
+    }
+
+    const result = await sendTransactionalEmail({
+      to: [email],
+      subject,
+      html: emailHtml,
+      category: 'Payment Failed',
+    });
+
+    const successStatus: EmailStatusInfo = {
+      status: 'sent',
+      attempts: attemptStatus.attempts,
+      lastAttempt: new Date(),
+      error: undefined,
+      messageId: result.messageId,
+    };
+
+    await updateOrderPaymentFailedEmailStatus(order.orderId, successStatus);
+
+    if (result.messageId && emailProvider === 'resend') {
+      try {
+        await emailAnalytics.trackEmailSent(
+          result.messageId,
+          'payment_failed' as EmailType,
+          email,
+          order.orderId,
+          order.user,
+          subject,
+          fromEmail
+        );
+      } catch (analyticsError) {
+        console.error(`${logPrefix} ${functionName} - Failed to track email analytics:`, analyticsError);
+      }
+    }
+
+    return {
+      success: true,
+      messageId: result.messageId,
+      statusInfo: successStatus,
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`${logPrefix} ${functionName} - Failed to send payment failed email:`, {
+      orderId: order.orderId,
+      error: errorMessage,
+      customerEmail: order.customerInfo?.email,
+    });
+
+    const errorStatus: EmailStatusInfo = {
+      status: currentStatus.attempts + 1 >= MAX_RETRY_ATTEMPTS ? 'failed' : 'retrying',
+      attempts: currentStatus.attempts + 1,
+      lastAttempt: new Date(),
+      error: errorMessage,
+    };
+
+    await updateOrderPaymentFailedEmailStatus(order.orderId, errorStatus);
 
     return {
       success: false,

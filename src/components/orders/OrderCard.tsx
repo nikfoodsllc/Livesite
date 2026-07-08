@@ -91,7 +91,7 @@ export default function OrderCard({
             alignSelf: { xs: 'flex-start', sm: 'auto' },
           }}
         >
-          <StatusBadge status={order.status} />
+          <StatusBadge status={order.status} paymentStatus={order.paymentStatus} />
           {showUpdateItem && onUpdateItem && (
             <Button
               variant="outlined"

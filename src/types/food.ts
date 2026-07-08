@@ -24,6 +24,9 @@ export interface FoodItem {
   /** Set when item is FLAT-tagged to a sub-category under a day-wise parent */
   subCategoryId?: string;
   subCategoryName?: string;
+  /** All FLAT sub-category tags when an item belongs to multiple sub-categories */
+  subCategoryIds?: string[];
+  subCategoryNames?: string[];
   createdAt?: Date;
   updatedAt?: Date;
 }
