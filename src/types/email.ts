@@ -3,7 +3,7 @@
  * Comprehensive tracking for email delivery and performance metrics
  */
 
-export type EmailType = 'order_confirmation' | 'password_reset' | 'password_reset_confirmation' | 'marketing' | 'support';
+export type EmailType = 'order_confirmation' | 'payment_failed' | 'password_reset' | 'password_reset_confirmation' | 'marketing' | 'support';
 
 export type EmailDeliveryStatus =
   | 'pending'
