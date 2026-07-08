@@ -131,7 +131,71 @@ export async function POST(request: NextRequest) {
 
       case 'charge.succeeded': {
         const charge = event.data.object as Stripe.Charge;
-        console.log(`[Webhook] Charge succeeded: ${charge.id} (order update handled by payment_intent.succeeded)`);
+        console.log(`[Webhook] Charge succeeded: ${charge.id}`);
+
+        if (!charge.payment_intent) {
+          console.error('[Webhook] No payment intent found for charge');
+          break;
+        }
+
+        // Find order by stripePaymentIntentId
+        const orderResult = await db.readOne<Order>('orders', {
+          stripePaymentIntentId: charge.payment_intent.toString(),
+        });
+
+        if (!orderResult.success || !orderResult.data) {
+          console.error(`[Webhook] Order not found for PaymentIntent: ${charge.payment_intent}`);
+          return NextResponse.json(
+            { error: 'Order not found' },
+            { status: 404 }
+          );
+        }
+
+        const order = orderResult.data;
+
+        // Update order status
+        const updateResult = await db.updateOne('orders',
+          { orderId: order.orderId },
+          {
+            $set: {
+              paymentStatus: 'paid',
+              status: 'confirmed',
+              updatedAt: new Date(),
+            },
+          }
+        );
+
+        if (!updateResult.success) {
+          console.error(`[Webhook] Failed to update order ${order.orderId}:`, updateResult.error);
+          return NextResponse.json(
+            { error: 'Failed to update order' },
+            { status: 500 }
+          );
+        }
+
+        console.log(`[Webhook] Order ${order.orderId} confirmed and marked as paid`);
+
+        // Send order confirmation email
+        try {
+          console.log(`[Webhook] Sending confirmation email for successful payment order: ${order.orderId}`);
+          const emailResult = await sendOrderConfirmationEmail(order);
+
+          if (emailResult.success) {
+            console.log(`[Webhook] Confirmation email sent successfully for order: ${order.orderId}`, {
+              messageId: emailResult.messageId,
+              statusInfo: emailResult.statusInfo,
+            });
+          } else {
+            console.error(`[Webhook] Failed to send confirmation email for order: ${order.orderId}`, {
+              error: emailResult.error,
+              statusInfo: emailResult.statusInfo,
+            });
+          }
+        } catch (emailError) {
+          console.error(`[Webhook] Exception sending confirmation email for order: ${order.orderId}:`, emailError);
+          // Email failure should not break webhook processing - continue with normal flow
+        }
+
         break;
       }
 
