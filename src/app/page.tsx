@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Box, Container, Typography, IconButton, CircularProgress, Skeleton, Tabs, Tab } from '@mui/material';
 import { IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
 import Footer from '@/components/layout/Footer';
@@ -198,6 +198,73 @@ function flattenCategoriesWithSubs(categories: CategoryDisplay[]): CategoryDispl
     }
   }
   return out;
+}
+
+const MENU_FETCH_CONCURRENCY = 6;
+
+async function runWithConcurrency<T>(
+  tasks: (() => Promise<T>)[],
+  limit: number
+): Promise<T[]> {
+  if (tasks.length === 0) {
+    return [];
+  }
+
+  const results: T[] = new Array(tasks.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (true) {
+      const current = nextIndex++;
+      if (current >= tasks.length) {
+        break;
+      }
+      results[current] = await tasks[current]();
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(limit, tasks.length) }, () => worker())
+  );
+  return results;
+}
+
+function getEnabledDayWiseDates(dates: DayOption[]): string[] {
+  return dates
+    .filter((dateOption) => dateOption.dayWiseCategoryEnabled)
+    .map((dateOption) => dateOption.date);
+}
+
+type CategoryFetchTarget = {
+  _id: string;
+  name: string;
+  description?: string;
+  imageUrl?: string;
+  listingType?: 'flat' | 'day-wise';
+};
+
+function attachSubCategoriesToParents(
+  categoriesList: CategoryListItem[],
+  map: Map<string, CategoryDisplay>
+): void {
+  for (const parent of categoriesList) {
+    if (!parent.children?.length) {
+      continue;
+    }
+    const parentEntry = map.get(parent._id);
+    if (!parentEntry) {
+      continue;
+    }
+    const subCategories = parent.children
+      .slice()
+      .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
+      .map((ch) => map.get(ch._id))
+      .filter((x): x is CategoryDisplay => !!x);
+    if (subCategories.length > 0) {
+      parentEntry.subCategories = subCategories;
+      map.set(parent._id, parentEntry);
+    }
+  }
 }
 
 function applyCategoryDisplayFilters(
@@ -403,31 +470,6 @@ export default function Home() {
     Record<string, string>
   >({});
 
-  // Fetch day options on mount and cache them
-  useEffect(() => {
-    const fetchDayOptions = async () => {
-      try {
-        // Fetch available dates from API (new date-based approach)
-        const dates = await generateAvailableDatesFromAPI(false);
-        const cache = new Map<string, DayOption>();
-
-        // Cache each date option using the date string as key
-        for (const dateOption of dates) {
-          cache.set(dateOption.date, dateOption);
-        }
-
-        setAvailableDates(dates);
-        setDayOptionsCache(cache);
-      } catch (error) {
-        console.error('Error fetching day options from API:', error);
-        setAvailableDates([]);
-        setDayOptionsCache(new Map());
-      }
-    };
-
-    fetchDayOptions();
-  }, []);
-
   // Helper function to get the correct price for display based on item type
   const getPriceForDisplay = (item: FoodItem): number | null => {
     // For portion items, use the first portion price if available
@@ -439,55 +481,31 @@ export default function Home() {
   };
 
 
-  // Fetch categories from API on mount (after available dates are loaded)
+  // Load dates + categories in parallel; flat items first, then day-wise when dates are ready
   useEffect(() => {
-    // Only fetch categories when availableDates are loaded
-    if (availableDates.length === 0) {
-      return;
-    }
+    let cancelled = false;
 
-    const fetchCategories = async () => {
+    const fetchDayWise = async (
+      categoryId: string,
+      date: string
+    ): Promise<FoodItemsByCategoryResponse | null> => {
       try {
-        setLoadingCategories(true);
-        setError(null);
+        const response = await fetch(
+          `/api/food-items-day-wise?categoryId=${categoryId}&date=${date}`
+        );
+        const data: FoodItemsByCategoryResponse = await response.json();
 
-        const response = await fetch('/api/categories');
-        const data: CategoriesResponse = await response.json();
-
-        if (response.ok && data.data?.items) {
-          setCategories(data.data.items);
-          // Categories loaded, now fetch items for each category sequentially
-          await fetchFoodItemsForCategories(data.data.items);
-        } else {
-          console.error('Failed to fetch categories:', data.message);
-          setError('Failed to load categories');
+        if (response.ok && data.data) {
+          return data;
         }
-      } catch (error) {
-        console.error('Error fetching categories:', error);
-        setError('Failed to load categories');
-      } finally {
-        setLoadingCategories(false);
-      }
-    };
 
-    fetchCategories();
-  }, [availableDates]); // Run when availableDates change
-
-  // Fetch day-wise food items for a specific category and date
-  const fetchDayWiseFoodItems = async (categoryId: string, date: string): Promise<FoodItemsByCategoryResponse | null> => {
-    try {
-      const response = await fetch(`/api/food-items-day-wise?categoryId=${categoryId}&date=${date}`);
-      const data: FoodItemsByCategoryResponse = await response.json();
-
-      if (response.ok && data.data) {
-        return data;
-      } else {
-        // Handle 404 as a warning (no items for this date - this is expected)
         if (response.status === 404) {
           console.log(`No items found for categoryId ${categoryId}, date ${date}`);
         } else {
-          console.warn(`Failed to fetch day-wise items for categoryId ${categoryId}, date ${date}:`, data.message);
-          // Show error notification to user for non-404 errors
+          console.warn(
+            `Failed to fetch day-wise items for categoryId ${categoryId}, date ${date}:`,
+            data.message
+          );
           if (response.status !== 404) {
             showErrorNotification(
               showNotification,
@@ -497,93 +515,121 @@ export default function Home() {
           }
         }
         return null;
+      } catch (error) {
+        console.error(
+          `Error fetching day-wise items for categoryId ${categoryId}, date ${date}:`,
+          error
+        );
+        showErrorNotification(
+          showNotification,
+          `Network error loading items for ${date}. Please check your connection.`,
+          'Network Error'
+        );
+        return null;
       }
-    } catch (error) {
-      console.error(`Error fetching day-wise items for categoryId ${categoryId}, date ${date}:`, error);
-      // Show error notification to user for network/server errors
-      showErrorNotification(
-        showNotification,
-        `Network error loading items for ${date}. Please check your connection.`,
-        'Network Error'
-      );
-      return null;
-    }
-  };
+    };
 
-  // Sequentially fetch food items for each category (parents, then their sub-categories)
-  const fetchFoodItemsForCategories = async (categoriesList: CategoryListItem[]) => {
-    setLoadingItems(true);
-    const newMap = new Map<string, CategoryDisplay>();
-    const newLoadingSet = new Set<string>();
+    const syncMapToState = (
+      map: Map<string, CategoryDisplay>,
+      categoriesList: CategoryListItem[]
+    ) => {
+      attachSubCategoriesToParents(categoriesList, map);
+      setCategoryFoodItemsMap(new Map(map));
+    };
 
-    const fetchOneCategory = async (
-      category: {
-        _id: string;
-        name: string;
-        description?: string;
-        imageUrl?: string;
-        listingType?: 'flat' | 'day-wise';
-      },
-      options: { usePerDateDayWiseMappings?: boolean } = {}
+    const loadFlatCategory = async (
+      category: CategoryFetchTarget,
+      map: Map<string, CategoryDisplay>,
+      loadingSet: Set<string>,
+      categoriesList: CategoryListItem[]
+    ) => {
+      loadingSet.add(category._id);
+      setLoadingCategoryItems(new Set(loadingSet));
+      try {
+        const response = await fetch(
+          `/api/food-items-by-category?categoryId=${category._id}`
+        );
+        const data: FoodItemsByCategoryResponse = await response.json();
+
+        if (response.ok && data.data) {
+          map.set(category._id, {
+            _id: data.data._id,
+            name: data.data.name,
+            description: data.data.description,
+            url: data.data.url,
+            listingType: data.data.listingType,
+            foodItems: data.data.foodItems || [],
+            dayWiseItems: data.data.dayWiseItems || null,
+            dayGroups: [],
+          });
+          if (!cancelled) {
+            syncMapToState(map, categoriesList);
+          }
+        } else {
+          console.error(
+            `Failed to fetch items for flat category ${category._id}:`,
+            data.message
+          );
+        }
+      } catch (error) {
+        console.error(`Error fetching items for category ${category._id}:`, error);
+      } finally {
+        loadingSet.delete(category._id);
+        if (!cancelled) {
+          setLoadingCategoryItems(new Set(loadingSet));
+        }
+      }
+    };
+
+    const loadDayWiseCategory = async (
+      category: CategoryFetchTarget,
+      dates: DayOption[],
+      options: { usePerDateDayWiseMappings?: boolean },
+      map: Map<string, CategoryDisplay>,
+      loadingSet: Set<string>,
+      categoriesList: CategoryListItem[]
     ) => {
       const { usePerDateDayWiseMappings = false } = options;
+      loadingSet.add(category._id);
+      setLoadingCategoryItems(new Set(loadingSet));
+
       try {
-        newLoadingSet.add(category._id);
-        setLoadingCategoryItems(new Set(newLoadingSet));
+        const dayWiseItems: { [dateString: string]: FoodItem[] } = {};
+        const enabledDates = getEnabledDayWiseDates(dates);
 
-        const listingType = category.listingType || 'flat';
-
-        if (listingType === 'flat' && !usePerDateDayWiseMappings) {
-          const response = await fetch(`/api/food-items-by-category?categoryId=${category._id}`);
-          const data: FoodItemsByCategoryResponse = await response.json();
-
-          if (response.ok && data.data) {
-            const categoryDisplay: CategoryDisplay = {
-              _id: data.data._id,
-              name: data.data.name,
-              description: data.data.description,
-              url: data.data.url,
-              listingType: data.data.listingType,
-              foodItems: data.data.foodItems || [],
-              dayWiseItems: data.data.dayWiseItems || null,
-              dayGroups: [],
-            };
-            newMap.set(category._id, categoryDisplay);
-          } else {
-            console.error(`Failed to fetch items for flat category ${category._id}:`, data.message);
-          }
-        } else if (listingType === 'flat' && usePerDateDayWiseMappings) {
-          // Flat sub under day-wise parent: DAY_WISE rows per date plus FLAT-tagged items for sub grouping
-          const dayWiseItems: { [dateString: string]: FoodItem[] } = {};
-          const categoryDisplay: CategoryDisplay = {
-            _id: category._id,
-            name: category.name,
-            description: category.description || '',
-            url: category.imageUrl || '',
-            listingType: 'day-wise',
-            foodItems: [],
-            dayWiseItems: dayWiseItems,
-            dayGroups: [],
-          };
-
-          const enabledDates = availableDates
-            .filter((dateOption) => dateOption.dayWiseCategoryEnabled)
-            .map((dateOption) => dateOption.date);
-
-          for (const date of enabledDates) {
+        const dateResults = await Promise.all(
+          enabledDates.map(async (date) => {
             try {
-              const dayWiseData = await fetchDayWiseFoodItems(category._id, date);
-              if (dayWiseData?.data && 'foodItems' in dayWiseData.data) {
-                const foodItems = (dayWiseData.data as { foodItems?: FoodItem[] }).foodItems;
-                if (Array.isArray(foodItems) && foodItems.length > 0) {
-                  dayWiseItems[date] = foodItems;
-                }
-              }
+              const dayWiseData = await fetchDayWise(category._id, date);
+              return { date, dayWiseData };
             } catch (error) {
               console.error(`Error fetching day-wise items for date ${date}:`, error);
+              return { date, dayWiseData: null };
+            }
+          })
+        );
+
+        for (const { date, dayWiseData } of dateResults) {
+          if (dayWiseData?.data && 'foodItems' in dayWiseData.data) {
+            const foodItems = (dayWiseData.data as { foodItems?: FoodItem[] }).foodItems;
+            if (Array.isArray(foodItems) && foodItems.length > 0) {
+              dayWiseItems[date] = foodItems;
             }
           }
+        }
 
+        const categoryDisplay: CategoryDisplay = {
+          _id: category._id,
+          name: category.name,
+          description: category.description || '',
+          url: category.imageUrl || '',
+          listingType: 'day-wise',
+          foodItems: [],
+          dayWiseItems,
+          dayGroups: [],
+        };
+
+        if (usePerDateDayWiseMappings) {
           try {
             const flatResponse = await fetch(
               `/api/food-items-by-category?categoryId=${category._id}`
@@ -596,112 +642,214 @@ export default function Home() {
               );
             }
           } catch (error) {
-            console.error(`Error fetching flat-tagged items for sub-category ${category._id}:`, error);
+            console.error(
+              `Error fetching flat-tagged items for sub-category ${category._id}:`,
+              error
+            );
           }
+        }
 
-          newMap.set(category._id, categoryDisplay);
-        } else {
-          const dayWiseItems: { [dateString: string]: FoodItem[] } = {};
-          const categoryDisplay: CategoryDisplay = {
-            _id: category._id,
-            name: category.name,
-            description: category.description || '',
-            url: category.imageUrl || '',
-            listingType: 'day-wise',
-            foodItems: [],
-            dayWiseItems: dayWiseItems,
-            dayGroups: [],
-          };
-
-          const enabledDates = availableDates
-            .filter((dateOption) => dateOption.dayWiseCategoryEnabled)
-            .map((dateOption) => dateOption.date);
-
-          for (const date of enabledDates) {
-            try {
-              const dayWiseData = await fetchDayWiseFoodItems(category._id, date);
-              if (dayWiseData?.data && 'foodItems' in dayWiseData.data) {
-                const foodItems = (dayWiseData.data as { foodItems?: FoodItem[] }).foodItems;
-                if (Array.isArray(foodItems) && foodItems.length > 0) {
-                  dayWiseItems[date] = foodItems;
-                }
-              }
-            } catch (error) {
-              console.error(`Error fetching day-wise items for date ${date}:`, error);
-            }
-          }
-
-          newMap.set(category._id, categoryDisplay);
+        map.set(category._id, categoryDisplay);
+        if (!cancelled) {
+          syncMapToState(map, categoriesList);
         }
       } catch (error) {
         console.error(`Error fetching items for category ${category._id}:`, error);
       } finally {
-        newLoadingSet.delete(category._id);
-        setLoadingCategoryItems(new Set(newLoadingSet));
+        loadingSet.delete(category._id);
+        if (!cancelled) {
+          setLoadingCategoryItems(new Set(loadingSet));
+        }
       }
     };
 
-    for (const category of categoriesList) {
-      await fetchOneCategory(category);
-      const children = category.children ?? [];
-      for (const child of children) {
-        const usePerDateDayWiseMappings =
-          category.listingType === 'day-wise' && (child.listingType || 'flat') === 'flat';
-        await fetchOneCategory(child, { usePerDateDayWiseMappings });
-      }
-    }
+    const loadMissingFlatTags = async (
+      categoriesList: CategoryListItem[],
+      map: Map<string, CategoryDisplay>,
+      loadingSet: Set<string>
+    ) => {
+      const tasks: Array<() => Promise<void>> = [];
 
-    for (const parent of categoriesList) {
-      const parentEntry = newMap.get(parent._id);
-      if (!parentEntry || !parent.children?.length) continue;
-      const subCategories = parent.children
-        .slice()
-        .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
-        .map((ch) => newMap.get(ch._id))
-        .filter((x): x is CategoryDisplay => !!x);
-      if (subCategories.length > 0) {
-        parentEntry.subCategories = subCategories;
-        newMap.set(parent._id, parentEntry);
-      }
-    }
-
-    // Ensure FLAT sub-category tags are loaded for day-wise parents (grouping on the menu)
-    for (const parent of categoriesList) {
-      if (parent.listingType !== 'day-wise' || !parent.children?.length) continue;
-      for (const child of parent.children) {
-        const entry = newMap.get(child._id);
-        if (!entry) continue;
-        if (entry.flatTaggedItemIds?.length && entry.foodItems?.length) continue;
-        try {
-          const flatResponse = await fetch(
-            `/api/food-items-by-category?categoryId=${child._id}`
-          );
-          const flatData: FoodItemsByCategoryResponse = await flatResponse.json();
-          if (flatResponse.ok && flatData.data?.foodItems?.length) {
-            entry.foodItems = flatData.data.foodItems;
-            entry.flatTaggedItemIds = flatData.data.foodItems.map((i) =>
-              normalizeItemId(i._id)
-            );
-            newMap.set(child._id, entry);
+      for (const parent of categoriesList) {
+        if (parent.listingType !== 'day-wise' || !parent.children?.length) {
+          continue;
+        }
+        for (const child of parent.children) {
+          const entry = map.get(child._id);
+          if (!entry || entry.flatTaggedItemIds?.length) {
+            continue;
           }
-        } catch (error) {
-          console.error(`Error loading flat tags for sub-category ${child._id}:`, error);
+
+          tasks.push(async () => {
+            loadingSet.add(child._id);
+            setLoadingCategoryItems(new Set(loadingSet));
+            try {
+              const flatResponse = await fetch(
+                `/api/food-items-by-category?categoryId=${child._id}`
+              );
+              const flatData: FoodItemsByCategoryResponse = await flatResponse.json();
+              if (flatResponse.ok && flatData.data?.foodItems?.length) {
+                entry.foodItems = flatData.data.foodItems;
+                entry.flatTaggedItemIds = flatData.data.foodItems.map((i) =>
+                  normalizeItemId(i._id)
+                );
+                map.set(child._id, entry);
+                if (!cancelled) {
+                  syncMapToState(map, categoriesList);
+                }
+              }
+            } catch (error) {
+              console.error(`Error loading flat tags for sub-category ${child._id}:`, error);
+            } finally {
+              loadingSet.delete(child._id);
+              if (!cancelled) {
+                setLoadingCategoryItems(new Set(loadingSet));
+              }
+            }
+          });
         }
       }
-      const parentEntry = newMap.get(parent._id);
-      if (parentEntry?.subCategories?.length) {
-        parentEntry.subCategories = parent.children
-          .slice()
-          .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
-          .map((ch) => newMap.get(ch._id))
-          .filter((x): x is CategoryDisplay => !!x);
-        newMap.set(parent._id, parentEntry);
-      }
-    }
 
-    setCategoryFoodItemsMap(newMap);
-    setLoadingItems(false);
-  };
+      if (tasks.length > 0) {
+        await runWithConcurrency(tasks, MENU_FETCH_CONCURRENCY);
+      }
+    };
+
+    const loadHomeMenuData = async () => {
+      setLoadingCategories(true);
+      setLoadingItems(true);
+      setError(null);
+
+      const map = new Map<string, CategoryDisplay>();
+      const loadingSet = new Set<string>();
+      let categoriesList: CategoryListItem[] = [];
+
+      const datesPromise = generateAvailableDatesFromAPI(false);
+      const categoriesPromise = fetch('/api/categories').then(
+        (response) => response.json() as Promise<CategoriesResponse>
+      );
+
+      try {
+        const categoriesResult = await categoriesPromise;
+        if (cancelled) {
+          return;
+        }
+
+        if (!categoriesResult.data?.items) {
+          console.error('Failed to fetch categories');
+          setError('Failed to load categories');
+          return;
+        }
+
+        categoriesList = categoriesResult.data.items;
+        setCategories(categoriesList);
+
+        const flatJobs: Array<() => Promise<void>> = [];
+        for (const category of categoriesList) {
+          if ((category.listingType || 'flat') === 'flat') {
+            flatJobs.push(() =>
+              loadFlatCategory(category, map, loadingSet, categoriesList)
+            );
+          }
+          for (const child of category.children ?? []) {
+            const usePerDateDayWiseMappings =
+              category.listingType === 'day-wise' &&
+              (child.listingType || 'flat') === 'flat';
+            if (!usePerDateDayWiseMappings && (child.listingType || 'flat') === 'flat') {
+              flatJobs.push(() =>
+                loadFlatCategory(child, map, loadingSet, categoriesList)
+              );
+            }
+          }
+        }
+
+        if (flatJobs.length > 0) {
+          await runWithConcurrency(flatJobs, MENU_FETCH_CONCURRENCY);
+        }
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+        if (!cancelled) {
+          setError('Failed to load categories');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingCategories(false);
+        }
+      }
+
+      try {
+        const dates = await datesPromise;
+        if (cancelled) {
+          return;
+        }
+
+        const cache = new Map<string, DayOption>();
+        for (const dateOption of dates) {
+          cache.set(dateOption.date, dateOption);
+        }
+        setAvailableDates(dates);
+        setDayOptionsCache(cache);
+
+        if (categoriesList.length === 0) {
+          return;
+        }
+
+        const dayWiseJobs: Array<() => Promise<void>> = [];
+        for (const category of categoriesList) {
+          if ((category.listingType || 'flat') === 'day-wise') {
+            dayWiseJobs.push(() =>
+              loadDayWiseCategory(category, dates, {}, map, loadingSet, categoriesList)
+            );
+          }
+          for (const child of category.children ?? []) {
+            const usePerDateDayWiseMappings =
+              category.listingType === 'day-wise' &&
+              (child.listingType || 'flat') === 'flat';
+            if (
+              usePerDateDayWiseMappings ||
+              (child.listingType || 'flat') === 'day-wise'
+            ) {
+              dayWiseJobs.push(() =>
+                loadDayWiseCategory(
+                  child,
+                  dates,
+                  { usePerDateDayWiseMappings },
+                  map,
+                  loadingSet,
+                  categoriesList
+                )
+              );
+            }
+          }
+        }
+
+        if (dayWiseJobs.length > 0) {
+          await runWithConcurrency(dayWiseJobs, MENU_FETCH_CONCURRENCY);
+        }
+
+        await loadMissingFlatTags(categoriesList, map, loadingSet);
+        if (!cancelled) {
+          syncMapToState(map, categoriesList);
+        }
+      } catch (error) {
+        console.error('Error fetching day options from API:', error);
+        if (!cancelled) {
+          setAvailableDates([]);
+          setDayOptionsCache(new Map());
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingItems(false);
+        }
+      }
+    };
+
+    void loadHomeMenuData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [showNotification]);
 
   // Get food items by category map
   const foodItemsByCategory = useMemo(() => {
