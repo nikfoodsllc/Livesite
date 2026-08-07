@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { db } from '@/lib/server/db';
 import { jwtHandler } from '@/lib/jwt';
 import { ObjectId as MongoObjectId, Document } from 'mongodb';
+import { getOrderableDayWiseDateStrings } from '@/lib/server/availableDates';
 
 // Category types based on admin schema
 type CategoryListingType = 'flat' | 'day-wise';
@@ -87,6 +88,69 @@ interface ComboSection {
     [key: string]: unknown;
   }>;
   [key: string]: unknown;
+}
+
+async function attachSubCategoryTagsToItems(
+  categoryId: string,
+  items: Array<Record<string, unknown>>
+): Promise<void> {
+  if (items.length === 0) {
+    return;
+  }
+
+  const subCategoriesResult = await db.read(
+    'foodcategories',
+    {
+      parentCategoryId: new MongoObjectId(categoryId),
+      isDraft: { $ne: true },
+    },
+    { sort: { sequence: 1 } }
+  );
+
+  if (!subCategoriesResult.success || !subCategoriesResult.data?.length) {
+    return;
+  }
+
+  const subs = subCategoriesResult.data as Array<{
+    _id: { toString: () => string };
+    name: string;
+  }>;
+  const subIds = subs.map((s) => new MongoObjectId(s._id.toString()));
+  const subNameById = new Map(subs.map((s) => [s._id.toString(), s.name]));
+
+  const flatMappingsResult = await db.read('categoryfoodmapping', {
+    categoryId: { $in: subIds },
+    $or: [{ mappingType: 'FLAT' }, { mappingType: { $exists: false } }],
+  });
+
+  const itemSubMap = new Map<string, { subCategoryIds: string[]; subCategoryNames: string[] }>();
+  if (flatMappingsResult.success && flatMappingsResult.data) {
+    for (const mapping of flatMappingsResult.data as Array<{
+      foodItemId?: { toString: () => string };
+      categoryId?: { toString: () => string };
+    }>) {
+      const foodItemId = mapping.foodItemId?.toString();
+      const subId = mapping.categoryId?.toString();
+      if (!foodItemId || !subId) continue;
+      const existing = itemSubMap.get(foodItemId) ?? { subCategoryIds: [], subCategoryNames: [] };
+      if (!existing.subCategoryIds.includes(subId)) {
+        existing.subCategoryIds.push(subId);
+        existing.subCategoryNames.push(subNameById.get(subId) ?? '');
+      }
+      itemSubMap.set(foodItemId, existing);
+    }
+  }
+
+  for (const item of items) {
+    const itemId = item._id as string;
+    const tag = itemSubMap.get(itemId);
+    if (tag) {
+      item.subCategoryIds = tag.subCategoryIds;
+      item.subCategoryNames = tag.subCategoryNames;
+      item.subCategoryId = tag.subCategoryIds[0];
+      item.subCategoryName = tag.subCategoryNames[0];
+    }
+  }
 }
 
 async function populateComboSections(sections: ComboSection[], sectionIndexStart: number = 0): Promise<Array<Record<string, unknown>>> {
@@ -341,45 +405,8 @@ export async function GET(req: NextRequest) {
     const category = categoryResult.data;
     const listingType: CategoryListingType = category.listingType || 'flat';
 
-    // Step 2: Fetch enabled dates from availableDates collection
-    // MIGRATION: Changed from availableDays (day names) to availableDates (date strings)
-    const getEnabledDates = async (): Promise<string[]> => {
-      try {
-        console.log('Fetching enabled dates from availableDates collection...');
-
-        // Query availableDates collection for dates where day-wise category is enabled
-        // This replaces the old availableDays query that checked enabled: true
-        const result = await db.read('availableDates', {
-          dayWiseCategoryEnabled: true
-        }, {
-          sort: { date: 1 } // Sort chronologically by date
-        });
-
-        if (result.success && result.data && Array.isArray(result.data)) {
-          const enabledDates = result.data
-            .map((dateDoc: any) => {
-              // Extract date string in YYYY-MM-DD format
-              const dateString = typeof dateDoc.date === 'string' ? dateDoc.date.trim() : '';
-              console.log(`Processing available date: "${dateString}"`);
-              return dateString;
-            })
-            .filter((dateString: string) => {
-              // Validate YYYY-MM-DD format
-              const dateRegex = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/;
-              return dateString && dateRegex.test(dateString);
-            });
-
-          console.log('Final enabled dates:', enabledDates);
-          return enabledDates;
-        }
-      } catch (error) {
-        console.warn('Failed to fetch enabled dates from availableDates collection:', error);
-      }
-
-      return [];
-    };
-
-    const enabledDates = await getEnabledDates();
+    // Step 2: Orderable day-wise dates (same rules as /api/available-dates)
+    const enabledDates = await getOrderableDayWiseDateStrings();
 
     // Step 3: Fetch category food mappings for this specific category
     const categoryFoodMappingResult = await db.read('categoryfoodmapping', {
@@ -563,6 +590,10 @@ export async function GET(req: NextRequest) {
         days: itemCartData,
         comboItems: foodItem.comboItems || [],
         sections: populatedSections.length > 0 ? populatedSections : (foodItem.sections || []),
+        subCategoryId: undefined as string | undefined,
+        subCategoryName: undefined as string | undefined,
+        subCategoryIds: [] as string[],
+        subCategoryNames: [] as string[],
       };
     };
 
@@ -653,6 +684,9 @@ export async function GET(req: NextRequest) {
           }
         }
       }
+
+      const allDayWiseItems = Object.values(dayWiseItems).flat();
+      await attachSubCategoryTagsToItems(categoryId, allDayWiseItems);
 
       responseData.dayWiseItems = dayWiseItems;
     }
