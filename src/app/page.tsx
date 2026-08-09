@@ -1428,7 +1428,12 @@ export default function Home() {
     return (
       <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1, py: 8 }}>
-          <CircularProgress size={60} />
+          <Box
+            component="img"
+            src="/images/prepare-food.gif"
+            alt="Loading menu..."
+            sx={{ width: 120, height: 'auto' }}
+          />
         </Box>
         <Footer />
       </Box>
