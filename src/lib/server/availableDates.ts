@@ -120,6 +120,64 @@ function isPastCutoffTime(targetDate: Date): boolean {
 }
 
 /**
+ * Resolve the default date range used by /api/available-dates (today → +60 days, PST).
+ */
+function resolveDefaultDateRange(
+  startDate?: string,
+  endDate?: string
+): { startDate: string; endDate: string } {
+  let resolvedStart = startDate;
+  if (!resolvedStart) {
+    resolvedStart = getPSTDateString(getPSTNow());
+  }
+
+  let resolvedEnd = endDate;
+  if (!resolvedEnd) {
+    const start = new Date(resolvedStart + 'T00:00:00.000-08:00');
+    const endDateObj = new Date(start);
+    endDateObj.setDate(endDateObj.getDate() + 60);
+    resolvedEnd = getPSTDateString(endDateObj);
+  }
+
+  return { startDate: resolvedStart, endDate: resolvedEnd };
+}
+
+/**
+ * Orderable day-wise delivery dates — same window and cutoff rules as /api/available-dates.
+ * Used by menu APIs so items are only returned for dates customers can actually order.
+ */
+export async function getOrderableDayWiseDateStrings(
+  startDate?: string,
+  endDate?: string
+): Promise<string[]> {
+  try {
+    const { startDate: start, endDate: end } = resolveDefaultDateRange(startDate, endDate);
+
+    const result = await db.read<AvailableDateDocument>(
+      'availableDates',
+      {
+        dayWiseCategoryEnabled: true,
+        date: { $gte: start, $lte: end },
+      },
+      { sort: { date: 1 } }
+    );
+
+    if (!result.success || !result.data) {
+      console.error('Failed to fetch orderable day-wise dates:', result.error);
+      return [];
+    }
+
+    return result.data
+      .map((doc) => doc.date.trim())
+      .filter((date) => /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/.test(date))
+      .filter((date) => !isDateDisabled(date));
+  } catch (error) {
+    console.error('Error in getOrderableDayWiseDateStrings:', error);
+    return [];
+  }
+}
+
+/**
  * Fetch available dates from database with flatCategoryEnabled filtering
  *
  * @param startDate - Optional start date in YYYY-MM-DD format (defaults to today)
@@ -131,25 +189,14 @@ export async function getAvailableDatesFromDatabase(
   endDate?: string
 ): Promise<AvailableDateDocument[]> {
   try {
-    // If no dates provided, default to today to 60 days future
-    if (!startDate) {
-      const today = getPSTNow();
-      startDate = getPSTDateString(today);
-    }
-
-    if (!endDate) {
-      const start = new Date(startDate);
-      const endDateObj = new Date(start);
-      endDateObj.setDate(endDateObj.getDate() + 60);
-      endDate = getPSTDateString(endDateObj);
-    }
+    const { startDate: start, endDate: end } = resolveDefaultDateRange(startDate, endDate);
 
     // Build query filter
-    const filter: any = {
+    const filter: Record<string, unknown> = {
       flatCategoryEnabled: true,
       date: {
-        $gte: startDate,
-        $lte: endDate,
+        $gte: start,
+        $lte: end,
       },
     };
 

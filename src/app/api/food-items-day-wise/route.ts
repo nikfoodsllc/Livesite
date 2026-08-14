@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { db } from '@/lib/server/db';
 import { ObjectId as MongoObjectId, Document } from 'mongodb';
 import { PST_TIMEZONE, createPSTDate } from '@/lib/timezone';
+import { getOrderableDayWiseDateStrings } from '@/lib/server/availableDates';
 
 /**
  * ============================================================================
@@ -339,6 +340,18 @@ export async function GET(req: NextRequest) {
 
     console.log(`[food-items-day-wise] Fetching items for categoryId: ${categoryId}, date: ${date}, vegOnly: ${vegOnly}`);
 
+    const orderableDates = await getOrderableDayWiseDateStrings();
+    if (!orderableDates.includes(date)) {
+      console.log(`[food-items-day-wise] Date not orderable: ${date}`);
+      return Response.json(
+        {
+          message: 'Date not available for ordering',
+          error: `Date ${date} is not within the current orderable delivery window`,
+        },
+        { status: 404 }
+      );
+    }
+
     // Step 1: Fetch the category by ID to verify it exists and get listingType
     const categoryResult = await db.readOne('foodcategories', {
       _id: new MongoObjectId(categoryId),
@@ -464,20 +477,7 @@ export async function GET(req: NextRequest) {
     // Align with food-items-by-category: weekly menu keys (day names and/or YYYY-MM-DD) per item
     let availabilityMap = new Map<string, string[]>();
     try {
-      const enabledDatesResult = await db.read(
-        'availableDates',
-        { dayWiseCategoryEnabled: true },
-        { sort: { date: 1 } }
-      );
-      const enabledDatesForAvailability: string[] = [];
-      if (enabledDatesResult.success && enabledDatesResult.data && Array.isArray(enabledDatesResult.data)) {
-        for (const dateDoc of enabledDatesResult.data as { date?: string }[]) {
-          const ds = typeof dateDoc.date === 'string' ? dateDoc.date.trim() : '';
-          if (/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/.test(ds)) {
-            enabledDatesForAvailability.push(ds);
-          }
-        }
-      }
+      const enabledDatesForAvailability = orderableDates;
 
       const weeklyMenuResult = await db.readOne('weeklymenus', { active: true });
       const weeklyMenu =

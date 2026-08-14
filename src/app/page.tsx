@@ -19,7 +19,7 @@ import { isFoodCustomizable } from '@/lib/foodItemUtils';
 import { useCart } from '@/contexts/CartContext';
 import { useHeader } from '@/contexts/HeaderContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { generateAvailableDatesFromAPI, DayOption } from '@/lib/dayAvailabilityClient';
+import { DayOption } from '@/lib/dayAvailabilityClient';
 import { useNotifications, showSuccessNotification, showErrorNotification } from '@/components/common/NotificationSystem';
 import { PST_TIMEZONE, getPSTWeekday, createPSTDate } from '@/lib/timezone';
 import MenuSubscriptionSection from '@/components/home/MenuSubscriptionSection';
@@ -157,25 +157,79 @@ interface CategoriesResponse {
   message: string;
 }
 
-interface FoodItemsByCategoryResponse {
+type CategoryListItem = CategoriesResponse['data']['items'][number];
+
+interface HomeMenuResponse {
   data: {
-    _id: string;
-    name: string;
-    description: string;
-    url: string;
-    listingType: 'flat' | 'day-wise';
-    foodItems?: FoodItem[];
-    dayWiseItems?: { [dateString: string]: FoodItem[] }; // Date strings as keys (YYYY-MM-DD)
-    // Additional fields from day-wise API
-    categoryId?: string;
-    categoryListingType?: 'day-wise';
-    date?: string;
-    formattedDate?: string;
+    categories: CategoryListItem[];
+    categoryItems: Record<
+      string,
+      {
+        _id: string;
+        name: string;
+        description: string;
+        url: string;
+        listingType: 'flat' | 'day-wise';
+        foodItems?: FoodItem[];
+        dayWiseItems?: { [dateString: string]: FoodItem[] } | null;
+      }
+    >;
+    dates: Array<{
+      id: string;
+      date: string;
+      flatCategoryEnabled: boolean;
+      dayWiseCategoryEnabled: boolean;
+      formattedDate: string;
+      fullDate: string;
+      isToday: boolean;
+      isPast: boolean;
+      isPastCutoff: boolean;
+    }>;
   };
   message: string;
 }
 
-type CategoryListItem = CategoriesResponse['data']['items'][number];
+function buildCategoryFoodItemsMap(
+  categoriesList: CategoryListItem[],
+  categoryItems: HomeMenuResponse['data']['categoryItems']
+): Map<string, CategoryDisplay> {
+  const newMap = new Map<string, CategoryDisplay>();
+
+  for (const [id, item] of Object.entries(categoryItems)) {
+    const categoryDisplay: CategoryDisplay = {
+      _id: item._id,
+      name: item.name,
+      description: item.description,
+      url: item.url,
+      listingType: item.listingType,
+      foodItems: item.foodItems || [],
+      dayWiseItems: item.dayWiseItems ?? null,
+      dayGroups: [],
+    };
+    if (categoryDisplay.foodItems.length > 0) {
+      categoryDisplay.flatTaggedItemIds = categoryDisplay.foodItems.map((i) =>
+        normalizeItemId(i._id)
+      );
+    }
+    newMap.set(id, categoryDisplay);
+  }
+
+  for (const parent of categoriesList) {
+    const parentEntry = newMap.get(parent._id);
+    if (!parentEntry || !parent.children?.length) continue;
+    const subCategories = parent.children
+      .slice()
+      .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
+      .map((ch) => newMap.get(ch._id))
+      .filter((x): x is CategoryDisplay => !!x);
+    if (subCategories.length > 0) {
+      parentEntry.subCategories = subCategories;
+      newMap.set(parent._id, parentEntry);
+    }
+  }
+
+  return newMap;
+}
 
 function categoryHasDisplayItems(c: CategoryDisplay): boolean {
   if (c.listingType === 'flat') {
@@ -247,14 +301,7 @@ function applyCategoryDisplayFilters(
         foodItems: forDay,
       };
     })
-    .filter((dayGroup) => {
-      const dateOption = availableDates.find((d) => d.date === dayGroup.date);
-      return (
-        dayGroup.foodItems.length > 0 &&
-        dateOption &&
-        dateOption.dayWiseCategoryEnabled
-      );
-    })
+    .filter((dayGroup) => dayGroup.foodItems.length > 0)
     .sort((a, b) => a.date.localeCompare(b.date));
 
   return {
@@ -343,26 +390,20 @@ function getItemsForSubOnDate(
   return Array.from(byId.values());
 }
 
-/** Dates to show for a day-wise parent that has sub-categories (union of parent + day-wise subs, with fallback). */
-function collectSortedDatesForDayWiseParentWithSubs(
-  category: CategoryDisplay,
-  availableDates: DayOption[]
-): string[] {
+/** Dates to show for a day-wise parent that has sub-categories (union of parent + day-wise subs). */
+function collectSortedDatesForDayWiseParentWithSubs(category: CategoryDisplay): string[] {
   const set = new Set<string>();
   for (const dg of category.dayGroups ?? []) {
-    set.add(dg.date);
+    if (dg.foodItems.length > 0) {
+      set.add(dg.date);
+    }
   }
   for (const sub of category.subCategories ?? []) {
     if (sub.listingType === 'day-wise') {
       for (const dg of sub.dayGroups ?? []) {
-        set.add(dg.date);
-      }
-    }
-  }
-  if (set.size === 0) {
-    for (const d of availableDates) {
-      if (d.dayWiseCategoryEnabled) {
-        set.add(d.date);
+        if (dg.foodItems.length > 0) {
+          set.add(dg.date);
+        }
       }
     }
   }
@@ -403,305 +444,71 @@ export default function Home() {
     Record<string, string>
   >({});
 
-  // Fetch day options on mount and cache them
-  useEffect(() => {
-    const fetchDayOptions = async () => {
-      try {
-        // Fetch available dates from API (new date-based approach)
-        const dates = await generateAvailableDatesFromAPI(false);
-        const cache = new Map<string, DayOption>();
-
-        // Cache each date option using the date string as key
-        for (const dateOption of dates) {
-          cache.set(dateOption.date, dateOption);
-        }
-
-        setAvailableDates(dates);
-        setDayOptionsCache(cache);
-      } catch (error) {
-        console.error('Error fetching day options from API:', error);
-        setAvailableDates([]);
-        setDayOptionsCache(new Map());
-      }
-    };
-
-    fetchDayOptions();
-  }, []);
-
-  // Helper function to get the correct price for display based on item type
   const getPriceForDisplay = (item: FoodItem): number | null => {
-    // For portion items, use the first portion price if available
     if (item.portions && item.portions.length > 0 && item.portionPrices && item.portionPrices.length > 0) {
       return item.portionPrices[0];
     }
-    // For simple and combo items, use the regular price
     return item.price || null;
   };
 
-
-  // Fetch categories from API on mount (after available dates are loaded)
+  // Load categories, menu items, and delivery dates in one request
   useEffect(() => {
-    // Only fetch categories when availableDates are loaded
-    if (availableDates.length === 0) {
-      return;
-    }
+    let cancelled = false;
 
-    const fetchCategories = async () => {
+    const fetchHomeMenu = async () => {
       try {
         setLoadingCategories(true);
+        setLoadingItems(true);
         setError(null);
 
-        const response = await fetch('/api/categories');
-        const data: CategoriesResponse = await response.json();
+        const response = await fetch('/api/home-menu');
+        const data: HomeMenuResponse = await response.json();
 
-        if (response.ok && data.data?.items) {
-          setCategories(data.data.items);
-          // Categories loaded, now fetch items for each category sequentially
-          await fetchFoodItemsForCategories(data.data.items);
-        } else {
-          console.error('Failed to fetch categories:', data.message);
-          setError('Failed to load categories');
-        }
-      } catch (error) {
-        console.error('Error fetching categories:', error);
-        setError('Failed to load categories');
-      } finally {
-        setLoadingCategories(false);
-      }
-    };
+        if (cancelled) return;
 
-    fetchCategories();
-  }, [availableDates]); // Run when availableDates change
+        if (response.ok && data.data) {
+          setCategories(data.data.categories);
 
-  // Fetch day-wise food items for a specific category and date
-  const fetchDayWiseFoodItems = async (categoryId: string, date: string): Promise<FoodItemsByCategoryResponse | null> => {
-    try {
-      const response = await fetch(`/api/food-items-day-wise?categoryId=${categoryId}&date=${date}`);
-      const data: FoodItemsByCategoryResponse = await response.json();
+          const dates: DayOption[] = data.data.dates.map((dateOption) => ({
+            ...dateOption,
+            day: dateOption.formattedDate.split(',')[0],
+            enabled: dateOption.flatCategoryEnabled,
+          }));
 
-      if (response.ok && data.data) {
-        return data;
-      } else {
-        // Handle 404 as a warning (no items for this date - this is expected)
-        if (response.status === 404) {
-          console.log(`No items found for categoryId ${categoryId}, date ${date}`);
-        } else {
-          console.warn(`Failed to fetch day-wise items for categoryId ${categoryId}, date ${date}:`, data.message);
-          // Show error notification to user for non-404 errors
-          if (response.status !== 404) {
-            showErrorNotification(
-              showNotification,
-              `Failed to load items for ${date}. Please try again.`,
-              'Loading Error'
-            );
-          }
-        }
-        return null;
-      }
-    } catch (error) {
-      console.error(`Error fetching day-wise items for categoryId ${categoryId}, date ${date}:`, error);
-      // Show error notification to user for network/server errors
-      showErrorNotification(
-        showNotification,
-        `Network error loading items for ${date}. Please check your connection.`,
-        'Network Error'
-      );
-      return null;
-    }
-  };
-
-  // Sequentially fetch food items for each category (parents, then their sub-categories)
-  const fetchFoodItemsForCategories = async (categoriesList: CategoryListItem[]) => {
-    setLoadingItems(true);
-    const newMap = new Map<string, CategoryDisplay>();
-    const newLoadingSet = new Set<string>();
-
-    const fetchOneCategory = async (
-      category: {
-        _id: string;
-        name: string;
-        description?: string;
-        imageUrl?: string;
-        listingType?: 'flat' | 'day-wise';
-      },
-      options: { usePerDateDayWiseMappings?: boolean } = {}
-    ) => {
-      const { usePerDateDayWiseMappings = false } = options;
-      try {
-        newLoadingSet.add(category._id);
-        setLoadingCategoryItems(new Set(newLoadingSet));
-
-        const listingType = category.listingType || 'flat';
-
-        if (listingType === 'flat' && !usePerDateDayWiseMappings) {
-          const response = await fetch(`/api/food-items-by-category?categoryId=${category._id}`);
-          const data: FoodItemsByCategoryResponse = await response.json();
-
-          if (response.ok && data.data) {
-            const categoryDisplay: CategoryDisplay = {
-              _id: data.data._id,
-              name: data.data.name,
-              description: data.data.description,
-              url: data.data.url,
-              listingType: data.data.listingType,
-              foodItems: data.data.foodItems || [],
-              dayWiseItems: data.data.dayWiseItems || null,
-              dayGroups: [],
-            };
-            newMap.set(category._id, categoryDisplay);
-          } else {
-            console.error(`Failed to fetch items for flat category ${category._id}:`, data.message);
-          }
-        } else if (listingType === 'flat' && usePerDateDayWiseMappings) {
-          // Flat sub under day-wise parent: DAY_WISE rows per date plus FLAT-tagged items for sub grouping
-          const dayWiseItems: { [dateString: string]: FoodItem[] } = {};
-          const categoryDisplay: CategoryDisplay = {
-            _id: category._id,
-            name: category.name,
-            description: category.description || '',
-            url: category.imageUrl || '',
-            listingType: 'day-wise',
-            foodItems: [],
-            dayWiseItems: dayWiseItems,
-            dayGroups: [],
-          };
-
-          const enabledDates = availableDates
-            .filter((dateOption) => dateOption.dayWiseCategoryEnabled)
-            .map((dateOption) => dateOption.date);
-
-          for (const date of enabledDates) {
-            try {
-              const dayWiseData = await fetchDayWiseFoodItems(category._id, date);
-              if (dayWiseData?.data && 'foodItems' in dayWiseData.data) {
-                const foodItems = (dayWiseData.data as { foodItems?: FoodItem[] }).foodItems;
-                if (Array.isArray(foodItems) && foodItems.length > 0) {
-                  dayWiseItems[date] = foodItems;
-                }
-              }
-            } catch (error) {
-              console.error(`Error fetching day-wise items for date ${date}:`, error);
-            }
+          const cache = new Map<string, DayOption>();
+          for (const dateOption of dates) {
+            cache.set(dateOption.date, dateOption);
           }
 
-          try {
-            const flatResponse = await fetch(
-              `/api/food-items-by-category?categoryId=${category._id}`
-            );
-            const flatData: FoodItemsByCategoryResponse = await flatResponse.json();
-            if (flatResponse.ok && flatData.data?.foodItems) {
-              categoryDisplay.foodItems = flatData.data.foodItems;
-              categoryDisplay.flatTaggedItemIds = flatData.data.foodItems.map((i) =>
-                normalizeItemId(i._id)
-              );
-            }
-          } catch (error) {
-            console.error(`Error fetching flat-tagged items for sub-category ${category._id}:`, error);
-          }
-
-          newMap.set(category._id, categoryDisplay);
-        } else {
-          const dayWiseItems: { [dateString: string]: FoodItem[] } = {};
-          const categoryDisplay: CategoryDisplay = {
-            _id: category._id,
-            name: category.name,
-            description: category.description || '',
-            url: category.imageUrl || '',
-            listingType: 'day-wise',
-            foodItems: [],
-            dayWiseItems: dayWiseItems,
-            dayGroups: [],
-          };
-
-          const enabledDates = availableDates
-            .filter((dateOption) => dateOption.dayWiseCategoryEnabled)
-            .map((dateOption) => dateOption.date);
-
-          for (const date of enabledDates) {
-            try {
-              const dayWiseData = await fetchDayWiseFoodItems(category._id, date);
-              if (dayWiseData?.data && 'foodItems' in dayWiseData.data) {
-                const foodItems = (dayWiseData.data as { foodItems?: FoodItem[] }).foodItems;
-                if (Array.isArray(foodItems) && foodItems.length > 0) {
-                  dayWiseItems[date] = foodItems;
-                }
-              }
-            } catch (error) {
-              console.error(`Error fetching day-wise items for date ${date}:`, error);
-            }
-          }
-
-          newMap.set(category._id, categoryDisplay);
-        }
-      } catch (error) {
-        console.error(`Error fetching items for category ${category._id}:`, error);
-      } finally {
-        newLoadingSet.delete(category._id);
-        setLoadingCategoryItems(new Set(newLoadingSet));
-      }
-    };
-
-    for (const category of categoriesList) {
-      await fetchOneCategory(category);
-      const children = category.children ?? [];
-      for (const child of children) {
-        const usePerDateDayWiseMappings =
-          category.listingType === 'day-wise' && (child.listingType || 'flat') === 'flat';
-        await fetchOneCategory(child, { usePerDateDayWiseMappings });
-      }
-    }
-
-    for (const parent of categoriesList) {
-      const parentEntry = newMap.get(parent._id);
-      if (!parentEntry || !parent.children?.length) continue;
-      const subCategories = parent.children
-        .slice()
-        .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
-        .map((ch) => newMap.get(ch._id))
-        .filter((x): x is CategoryDisplay => !!x);
-      if (subCategories.length > 0) {
-        parentEntry.subCategories = subCategories;
-        newMap.set(parent._id, parentEntry);
-      }
-    }
-
-    // Ensure FLAT sub-category tags are loaded for day-wise parents (grouping on the menu)
-    for (const parent of categoriesList) {
-      if (parent.listingType !== 'day-wise' || !parent.children?.length) continue;
-      for (const child of parent.children) {
-        const entry = newMap.get(child._id);
-        if (!entry) continue;
-        if (entry.flatTaggedItemIds?.length && entry.foodItems?.length) continue;
-        try {
-          const flatResponse = await fetch(
-            `/api/food-items-by-category?categoryId=${child._id}`
+          setAvailableDates(dates);
+          setDayOptionsCache(cache);
+          setCategoryFoodItemsMap(
+            buildCategoryFoodItemsMap(data.data.categories, data.data.categoryItems)
           );
-          const flatData: FoodItemsByCategoryResponse = await flatResponse.json();
-          if (flatResponse.ok && flatData.data?.foodItems?.length) {
-            entry.foodItems = flatData.data.foodItems;
-            entry.flatTaggedItemIds = flatData.data.foodItems.map((i) =>
-              normalizeItemId(i._id)
-            );
-            newMap.set(child._id, entry);
-          }
-        } catch (error) {
-          console.error(`Error loading flat tags for sub-category ${child._id}:`, error);
+        } else {
+          console.error('Failed to fetch home menu:', data.message);
+          setError('Failed to load menu');
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Error fetching home menu:', error);
+          setError('Failed to load menu');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingCategories(false);
+          setLoadingItems(false);
+          setLoadingCategoryItems(new Set());
         }
       }
-      const parentEntry = newMap.get(parent._id);
-      if (parentEntry?.subCategories?.length) {
-        parentEntry.subCategories = parent.children
-          .slice()
-          .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
-          .map((ch) => newMap.get(ch._id))
-          .filter((x): x is CategoryDisplay => !!x);
-        newMap.set(parent._id, parentEntry);
-      }
-    }
+    };
 
-    setCategoryFoodItemsMap(newMap);
-    setLoadingItems(false);
-  };
+    fetchHomeMenu();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Get food items by category map
   const foodItemsByCategory = useMemo(() => {
@@ -741,6 +548,53 @@ export default function Home() {
       applyCategoryDisplayFilters(category, vegOnly, availableDates)
     );
   }, [foodItemsByCategory, selectedCategory, vegOnly, availableDates]);
+
+  const menuSectionsToRender = useMemo(() => {
+    const parents = selectedCategory
+      ? categories.filter((c) => c._id === selectedCategory)
+      : categories;
+
+    return parents.map((cat) => {
+      const row = categoryFoodItemsMap.get(cat._id);
+      let merged: CategoryDisplay | null = null;
+
+      if (row) {
+        merged = { ...row };
+        if (cat.children?.length) {
+          const subCategories = cat.children
+            .slice()
+            .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
+            .map((ch) => categoryFoodItemsMap.get(ch._id))
+            .filter((x): x is CategoryDisplay => !!x);
+          if (subCategories.length > 0) {
+            merged = { ...merged, subCategories };
+          }
+        }
+      }
+
+      const displayCategory = merged
+        ? applyCategoryDisplayFilters(merged, vegOnly, availableDates)
+        : null;
+
+      const childIds = (cat.children ?? []).map((c) => c._id);
+      const isParentLoading = loadingCategoryItems.has(cat._id) || !row;
+      const subsStillLoading = childIds.some((id) => loadingCategoryItems.has(id));
+
+      return {
+        meta: cat,
+        category: displayCategory,
+        isParentLoading,
+        subsStillLoading,
+      };
+    });
+  }, [
+    categories,
+    categoryFoodItemsMap,
+    selectedCategory,
+    vegOnly,
+    availableDates,
+    loadingCategoryItems,
+  ]);
 
   // Get quantity for food item (sum across all dates, or specific date if provided)
   const getItemQuantity = (foodItemId: string, dateContext?: string | DayType): number => {
@@ -1377,7 +1231,7 @@ export default function Home() {
       return null;
     }
 
-    const dates = collectSortedDatesForDayWiseParentWithSubs(category, availableDates);
+    const dates = collectSortedDatesForDayWiseParentWithSubs(category);
     if (dates.length === 0) {
       return (
         <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
@@ -1574,7 +1428,12 @@ export default function Home() {
     return (
       <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1, py: 8 }}>
-          <CircularProgress size={60} />
+          <Box
+            component="img"
+            src="/images/prepare-food.gif"
+            alt="Loading menu..."
+            sx={{ width: 120, height: 'auto' }}
+          />
         </Box>
         <Footer />
       </Box>
@@ -1680,115 +1539,153 @@ export default function Home() {
 
         {/* Food Items by Day and Category */}
         <Container maxWidth="lg" sx={{ mt: { xs: 2, md: 4 }, mb: 6 }}>
-          {loadingItems && displayFoodItemsByCategory.length === 0 ? (
-            <Box sx={{ textAlign: 'center', py: 8 }}>
-              <CircularProgress size={40} />
-              <Typography variant="body1" sx={{ mt: 2, color: 'text.secondary' }}>
-                Loading food items...
-              </Typography>
-            </Box>
-          ) : displayFoodItemsByCategory.length === 0 ? (
+          {categories.length === 0 ? (
             <Box sx={{ textAlign: 'center', py: 8 }}>
               <Typography variant="h6" color="text.secondary">
-                No items found matching your criteria
+                {error ?? 'No categories available'}
               </Typography>
             </Box>
           ) : (
-            displayFoodItemsByCategory.map((category) => {
-              const subsForCategory = resolveSubCategoriesForDisplay(
-                category,
-                categories,
-                categoryFoodItemsMap
-              );
-              const hasSubCategories = subsForCategory.length > 0;
-              const isLoadingCategory =
-                loadingCategoryItems.has(category._id) ||
-                subsForCategory.some((s) => loadingCategoryItems.has(s._id));
-              const hasContent = categoryOrSubsHaveItems(category);
+            <>
+              {menuSectionsToRender.map(
+                ({ meta, category, isParentLoading, subsStillLoading }) => {
+                  const subsForCategory = category
+                    ? resolveSubCategoriesForDisplay(category, categories, categoryFoodItemsMap)
+                    : [];
+                  const hasSubCategories = (meta.children?.length ?? 0) > 0;
+                  const listingType = category?.listingType ?? meta.listingType ?? 'flat';
+                  const hasContent = category ? categoryOrSubsHaveItems(category) : false;
+                  const parentReady = !!category && !isParentLoading;
 
-              return (
-                <Box key={category._id} sx={{ mb: 8 }}>
-                  <Box
-                    sx={{
-                      borderLeft: '4px solid',
-                      borderColor: 'primary.main',
-                      pl: 2,
-                      py: 1,
-                      mt: { xs: 4, md: 6 },
-                      mb: { xs: 3, md: 4 },
-                    }}
-                  >
-                    <Typography
-                      variant="h4"
-                      sx={{
-                        fontWeight: 600,
-                        color: 'primary.main',
-                        fontSize: { xs: '1.25rem', sm: '1.5rem', md: '1.75rem' },
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 2,
-                      }}
-                    >
-                      {category.name}
-                      {isLoadingCategory && <CircularProgress size={20} />}
-                    </Typography>
-                  </Box>
+                  return (
+                    <Box key={meta._id} sx={{ mb: 8 }}>
+                      <Box
+                        sx={{
+                          borderLeft: '4px solid',
+                          borderColor: 'primary.main',
+                          pl: 2,
+                          py: 1,
+                          mt: { xs: 4, md: 6 },
+                          mb: { xs: 3, md: 4 },
+                        }}
+                      >
+                        <Typography
+                          variant="h4"
+                          sx={{
+                            fontWeight: 600,
+                            color: 'primary.main',
+                            fontSize: { xs: '1.25rem', sm: '1.5rem', md: '1.75rem' },
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 2,
+                          }}
+                        >
+                          {meta.name}
+                          {isParentLoading && <CircularProgress size={20} />}
+                        </Typography>
+                      </Box>
 
-                  {isLoadingCategory ? (
-                    categorySkeletonGrid
-                  ) : !hasContent ? (
-                    <Box sx={{ textAlign: 'center', py: 4 }}>
-                      <Typography variant="body2" color="text.secondary">
-                        {vegOnly
-                          ? 'No vegetarian items available in this category'
-                          : 'No items available in this category'}
-                      </Typography>
-                    </Box>
-                  ) : (
-                    <>
-                      {category.listingType === 'flat' &&
-                        categoryHasDisplayItems(category) &&
-                        renderFlatCategoryGrid(category)}
-                      {category.listingType === 'day-wise' &&
-                        hasSubCategories &&
-                        renderDayWiseParentWithSubTabs({
-                          ...category,
-                          subCategories: subsForCategory,
-                        })}
-                      {category.listingType === 'day-wise' &&
-                        !hasSubCategories &&
-                        categoryHasDisplayItems(category) &&
-                        renderDayWiseCategorySections(category)}
-                      {!(
-                        category.listingType === 'day-wise' && hasSubCategories
-                      ) &&
-                        subsForCategory.map((sub) => (
-                        <Box key={sub._id} sx={{ mt: 4 }}>
-                          <Box sx={subCategoryHeadingBoxSx}>
-                            <Typography component="h3" sx={subCategoryTitleSx}>
-                              {sub.name}
-                              {loadingCategoryItems.has(sub._id) && (
-                                <CircularProgress
-                                  size={18}
-                                  sx={{ ml: 1.5, verticalAlign: 'middle', color: colors.primary }}
-                                />
-                              )}
-                            </Typography>
-                          </Box>
-                          {loadingCategoryItems.has(sub._id) ? (
-                            categorySkeletonGrid
-                          ) : sub.listingType === 'flat' ? (
-                            renderFlatCategoryGrid(sub)
-                          ) : (
-                            renderDayWiseCategorySections(sub)
-                          )}
+                      {isParentLoading ? (
+                        categorySkeletonGrid
+                      ) : !parentReady ? (
+                        categorySkeletonGrid
+                      ) : !hasContent && !subsStillLoading ? (
+                        <Box sx={{ textAlign: 'center', py: 4 }}>
+                          <Typography variant="body2" color="text.secondary">
+                            {vegOnly
+                              ? 'No vegetarian items available in this category'
+                              : 'No items available in this category'}
+                          </Typography>
                         </Box>
-                      ))}
-                    </>
-                  )}
+                      ) : (
+                        <>
+                          {listingType === 'flat' &&
+                            categoryHasDisplayItems(category) &&
+                            renderFlatCategoryGrid(category)}
+                          {listingType === 'day-wise' &&
+                            hasSubCategories &&
+                            subsStillLoading &&
+                            categorySkeletonGrid}
+                          {listingType === 'day-wise' &&
+                            hasSubCategories &&
+                            !subsStillLoading &&
+                            subsForCategory.length > 0 &&
+                            (categoryOrSubsHaveItems(category)
+                              ? renderDayWiseParentWithSubTabs({
+                                  ...category,
+                                  subCategories: subsForCategory,
+                                })
+                              : null)}
+                          {listingType === 'day-wise' &&
+                            !hasSubCategories &&
+                            categoryHasDisplayItems(category) &&
+                            renderDayWiseCategorySections(category)}
+                          {!(listingType === 'day-wise' && hasSubCategories) &&
+                            subsForCategory.map((sub) => (
+                              <Box key={sub._id} sx={{ mt: 4 }}>
+                                <Box sx={subCategoryHeadingBoxSx}>
+                                  <Typography component="h3" sx={subCategoryTitleSx}>
+                                    {sub.name}
+                                    {loadingCategoryItems.has(sub._id) && (
+                                      <CircularProgress
+                                        size={18}
+                                        sx={{
+                                          ml: 1.5,
+                                          verticalAlign: 'middle',
+                                          color: colors.primary,
+                                        }}
+                                      />
+                                    )}
+                                  </Typography>
+                                </Box>
+                                {loadingCategoryItems.has(sub._id) ? (
+                                  categorySkeletonGrid
+                                ) : sub.listingType === 'flat' ? (
+                                  renderFlatCategoryGrid(sub)
+                                ) : (
+                                  renderDayWiseCategorySections(sub)
+                                )}
+                              </Box>
+                            ))}
+                          {!(listingType === 'day-wise' && hasSubCategories) &&
+                            subsStillLoading &&
+                            (meta.children ?? []).map((child) =>
+                              loadingCategoryItems.has(child._id) &&
+                              !categoryFoodItemsMap.has(child._id) ? (
+                                <Box key={child._id} sx={{ mt: 4 }}>
+                                  <Box sx={subCategoryHeadingBoxSx}>
+                                    <Typography component="h3" sx={subCategoryTitleSx}>
+                                      {child.name}
+                                      <CircularProgress
+                                        size={18}
+                                        sx={{
+                                          ml: 1.5,
+                                          verticalAlign: 'middle',
+                                          color: colors.primary,
+                                        }}
+                                      />
+                                    </Typography>
+                                  </Box>
+                                  {categorySkeletonGrid}
+                                </Box>
+                              ) : null
+                            )}
+                        </>
+                      )}
+                    </Box>
+                  );
+                }
+              )}
+
+              {loadingItems && loadingCategoryItems.size > 0 && (
+                <Box sx={{ textAlign: 'center', py: 3 }}>
+                  <CircularProgress size={28} />
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+                    Loading more menu items...
+                  </Typography>
                 </Box>
-              );
-            })
+              )}
+            </>
           )}
         </Container>
       </Box>
