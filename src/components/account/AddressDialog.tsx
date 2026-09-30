@@ -551,7 +551,7 @@ export default function AddressDialog({
 
               <TextField
                 fullWidth
-                label="Phone"
+                label="Phone *"
                 value={formData.phone}
                 onChange={handleChange('phone')}
                 error={!!phoneError}
