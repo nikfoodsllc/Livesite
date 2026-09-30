@@ -15,6 +15,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { useApiClient } from '@/hooks/useApiClient';
 import { formatPhoneNumberDisplay } from '@/utils/formatPhone';
+import { validateUSPhone } from '@/utils/validation';
 
 export default function PersonalInfoCard() {
   const theme = useTheme();
@@ -65,8 +66,8 @@ export default function PersonalInfoCard() {
       return;
     }
 
-    if (phone && !/^[+]?[\d\s()-]{7,}$/.test(phone)) {
-      setError('Invalid phone number format');
+    if (phone.trim() && !validateUSPhone(phone).valid) {
+      setError('Phone number must be 10 digits');
       return;
     }
 
