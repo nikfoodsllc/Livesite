@@ -3,6 +3,7 @@ import { db } from '@/lib/server/db';
 import { jwtHandler } from '@/lib/jwt';
 import { IUser } from '@/types/auth';
 import { ObjectId as MongoObjectId, Filter } from 'mongodb';
+import { validateUSPhone } from '@/utils/validation';
 
 // GET /api/account/profile - Get user profile
 export async function GET(request: NextRequest) {
@@ -106,9 +107,9 @@ export async function PUT(request: NextRequest) {
     }
 
     // Validate phone if provided
-    if (phone && !/^[+]?[\d\s()-]{7,}$/.test(phone)) {
+    if (phone && !validateUSPhone(phone).valid) {
       return NextResponse.json(
-        { error: 'Invalid phone number format' },
+        { error: 'Phone number must be 10 digits' },
         { status: 400 }
       );
     }
