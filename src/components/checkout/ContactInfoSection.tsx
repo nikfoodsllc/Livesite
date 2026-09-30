@@ -169,12 +169,13 @@ const ContactInfoSection = forwardRef<ContactInfoSectionRef, ContactInfoSectionP
         <TextField
           fullWidth
           type="tel"
-          label="Phone Number (Optional)"
+          label="Phone Number"
           placeholder="Enter your phone number"
           value={phone}
           onChange={(e) => handlePhoneChange(e.target.value)}
           error={!!errors.phone}
           helperText={errors.phone}
+          required
           inputRef={phoneRef}
           inputProps={{ maxLength: 10 }}
           sx={{
