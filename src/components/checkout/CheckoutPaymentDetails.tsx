@@ -153,9 +153,6 @@ const CheckoutPaymentDetails = forwardRef<
   }}
   options={{
     layout: { type: 'accordion', defaultCollapsed: false },
-    // Apple Pay first, then Card; any other methods (e.g. Bank) follow. Apple Pay only shows
-    // on devices/domains that support it, so Card stays first everywhere else.
-    paymentMethodOrder: ['apple_pay', 'card'],
     wallets: {
       applePay: 'auto',
       googlePay: 'auto',

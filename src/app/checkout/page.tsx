@@ -53,14 +53,6 @@ const stripeAppearance: StripeElementsOptions['appearance'] = {
   variables: {
     colorPrimary: '#FF9F0D',
   },
-  rules: {
-    // Stripe has no icon-size setting; the payment method rows (label + icons, incl. the
-    // Apple Pay logo) scale with this font size (14px default -> Apple Pay logo 26x17 becomes
-    // 38x24). It does not change the text inside the card form.
-    '.AccordionItem': {
-      fontSize: '20px',
-    },
-  },
 };
 
 /**
