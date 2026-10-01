@@ -22,7 +22,7 @@ const inter = Inter({
 export const metadata = {
   title: "NikFoods - Indian Food Delivery",
   description: "Order delicious Indian food for delivery across United States",
-  icons: "/favicon.ico",
+  icons: "/favicon.ico?v=2",
 };
 
 export default function RootLayout({
