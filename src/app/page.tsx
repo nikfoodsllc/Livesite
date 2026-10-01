@@ -1470,8 +1470,20 @@ export default function Home() {
       {/* globals.css sets `overflow-x: hidden` on html and body, which turns body into its own
           scroll box and stops `position: sticky` from working (used for the day headings below).
           `clip` still prevents sideways scrolling without creating a scroll box. Scoped to this
-          page so other pages are unaffected; browsers without `clip` keep the global `hidden`. */}
-      <GlobalStyles styles={{ 'html, body': { overflowX: 'clip' } }} />
+          page so other pages are unaffected; browsers without `clip` keep the global `hidden`.
+
+          The same global rule also breaks MUI's pop-up scroll lock: MUI sets `overflow: hidden` on
+          <body>, but that never reaches the page's real scroller, so the page kept scrolling
+          behind open pop-ups (item details, login, menu drawer). The second rule mirrors the lock
+          onto <html> while any pop-up is open (MUI marks open ones with .MuiModal-root). It is
+          matched by class, not by body's inline style, because Safari does not re-check
+          attribute selectors on the style attribute. */}
+      <GlobalStyles
+        styles={{
+          'html, body': { overflowX: 'clip' },
+          'html:has(.MuiModal-root:not(.MuiModal-hidden))': { overflow: 'hidden' },
+        }}
+      />
 
       {/* Main Content */}
       <Box component="main" sx={{ flex: 1 }}>
