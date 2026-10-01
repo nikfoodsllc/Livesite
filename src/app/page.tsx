@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { Box, Container, Typography, IconButton, CircularProgress, Skeleton, Tabs, Tab } from '@mui/material';
+import { Box, Container, Typography, IconButton, CircularProgress, Skeleton, Tabs, Tab, GlobalStyles } from '@mui/material';
 import { IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
 import Footer from '@/components/layout/Footer';
 import DeliveryLocationBar from '@/components/layout/DeliveryLocationBar';
@@ -1264,20 +1264,31 @@ export default function Home() {
       return (
         <Box key={date} sx={{ mb: 6 }}>
 
-          {/* DATE HEADING */}
-          <Typography
-            variant="h5"
+          {/* DATE HEADING: sticks just below the fixed site header (64px mobile / 72px desktop)
+              while this day's items scroll, so customers always see which day they are for */}
+          <Box
             sx={{
-              fontWeight: 700,
-              mb: 3,
-              color: colors.primaryDark,
-              borderBottom: `2px solid ${colors.primary}`,
-              pb: 1,
-              display: 'inline-block',
+              position: 'sticky',
+              top: { xs: 64, md: 72 },
+              zIndex: 10,
+              bgcolor: colors.background,
+              pt: 1,
+              mb: 2,
             }}
           >
-            {displayDate}
-          </Typography>
+            <Typography
+              variant="h5"
+              sx={{
+                fontWeight: 700,
+                color: colors.primaryDark,
+                borderBottom: `2px solid ${colors.primary}`,
+                pb: 1,
+                display: 'inline-block',
+              }}
+            >
+              {displayDate}
+            </Typography>
+          </Box>
 
           {/* PARENT CATEGORY ITEMS (exclude items shown under a sub-category) */}
           {parentDg && (() => {
@@ -1456,6 +1467,12 @@ export default function Home() {
 
   return (
     <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      {/* globals.css sets `overflow-x: hidden` on html and body, which turns body into its own
+          scroll box and stops `position: sticky` from working (used for the day headings below).
+          `clip` still prevents sideways scrolling without creating a scroll box. Scoped to this
+          page so other pages are unaffected; browsers without `clip` keep the global `hidden`. */}
+      <GlobalStyles styles={{ 'html, body': { overflowX: 'clip' } }} />
+
       {/* Main Content */}
       <Box component="main" sx={{ flex: 1 }}>
 
