@@ -1,26 +1,25 @@
 import type { HomeMenuPayload } from '@/lib/server/menu/buildHomeMenu';
-import { createHomeMenuCache, DEFAULT_TTL_MS } from '@/lib/server/menu/createHomeMenuCache';
-import { readHomeMenuVersion } from '@/lib/server/menu/menuVersion';
 
-const cache = createHomeMenuCache<HomeMenuPayload>({ readVersion: readHomeMenuVersion });
+const CACHE_TTL_MS = 5 * 60 * 1000;
 
-/** The cached home menu if it is still current (time limit and menu version), otherwise null. */
-export function getCachedHomeMenu(): Promise<HomeMenuPayload | null> {
-  return cache.get();
+let cache: { data: HomeMenuPayload; expiresAt: number } | null = null;
+
+export function getCachedHomeMenu(): HomeMenuPayload | null {
+  if (cache && Date.now() < cache.expiresAt) {
+    return cache.data;
+  }
+  return null;
 }
 
-/** Store a freshly built menu. Pass the version read BEFORE building it. */
-export function setCachedHomeMenu(data: HomeMenuPayload, versionReadBeforeBuild: number | null): void {
-  cache.set(data, versionReadBeforeBuild);
+export function setCachedHomeMenu(data: HomeMenuPayload): void {
+  cache = { data, expiresAt: Date.now() + CACHE_TTL_MS };
 }
 
 export function invalidateHomeMenuCache(): void {
-  cache.invalidate();
+  cache = null;
 }
 
-export { readHomeMenuVersion };
-
-/** Server keeps in-memory cache; browsers always revalidate so admin changes are visible immediately. */
+/** Server keeps in-memory cache; browsers always revalidate so admin invalidation is visible immediately. */
 export const HOME_MENU_CACHE_CONTROL = 'private, no-cache';
 
-export const HOME_MENU_CACHE_TTL_SECONDS = DEFAULT_TTL_MS / 1000;
+export const HOME_MENU_CACHE_TTL_SECONDS = CACHE_TTL_MS / 1000;
