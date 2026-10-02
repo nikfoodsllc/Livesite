@@ -196,7 +196,8 @@ async function generateEmailStatusReport(orders: Order[]): Promise<EmailStatusRe
 
   // Process each order
   orders.forEach((order: Order) => {
-    const paymentMethod = order.paymentMethod;
+    // Only two buckets exist here: cash, and everything paid online (card, Apple Pay, Google Pay, bank...)
+    const paymentMethod = order.paymentMethod === 'Cash on Delivery' ? 'Cash on Delivery' : 'Credit Card';
     const emailStatus = order.emailStatus || { status: 'pending' as EmailStatus, attempts: 0 };
     const createdDate = order.createdAt ? getPSTDateString(new Date(order.createdAt)) : 'unknown';
 
