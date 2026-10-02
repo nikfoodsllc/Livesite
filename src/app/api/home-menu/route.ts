@@ -2,6 +2,7 @@ import { buildHomeMenu } from '@/lib/server/menu/buildHomeMenu';
 import {
   getCachedHomeMenu,
   setCachedHomeMenu,
+  readHomeMenuVersion,
   HOME_MENU_CACHE_CONTROL,
 } from '@/lib/server/menu/homeMenuCache';
 
@@ -9,11 +10,13 @@ import {
  * GET /api/home-menu
  *
  * Single batched endpoint for the home page: categories, all category food items,
- * and available delivery dates. Response is cached in-memory for 5 minutes.
+ * and available delivery dates. The built menu is cached in memory and rebuilt as soon as the
+ * admin panel bumps the menu version (checked at most every 5 s per instance), or after 5 minutes
+ * at the latest.
  */
 export async function GET() {
   try {
-    const cached = getCachedHomeMenu();
+    const cached = await getCachedHomeMenu();
     if (cached) {
       return Response.json(
         { data: cached, message: 'success', cached: true },
@@ -24,8 +27,10 @@ export async function GET() {
       );
     }
 
+    // Read the version first: a change made while the menu is being built is then caught next time
+    const versionBeforeBuild = await readHomeMenuVersion();
     const data = await buildHomeMenu();
-    setCachedHomeMenu(data);
+    setCachedHomeMenu(data, versionBeforeBuild);
 
     return Response.json(
       { data, message: 'success', cached: false },
