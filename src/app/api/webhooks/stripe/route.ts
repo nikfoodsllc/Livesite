@@ -3,6 +3,7 @@ import { db } from '@/lib/server/db';
 import { Order } from '@/types/order';
 import { sendOrderConfirmationEmail, sendPaymentFailedEmail } from '@/lib/email';
 import Stripe from 'stripe';
+import { paymentMethodLabelFromCharge, resolvePaymentMethodLabel } from '@/lib/server/paymentMethodLabel';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 if (!stripeSecretKey) {
@@ -85,6 +86,10 @@ export async function POST(request: NextRequest) {
 
         const order = orderResult.data;
 
+        // Record the method Stripe actually used (Apple Pay, Google Pay, ...) instead of the
+        // 'Credit Card' placeholder the order was created with
+        const paymentMethodLabel = await resolvePaymentMethodLabel(stripe, paymentIntent);
+
         // Update order status
         const updateResult = await db.updateOne('orders',
           { orderId: order.orderId },
@@ -92,6 +97,7 @@ export async function POST(request: NextRequest) {
             $set: {
               paymentStatus: 'paid',
               status: 'confirmed',
+              ...(paymentMethodLabel ? { paymentMethod: paymentMethodLabel } : {}),
               updatedAt: new Date(),
             },
           }
@@ -153,6 +159,10 @@ export async function POST(request: NextRequest) {
 
         const order = orderResult.data;
 
+        // Record the method Stripe actually used (Apple Pay, Google Pay, ...) instead of the
+        // 'Credit Card' placeholder the order was created with
+        const paymentMethodLabel = paymentMethodLabelFromCharge(charge);
+
         // Update order status
         const updateResult = await db.updateOne('orders',
           { orderId: order.orderId },
@@ -160,6 +170,7 @@ export async function POST(request: NextRequest) {
             $set: {
               paymentStatus: 'paid',
               status: 'confirmed',
+              ...(paymentMethodLabel ? { paymentMethod: paymentMethodLabel } : {}),
               updatedAt: new Date(),
             },
           }
