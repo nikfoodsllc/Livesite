@@ -82,6 +82,16 @@ const CheckoutPaymentDetails = forwardRef<
         clientSecret,
         confirmParams: {
           return_url: returnUrl,
+          // The payment form only shows the fields a method needs (for cards: zip and country), so
+          // name, email and phone never reached Stripe. Attach them so charges show the cardholder
+          // and Stripe's fraud checks have them.
+          payment_method_data: {
+            billing_details: {
+              ...(name ? { name } : {}),
+              ...(email ? { email } : {}),
+              ...(phone ? { phone } : {}),
+            },
+          },
         },
         redirect: 'if_required',
       });
