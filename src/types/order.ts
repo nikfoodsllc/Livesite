@@ -1,4 +1,14 @@
-export type PaymentMethod = 'Credit Card' | 'Cash on Delivery' | 'Apple Pay';
+// Orders are created as 'Credit Card'; the Stripe webhook replaces it with the method actually used
+// (see lib/server/paymentMethodLabel.ts).
+export type PaymentMethod =
+  | 'Credit Card'
+  | 'Cash on Delivery'
+  | 'Apple Pay'
+  | 'Google Pay'
+  | 'Bank'
+  | 'Link'
+  | 'Klarna'
+  | 'Other';
 
 export type OrderStatus =
   | 'pending'
