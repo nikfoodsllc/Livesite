@@ -6,6 +6,7 @@ import Stripe from 'stripe';
 import { paymentMethodLabelFromCharge, resolvePaymentMethodLabel } from '@/lib/server/paymentMethodLabel';
 import { paymentErrorFromIntent } from '@/lib/server/stripePaymentInfo';
 import { refundFromCharge } from '@/lib/server/refundInfo';
+import { annotatePaymentIntent } from '@/lib/server/stripePaymentNote';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 if (!stripeSecretKey) {
@@ -114,6 +115,7 @@ export async function POST(request: NextRequest) {
         }
 
         console.log(`[Webhook] Order ${order.orderId} confirmed and marked as paid`);
+        await annotatePaymentIntent(stripe, paymentIntent.id, order, { kind: 'paid' });
 
         try {
           console.log(`[Webhook] Sending confirmation email for successful payment order: ${order.orderId}`);
@@ -264,6 +266,12 @@ export async function POST(request: NextRequest) {
         }
 
         console.log(`[Webhook] Order ${order.orderId} marked as failed`);
+        await annotatePaymentIntent(stripe, paymentIntent.id, order, {
+          kind: 'failed',
+          code: paymentError.code,
+          declineCode: paymentError.declineCode,
+          attempts: (order.paymentAttempts ?? 0) + 1,
+        });
 
         if (order.paymentFailedEmailStatus?.status === 'sent') {
           console.log(`[Webhook] Payment failed email already sent for order: ${order.orderId}`);
@@ -335,6 +343,10 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'Failed to update order' }, { status: 500 });
         }
         console.log(`[Webhook] Order ${order.orderId} marked as canceled`, { code: paymentError.code });
+        await annotatePaymentIntent(stripe, paymentIntent.id, order, {
+          kind: 'canceled',
+          reason: paymentIntent.cancellation_reason || 'canceled',
+        });
         break;
       }
       case 'payment_intent.requires_action': {
@@ -348,6 +360,11 @@ export async function POST(request: NextRequest) {
         );
         if (!updateResult.success) {
           console.error(`[Webhook] Failed to record requires_action for ${paymentIntent.id}:`, updateResult.error);
+        }
+
+        const pendingOrder = await db.readOne<Order>('orders', { stripePaymentIntentId: paymentIntent.id });
+        if (pendingOrder.success && pendingOrder.data) {
+          await annotatePaymentIntent(stripe, paymentIntent.id, pendingOrder.data, { kind: 'needs_action' });
         }
         break;
       }
