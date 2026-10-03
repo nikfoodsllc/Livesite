@@ -5,6 +5,7 @@ import { sendOrderConfirmationEmail, sendPaymentFailedEmail } from '@/lib/email'
 import Stripe from 'stripe';
 import { paymentMethodLabelFromCharge, resolvePaymentMethodLabel } from '@/lib/server/paymentMethodLabel';
 import { paymentErrorFromIntent } from '@/lib/server/stripePaymentInfo';
+import { refundFromCharge } from '@/lib/server/refundInfo';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 if (!stripeSecretKey) {
@@ -374,14 +375,18 @@ export async function POST(request: NextRequest) {
 
         const order = orderResult.data;
 
-        // Update order status to refunded
+        // Record how much was refunded. Only a refund of the whole charge cancels the order; a
+        // partial refund (e.g. one missing item) leaves it paid and active.
+        const refund = refundFromCharge(charge);
+        const now = new Date();
         const updateResult = await db.updateOne('orders',
           { orderId: order.orderId },
           {
             $set: {
-              paymentStatus: 'refunded',
-              status: 'cancelled',
-              updatedAt: new Date(),
+              refundedAmount: refund.refundedAmount,
+              refundedAt: now,
+              ...(refund.fullyRefunded ? { paymentStatus: 'refunded', status: 'cancelled' } : {}),
+              updatedAt: now,
             },
           }
         );
@@ -394,7 +399,10 @@ export async function POST(request: NextRequest) {
           );
         }
 
-        console.log(`[Webhook] Order ${order.orderId} marked as refunded`);
+        console.log(
+          `[Webhook] Order ${order.orderId} ${refund.fullyRefunded ? 'fully refunded' : 'partially refunded'}`,
+          { refundedAmount: refund.refundedAmount, chargeId: charge.id }
+        );
         break;
       }
 
