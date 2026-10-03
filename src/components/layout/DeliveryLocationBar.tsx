@@ -171,301 +171,190 @@ export default function DeliveryLocationBar({
     }
   };
 
-  const handleApplyZipcode = async () => {
-    const trimmedZipcode = zipcodeInput.trim();
+  const hasSavedAddresses = !!user && addresses.length > 0;
 
-    if (!trimmedZipcode) {
-      setZipcodeError('Please enter a zipcode');
-      return;
-    }
+  // One card for every state: title + helper on the left, the control in the middle, the minimum
+  // order as a small pill. Same wording as before, just laid out consistently.
+  const title = hasSavedAddresses ? 'Delivery address' : 'Delivery location';
+  const helper = hasSavedAddresses
+    ? 'Select your delivery address'
+    : 'To get best delivery experience, provide your zip code';
 
-    if (!validateZipcode(trimmedZipcode)) {
-      setZipcodeError('Invalid zipcode format');
-      return;
-    }
-
-    setIsValidatingZipcode(true);
-    setZipcodeError('');
-
-    try {
-      // First validate zipcode is serviceable
-      const response = await fetch(`/api/zipcode-config?zipcode=${encodeURIComponent(trimmedZipcode)}`);
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || errorData.error || 'This zipcode is not serviceable');
-      }
-
-      const data = await response.json();
-
-      if (data.success && data.data) {
-        // For logged-in users with addresses, first update the selected address if one is selected
-        if (user && addresses.length > 0 && selectedAddressId) {
-          await updateAddress(selectedAddressId);
-        }
-        // Then update the zipcode, preserving the address ID if one is selected
-        await updateZipcode(trimmedZipcode, !!selectedAddressId);
-        // Address and zipcode will be automatically updated by CartContext
-      } else {
-        const errorMessage = data.message || data.error || 'This zipcode is not serviceable';
-        setZipcodeError(errorMessage);
-      }
-    } catch (err) {
-      console.error('Error setting zipcode:', err);
-      const errorMessage = err instanceof Error ? err.message : 'This zipcode is not serviceable';
-      setZipcodeError(errorMessage);
-    } finally {
-      setIsValidatingZipcode(false);
-    }
+  const fieldBorder = {
+    '& .MuiOutlinedInput-notchedOutline': { borderColor: '#F3D9B1' },
+    '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#FF9F0D' },
+    '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#FF9F0D' },
   };
 
-  // Determine dynamic label based on user state
-  const getDynamicLabel = (): string => {
-    if (user && addresses.length > 0) {
-      return 'Select your delivery address';
-    }
-    return 'To get best delivery experience, provide your zip code';
-  };
+  const zipcodeControl = (
+    <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', width: '100%', maxWidth: { md: 360 } }}>
+      <TextField
+        size="small"
+        placeholder="Enter zipcode"
+        value={zipcodeInput}
+        onChange={(e) => {
+          setZipcodeInput(e.target.value);
+          setZipcodeError('');
+        }}
+        onKeyPress={handleKeyPress}
+        error={!!zipcodeError}
+        helperText={zipcodeError}
+        disabled={isValidatingZipcode}
+        sx={{ flex: 1, minWidth: 0, bgcolor: '#fff', borderRadius: 2, ...fieldBorder }}
+        slotProps={{ htmlInput: { inputMode: 'numeric', 'aria-label': 'Delivery zipcode' } }}
+      />
+      <Button
+        variant="contained"
+        onClick={handleZipcodeSubmit}
+        disabled={isValidatingZipcode || !zipcodeInput.trim()}
+        sx={{
+          bgcolor: '#FF9F0D',
+          minWidth: 72,
+          height: 40,
+          borderRadius: 2,
+          boxShadow: 'none',
+          textTransform: 'none',
+          fontWeight: 600,
+          '&:hover': { bgcolor: '#e68f0c', boxShadow: 'none' },
+          '&:disabled': { bgcolor: '#E6E6E6', color: '#9A9A9A' },
+        }}
+      >
+        {isValidatingZipcode ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : 'Set'}
+      </Button>
+    </Box>
+  );
+
+  const addressControl = (
+    <FormControl size="small" fullWidth sx={{ maxWidth: { md: 560 } }}>
+      <Select
+        value={selectedAddressId || ''}
+        onChange={(e) => handleAddressSelect(e.target.value as string)}
+        displayEmpty
+        inputProps={{ 'aria-label': 'Delivery address' }}
+        sx={{ bgcolor: '#fff', borderRadius: 2, ...fieldBorder }}
+        MenuProps={{ slotProps: { paper: { sx: { borderRadius: 2, mt: 0.5 } } } }}
+      >
+        <MenuItem value="" disabled>
+          Select delivery address
+        </MenuItem>
+        {addresses.map((address) => {
+          const addressId = address._id?.toString() || '';
+          return (
+            <MenuItem key={addressId} value={addressId}>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {address.name}
+                </Typography>
+                <Typography variant="caption" sx={{ color: '#666', display: 'block', whiteSpace: 'normal' }}>
+                  {address.street_address}, {address.city} {address.postal_code}
+                </Typography>
+              </Box>
+            </MenuItem>
+          );
+        })}
+      </Select>
+    </FormControl>
+  );
 
   return (
     <Box className={className} sx={{ width: '100%' }}>
       <Box
         sx={{
-          border: '2px dashed #FF9F0D',
-          borderRadius: 1,
-          p: 2,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 1.5,
+          bgcolor: '#FFF8EC',
+          border: '1px solid #F3D9B1',
+          borderRadius: 3,
+          p: { xs: 1.5, sm: 2 },
+          display: 'grid',
+          gridTemplateColumns: { xs: '1fr', sm: '1fr auto', md: 'auto minmax(0, 1fr) auto' },
+          gridTemplateAreas: {
+            xs: '"label" "control" "pill"',
+            sm: '"label pill" "control control"',
+            md: '"label control pill"',
+          },
+          alignItems: 'center',
+          columnGap: { xs: 1.5, md: 3 },
+          rowGap: 1.5,
         }}
       >
-        {/* Dynamic label based on authentication state */}
-        <Typography
-          variant="body2"
-          sx={{
-            fontWeight: 500,
-            color: '#333',
-            fontSize: isMobile ? '0.8rem' : '0.875rem',
-          }}
-        >
-          {getDynamicLabel()}
-        </Typography>
-
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 2,
-            flexWrap: { xs: 'wrap', sm: 'nowrap' },
-          }}
-        >
-        {/* Left side: Address dropdown or zipcode input */}
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 1,
-            flex: 1,
-            minWidth: { xs: '100%', sm: 0 },
-          }}
-        >
-          <IconMapPin size={isMobile ? 18 : 20} color="#FF9F0D" />
-
-          {user ? (
-            // Logged-in user: Address dropdown
-            isLoadingAddresses ? (
-              <CircularProgress size={20} />
-            ) : addresses.length > 0 ? (
-              // Has saved addresses - the dropdown alone sets the delivery address (zipcode, minimum order
-              // value and cart all follow the selected address); no zipcode box or Apply button
-              <Box
-                sx={{
-                  display: 'flex',
-                  gap: 1,
-                  flex: 1,
-                  flexWrap: { xs: 'wrap', sm: 'nowrap' },
-                  flexDirection: { xs: 'column', sm: 'row' },
-                  alignItems: { xs: 'flex-start', sm: 'center' },
-                }}
-              >
-                {/* Address Dropdown */}
-                <FormControl
-                  size="small"
-                  sx={{
-                    minWidth: 200,
-                    maxWidth: 450,
-                    flex: 1,
-                    width: { xs: '100%', sm: 'auto' },
-                  }}
-                >
-                  <Select
-                    value={selectedAddressId || ''}
-                    onChange={(e) => handleAddressSelect(e.target.value as string)}
-                    displayEmpty
-                    sx={{
-                      '& .MuiOutlinedInput-notchedOutline': {
-                        borderColor: '#E0E0E0',
-                      },
-                      '&:hover .MuiOutlinedInput-notchedOutline': {
-                        borderColor: '#FF9F0D',
-                      },
-                      '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                        borderColor: '#FF9F0D',
-                      },
-                    }}
-                  >
-                    <MenuItem value="" disabled>
-                      Select delivery address
-                    </MenuItem>
-                    {addresses.map((address) => {
-                      const addressId = address._id?.toString() || '';
-                      return (
-                        <MenuItem key={addressId} value={addressId}>
-                          <Box>
-                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                              {address.name}
-                            </Typography>
-                            <Typography variant="caption" sx={{ color: '#666' }}>
-                              {address.street_address}, {address.city} {address.postal_code}
-                            </Typography>
-                          </Box>
-                        </MenuItem>
-                      );
-                    })}
-                  </Select>
-                </FormControl>
-              </Box>
-            ) : (
-              // No addresses, show zipcode input only (same as guest users)
-              <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', flex: 1 }}>
-                <TextField
-                  size="small"
-                  placeholder="Enter zipcode"
-                  value={zipcodeInput}
-                  onChange={(e) => {
-                    setZipcodeInput(e.target.value);
-                    setZipcodeError('');
-                  }}
-                  onKeyPress={handleKeyPress}
-                  error={!!zipcodeError}
-                  disabled={isValidatingZipcode}
-                  sx={{
-                    minWidth: 150,
-                    flex: 1,
-                    maxWidth: 200,
-                    '& .MuiOutlinedInput-notchedOutline': {
-                      borderColor: '#E0E0E0',
-                    },
-                    '&:hover .MuiOutlinedInput-notchedOutline': {
-                      borderColor: '#FF9F0D',
-                    },
-                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                      borderColor: '#FF9F0D',
-                    },
-                  }}
-                />
-                <Button
-                  variant="contained"
-                  size="small"
-                  onClick={handleZipcodeSubmit}
-                  disabled={isValidatingZipcode || !zipcodeInput.trim()}
-                  sx={{
-                    bgcolor: '#FF9F0D',
-                    minWidth: 60,
-                    '&:hover': {
-                      bgcolor: '#e68f0c',
-                    },
-                    '&:disabled': {
-                      bgcolor: '#ccc',
-                    },
-                  }}
-                >
-                  {isValidatingZipcode ? (
-                    <CircularProgress size={16} sx={{ color: '#fff' }} />
-                  ) : (
-                    'Set'
-                  )}
-                </Button>
-              </Box>
-            )
-          ) : (
-            // Guest user: Zipcode input only
-            <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', flex: 1 }}>
-              <TextField
-                size="small"
-                placeholder="Enter zipcode"
-                value={zipcodeInput}
-                onChange={(e) => {
-                  setZipcodeInput(e.target.value);
-                  setZipcodeError('');
-                }}
-                onKeyPress={handleKeyPress}
-                error={!!zipcodeError}
-                helperText={zipcodeError}
-                disabled={isValidatingZipcode}
-                sx={{
-                  minWidth: 150,
-                  flex: 1,
-                  maxWidth: 200,
-                  '& .MuiOutlinedInput-notchedOutline': {
-                    borderColor: '#E0E0E0',
-                  },
-                  '&:hover .MuiOutlinedInput-notchedOutline': {
-                    borderColor: '#FF9F0D',
-                  },
-                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                    borderColor: '#FF9F0D',
-                  },
-                }}
-              />
-              <Button
-                variant="contained"
-                size="small"
-                onClick={handleZipcodeSubmit}
-                disabled={isValidatingZipcode || !zipcodeInput.trim()}
-                sx={{
-                  bgcolor: '#FF9F0D',
-                  minWidth: 60,
-                  '&:hover': {
-                    bgcolor: '#e68f0c',
-                  },
-                  '&:disabled': {
-                    bgcolor: '#ccc',
-                  },
-                }}
-              >
-                {isValidatingZipcode ? (
-                  <CircularProgress size={16} sx={{ color: '#fff' }} />
-                ) : (
-                  'Set'
-                )}
-              </Button>
-            </Box>
-          )}
-        </Box>
-
-          {/* Right side: Minimum order value display */}
-          {showMinOrderValue && minOrderValue && minOrderValue > 0 && (
-            <Box
-              sx={{
-                flexShrink: 0,
-                textAlign: { xs: 'left', sm: 'right' },
-              }}
+        {/* Title + helper */}
+        <Box sx={{ gridArea: 'label', display: 'flex', alignItems: 'center', gap: 1.5, minWidth: { md: 250 } }}>
+          <Box
+            aria-hidden
+            sx={{
+              width: 40,
+              height: 40,
+              borderRadius: '50%',
+              bgcolor: '#FF9F0D',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <IconMapPin size={22} color="#fff" />
+          </Box>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1F1F1F', lineHeight: 1.3 }}>
+              {title}
+            </Typography>
+            <Typography
+              variant="caption"
+              sx={{ display: 'block', color: '#666', lineHeight: 1.35, textWrap: 'balance' }}
             >
-              <Typography
-                variant={isMobile ? 'caption' : 'body2'}
-                sx={{
-                  fontWeight: 500,
-                  color: '#666',
-                  fontSize: isMobile ? '0.75rem' : '0.875rem',
-                }}
-              >
-                Min. Daily Order Value ${minOrderValue.toFixed(2)}
-              </Typography>
-            </Box>
+              {helper}
+            </Typography>
+          </Box>
+        </Box>
+
+        {/* Control: address dropdown when the user has saved addresses, zipcode box otherwise */}
+        <Box
+          sx={{
+            gridArea: 'control',
+            minWidth: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: { md: 'center' },
+          }}
+        >
+          {user && isLoadingAddresses ? (
+            <CircularProgress size={20} sx={{ color: '#FF9F0D' }} />
+          ) : hasSavedAddresses ? (
+            addressControl
+          ) : (
+            zipcodeControl
           )}
         </Box>
+
+        {/* Minimum order value (shown even before it is known, so the layout does not jump) */}
+        {showMinOrderValue && (
+          <Box
+            sx={{
+              gridArea: 'pill',
+              justifySelf: { xs: 'start', sm: 'end' },
+              bgcolor: '#fff',
+              border: '1px solid #F3D9B1',
+              borderRadius: 999,
+              px: 1.75,
+              py: 0.5,
+            }}
+          >
+            <Typography
+              component="span"
+              sx={{ fontSize: { xs: '0.75rem', sm: '0.8125rem' }, color: '#666', fontWeight: 500 }}
+            >
+              Min. daily order{' '}
+              {minOrderValue && minOrderValue > 0 ? (
+                <Box component="span" sx={{ color: '#1F1F1F', fontWeight: 700 }}>
+                  ${minOrderValue.toFixed(2)}
+                </Box>
+              ) : (
+                <Box component="span" sx={{ color: '#9A9A9A', fontStyle: 'italic' }}>
+                  {hasSavedAddresses ? 'select an address' : 'waiting for zip'}
+                </Box>
+              )}
+            </Typography>
+          </Box>
+        )}
       </Box>
     </Box>
   );
