@@ -13,6 +13,8 @@ import { IconX, IconMapPin } from '@tabler/icons-react';
 import { Order } from '@/types/order';
 import { formatOrderDate, formatDeliveryDate, formatCurrency } from '@/lib/orderHelpers';
 import StatusBadge from './StatusBadge';
+import RefundNotice from './RefundNotice';
+import { getNetTotal, getRefundedAmount } from '@/lib/orderRefunds';
 
 interface OrderDetailsDialogProps {
   open: boolean;
@@ -260,6 +262,8 @@ export default function OrderDetailsDialog({ open, order, onClose }: OrderDetail
 
         <Divider sx={{ my: 3 }} />
 
+        <RefundNotice order={order} />
+
         {/* Order Summary */}
         <Box>
           <Typography sx={{ fontSize: '16px', fontWeight: 600, color: '#111827', mb: 2 }}>
@@ -321,7 +325,7 @@ export default function OrderDetailsDialog({ open, order, onClose }: OrderDetail
           <Divider sx={{ my: 2 }} />
 
           {/* Total */}
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: getRefundedAmount(order) > 0 ? 1 : 2 }}>
             <Typography sx={{ fontSize: '18px', fontWeight: 700, color: '#111827' }}>
               Total
             </Typography>
@@ -329,6 +333,27 @@ export default function OrderDetailsDialog({ open, order, onClose }: OrderDetail
               {formatCurrency(order.totalPaid, order.currency)}
             </Typography>
           </Box>
+
+          {/* Refund and the new total */}
+          {getRefundedAmount(order) > 0 && (
+            <>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                <Typography sx={{ fontSize: '14px', color: '#0369A1' }}>Refunded</Typography>
+                <Typography sx={{ fontSize: '14px', fontWeight: 600, color: '#0369A1' }}>
+                  -{formatCurrency(getRefundedAmount(order), order.currency)}
+                </Typography>
+              </Box>
+              <Divider sx={{ my: 1.5 }} />
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+                <Typography sx={{ fontSize: '18px', fontWeight: 700, color: '#111827' }}>
+                  Total after refund
+                </Typography>
+                <Typography sx={{ fontSize: '18px', fontWeight: 700, color: '#111827' }}>
+                  {formatCurrency(getNetTotal(order), order.currency)}
+                </Typography>
+              </Box>
+            </>
+          )}
 
           {/* Payment Method */}
           <Typography sx={{ fontSize: '13px', color: '#6B7280' }}>
