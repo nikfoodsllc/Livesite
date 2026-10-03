@@ -49,20 +49,38 @@ export function buildPaymentNote(order: OrderForNote, progress: PaymentProgress)
   }
 }
 
-/** Best effort: a failed update must never stop the webhook from doing its real work. */
+/**
+ * Best effort: a failed update must never stop the webhook from doing its real work.
+ *
+ * When the payment succeeded, pass the charge id too: Stripe copies the PaymentIntent's description
+ * and metadata onto a charge when it is created, so the successful charge would otherwise keep the
+ * "payment failed ..." note from the earlier attempts.
+ */
 export async function annotatePaymentIntent(
   stripe: Stripe,
   paymentIntentId: string,
   order: OrderForNote,
-  progress: PaymentProgress
+  progress: PaymentProgress,
+  chargeId?: string | null
 ): Promise<void> {
+  const note = buildPaymentNote(order, progress);
   try {
-    const note = buildPaymentNote(order, progress);
     await stripe.paymentIntents.update(paymentIntentId, {
       description: note.description,
       metadata: note.metadata,
     });
   } catch (error) {
     console.warn(`[Webhook] Could not write the payment note for ${paymentIntentId}:`, error);
+  }
+
+  if (progress.kind === 'paid' && chargeId) {
+    try {
+      await stripe.charges.update(chargeId, {
+        description: note.description,
+        metadata: note.metadata,
+      });
+    } catch (error) {
+      console.warn(`[Webhook] Could not clear the note on charge ${chargeId}:`, error);
+    }
   }
 }
