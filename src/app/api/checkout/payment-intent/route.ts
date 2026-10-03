@@ -3,6 +3,10 @@ import { jwtHandler } from '@/lib/jwt';
 import { Cart } from '@/types/cart';
 import { calculateTipAmount } from '@/lib/orderHelpers';
 import Stripe from 'stripe';
+import { ObjectId, type Filter } from 'mongodb';
+import { db } from '@/lib/server/db';
+import type { IUser } from '@/types/auth';
+import { buildDraftPaymentMetadata, siteFromHeaders } from '@/lib/server/stripePaymentInfo';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 if (!stripeSecretKey) {
@@ -33,6 +37,19 @@ function calculateCheckoutTotal(cart: Cart, tipPercentage: number): number {
       discount
     ).toFixed(2)
   );
+}
+
+/** Email/phone of the signed-in customer, so a draft payment can be traced to a person in Stripe. */
+async function lookupCustomer(userId: string): Promise<{ email?: string; phone?: string }> {
+  try {
+    const result = await db.readOne<IUser>('users', {
+      _id: new ObjectId(userId),
+    } as unknown as Filter<IUser>);
+    return { email: result.data?.email, phone: result.data?.phone };
+  } catch (error) {
+    console.warn('[payment-intent] Could not look up the customer for Stripe metadata:', error);
+    return {};
+  }
 }
 
 /**
@@ -89,11 +106,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Invalid order total' }, { status: 400 });
     }
 
+    const customer = await lookupCustomer(userId);
+    const metadata = buildDraftPaymentMetadata({
+      userId,
+      customerEmail: customer.email,
+      customerPhone: customer.phone,
+      cart,
+      totalPaid,
+      site: siteFromHeaders(request.headers),
+    });
+
     if (paymentIntentId) {
       try {
         const updated = await stripe.paymentIntents.update(paymentIntentId, {
           amount: amountCents,
           currency: currency || 'usd',
+          metadata,
         });
 
         return NextResponse.json({
@@ -105,7 +133,11 @@ export async function POST(request: NextRequest) {
           },
         });
       } catch (updateError) {
-        console.warn('Failed to update PaymentIntent, creating a new one:', updateError);
+        console.warn('Failed to update PaymentIntent, creating a new one:', {
+          paymentIntentId,
+          userId,
+          error: updateError instanceof Error ? updateError.message : updateError,
+        });
       }
     }
 
@@ -113,11 +145,8 @@ export async function POST(request: NextRequest) {
       amount: amountCents,
       currency: currency || 'usd',
       payment_method_types: ['card'],
-      metadata: {
-        userId,
-        checkoutDraft: 'true',
-      },
-      description: 'NikFoods checkout',
+      metadata,
+      description: customer.email ? `NikFoods checkout (${customer.email})` : 'NikFoods checkout',
     });
 
     return NextResponse.json({
@@ -129,7 +158,12 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Payment intent error:', error);
+    console.error('Payment intent error:', {
+      message: error instanceof Error ? error.message : String(error),
+      stripeCode: (error as { code?: string })?.code,
+      stripeType: (error as { type?: string })?.type,
+      requestId: (error as { requestId?: string })?.requestId,
+    });
     return NextResponse.json(
       {
         success: false,

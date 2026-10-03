@@ -4,6 +4,9 @@ import { Order } from '@/types/order';
 import { sendOrderConfirmationEmail, sendPaymentFailedEmail } from '@/lib/email';
 import Stripe from 'stripe';
 import { paymentMethodLabelFromCharge, resolvePaymentMethodLabel } from '@/lib/server/paymentMethodLabel';
+import { paymentErrorFromIntent } from '@/lib/server/stripePaymentInfo';
+import { refundFromCharge } from '@/lib/server/refundInfo';
+import { annotatePaymentIntent } from '@/lib/server/stripePaymentNote';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 if (!stripeSecretKey) {
@@ -112,6 +115,13 @@ export async function POST(request: NextRequest) {
         }
 
         console.log(`[Webhook] Order ${order.orderId} confirmed and marked as paid`);
+        await annotatePaymentIntent(
+          stripe,
+          paymentIntent.id,
+          order,
+          { kind: 'paid' },
+          typeof paymentIntent.latest_charge === 'string' ? paymentIntent.latest_charge : paymentIntent.latest_charge?.id
+        );
 
         try {
           console.log(`[Webhook] Sending confirmation email for successful payment order: ${order.orderId}`);
@@ -229,6 +239,16 @@ export async function POST(request: NextRequest) {
 
         const order = orderResult.data;
 
+        // Keep Stripe's reason (error code, decline code, message) on the order, not just in the email
+        const paymentError = paymentErrorFromIntent(paymentIntent, 'payment_failed');
+        console.warn(`[Webhook] Payment failed for order ${order.orderId}`, {
+          paymentIntentId: paymentIntent.id,
+          code: paymentError.code,
+          declineCode: paymentError.declineCode,
+          type: paymentError.type,
+          paymentMethodType: paymentError.paymentMethodType,
+        });
+
         // Update order status to failed
         const updateResult = await db.updateOne('orders',
           { orderId: order.orderId },
@@ -236,8 +256,10 @@ export async function POST(request: NextRequest) {
             $set: {
               paymentStatus: 'failed',
               status: 'cancelled',
+              paymentError,
               updatedAt: new Date(),
             },
+            $inc: { paymentAttempts: 1 },
           }
         );
 
@@ -250,6 +272,12 @@ export async function POST(request: NextRequest) {
         }
 
         console.log(`[Webhook] Order ${order.orderId} marked as failed`);
+        await annotatePaymentIntent(stripe, paymentIntent.id, order, {
+          kind: 'failed',
+          code: paymentError.code,
+          declineCode: paymentError.declineCode,
+          attempts: (order.paymentAttempts ?? 0) + 1,
+        });
 
         if (order.paymentFailedEmailStatus?.status === 'sent') {
           console.log(`[Webhook] Payment failed email already sent for order: ${order.orderId}`);
@@ -283,6 +311,69 @@ export async function POST(request: NextRequest) {
         break;
       }
 
+      case 'payment_intent.canceled': {
+        const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        console.log(`[Webhook] PaymentIntent canceled: ${paymentIntent.id}`);
+
+        const orderResult = await db.readOne<Order>('orders', {
+          stripePaymentIntentId: paymentIntent.id,
+        });
+
+        // Nothing to update when there is no order (e.g. we canceled it ourselves because the order
+        // could not be saved): acknowledge instead of 404 so Stripe does not keep retrying.
+        if (!orderResult.success || !orderResult.data) {
+          console.log(`[Webhook] No order for canceled PaymentIntent ${paymentIntent.id}; nothing to update`);
+          break;
+        }
+
+        const order = orderResult.data;
+        if (order.paymentStatus === 'paid') {
+          console.warn(`[Webhook] Ignoring cancel for already paid order ${order.orderId}`);
+          break;
+        }
+
+        const paymentError = paymentErrorFromIntent(paymentIntent, 'canceled');
+        const updateResult = await db.updateOne('orders',
+          { orderId: order.orderId },
+          {
+            $set: {
+              paymentStatus: 'failed',
+              status: 'cancelled',
+              paymentError,
+              updatedAt: new Date(),
+            },
+          }
+        );
+        if (!updateResult.success) {
+          console.error(`[Webhook] Failed to update canceled order ${order.orderId}:`, updateResult.error);
+          return NextResponse.json({ error: 'Failed to update order' }, { status: 500 });
+        }
+        console.log(`[Webhook] Order ${order.orderId} marked as canceled`, { code: paymentError.code });
+        await annotatePaymentIntent(stripe, paymentIntent.id, order, {
+          kind: 'canceled',
+          reason: paymentIntent.cancellation_reason || 'canceled',
+        });
+        break;
+      }
+      case 'payment_intent.requires_action': {
+        const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        console.log(`[Webhook] PaymentIntent needs customer action (e.g. 3D Secure): ${paymentIntent.id}`);
+
+        // Record when the customer was sent to authenticate, so payments stuck there can be spotted
+        const updateResult = await db.updateOne('orders',
+          { stripePaymentIntentId: paymentIntent.id, paymentStatus: 'unpaid' },
+          { $set: { paymentActionRequiredAt: new Date(), updatedAt: new Date() } }
+        );
+        if (!updateResult.success) {
+          console.error(`[Webhook] Failed to record requires_action for ${paymentIntent.id}:`, updateResult.error);
+        }
+
+        const pendingOrder = await db.readOne<Order>('orders', { stripePaymentIntentId: paymentIntent.id });
+        if (pendingOrder.success && pendingOrder.data) {
+          await annotatePaymentIntent(stripe, paymentIntent.id, pendingOrder.data, { kind: 'needs_action' });
+        }
+        break;
+      }
       case 'charge.refunded': {
         const charge = event.data.object as Stripe.Charge;
         console.log(`[Webhook] Charge refunded: ${charge.id}`);
@@ -307,14 +398,18 @@ export async function POST(request: NextRequest) {
 
         const order = orderResult.data;
 
-        // Update order status to refunded
+        // Record how much was refunded. Only a refund of the whole charge cancels the order; a
+        // partial refund (e.g. one missing item) leaves it paid and active.
+        const refund = refundFromCharge(charge);
+        const now = new Date();
         const updateResult = await db.updateOne('orders',
           { orderId: order.orderId },
           {
             $set: {
-              paymentStatus: 'refunded',
-              status: 'cancelled',
-              updatedAt: new Date(),
+              refundedAmount: refund.refundedAmount,
+              refundedAt: now,
+              ...(refund.fullyRefunded ? { paymentStatus: 'refunded', status: 'cancelled' } : {}),
+              updatedAt: now,
             },
           }
         );
@@ -327,7 +422,10 @@ export async function POST(request: NextRequest) {
           );
         }
 
-        console.log(`[Webhook] Order ${order.orderId} marked as refunded`);
+        console.log(
+          `[Webhook] Order ${order.orderId} ${refund.fullyRefunded ? 'fully refunded' : 'partially refunded'}`,
+          { refundedAmount: refund.refundedAmount, chargeId: charge.id }
+        );
         break;
       }
 
