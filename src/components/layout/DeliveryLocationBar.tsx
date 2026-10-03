@@ -307,7 +307,15 @@ export default function DeliveryLocationBar({
         </Box>
 
         {/* Control: address dropdown when the user has saved addresses, zipcode box otherwise */}
-        <Box sx={{ gridArea: 'control', minWidth: 0, display: 'flex', alignItems: 'center' }}>
+        <Box
+          sx={{
+            gridArea: 'control',
+            minWidth: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: { md: 'center' },
+          }}
+        >
           {user && isLoadingAddresses ? (
             <CircularProgress size={20} sx={{ color: '#FF9F0D' }} />
           ) : hasSavedAddresses ? (
@@ -317,8 +325,8 @@ export default function DeliveryLocationBar({
           )}
         </Box>
 
-        {/* Minimum order value */}
-        {showMinOrderValue && minOrderValue && minOrderValue > 0 && (
+        {/* Minimum order value (shown even before it is known, so the layout does not jump) */}
+        {showMinOrderValue && (
           <Box
             sx={{
               gridArea: 'pill',
@@ -335,9 +343,15 @@ export default function DeliveryLocationBar({
               sx={{ fontSize: { xs: '0.75rem', sm: '0.8125rem' }, color: '#666', fontWeight: 500 }}
             >
               Min. daily order{' '}
-              <Box component="span" sx={{ color: '#1F1F1F', fontWeight: 700 }}>
-                ${minOrderValue.toFixed(2)}
-              </Box>
+              {minOrderValue && minOrderValue > 0 ? (
+                <Box component="span" sx={{ color: '#1F1F1F', fontWeight: 700 }}>
+                  ${minOrderValue.toFixed(2)}
+                </Box>
+              ) : (
+                <Box component="span" sx={{ color: '#9A9A9A', fontStyle: 'italic' }}>
+                  {hasSavedAddresses ? 'select an address' : 'waiting for zip'}
+                </Box>
+              )}
             </Typography>
           </Box>
         )}
