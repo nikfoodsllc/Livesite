@@ -4,6 +4,7 @@ import { Order } from '@/types/order';
 import { sendOrderConfirmationEmail, sendPaymentFailedEmail } from '@/lib/email';
 import Stripe from 'stripe';
 import { paymentMethodLabelFromCharge, resolvePaymentMethodLabel } from '@/lib/server/paymentMethodLabel';
+import { paymentErrorFromIntent } from '@/lib/server/stripePaymentInfo';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 if (!stripeSecretKey) {
@@ -229,6 +230,16 @@ export async function POST(request: NextRequest) {
 
         const order = orderResult.data;
 
+        // Keep Stripe's reason (error code, decline code, message) on the order, not just in the email
+        const paymentError = paymentErrorFromIntent(paymentIntent, 'payment_failed');
+        console.warn(`[Webhook] Payment failed for order ${order.orderId}`, {
+          paymentIntentId: paymentIntent.id,
+          code: paymentError.code,
+          declineCode: paymentError.declineCode,
+          type: paymentError.type,
+          paymentMethodType: paymentError.paymentMethodType,
+        });
+
         // Update order status to failed
         const updateResult = await db.updateOne('orders',
           { orderId: order.orderId },
@@ -236,8 +247,10 @@ export async function POST(request: NextRequest) {
             $set: {
               paymentStatus: 'failed',
               status: 'cancelled',
+              paymentError,
               updatedAt: new Date(),
             },
+            $inc: { paymentAttempts: 1 },
           }
         );
 
@@ -283,6 +296,60 @@ export async function POST(request: NextRequest) {
         break;
       }
 
+      case 'payment_intent.canceled': {
+        const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        console.log(`[Webhook] PaymentIntent canceled: ${paymentIntent.id}`);
+
+        const orderResult = await db.readOne<Order>('orders', {
+          stripePaymentIntentId: paymentIntent.id,
+        });
+
+        // Nothing to update when there is no order (e.g. we canceled it ourselves because the order
+        // could not be saved): acknowledge instead of 404 so Stripe does not keep retrying.
+        if (!orderResult.success || !orderResult.data) {
+          console.log(`[Webhook] No order for canceled PaymentIntent ${paymentIntent.id}; nothing to update`);
+          break;
+        }
+
+        const order = orderResult.data;
+        if (order.paymentStatus === 'paid') {
+          console.warn(`[Webhook] Ignoring cancel for already paid order ${order.orderId}`);
+          break;
+        }
+
+        const paymentError = paymentErrorFromIntent(paymentIntent, 'canceled');
+        const updateResult = await db.updateOne('orders',
+          { orderId: order.orderId },
+          {
+            $set: {
+              paymentStatus: 'failed',
+              status: 'cancelled',
+              paymentError,
+              updatedAt: new Date(),
+            },
+          }
+        );
+        if (!updateResult.success) {
+          console.error(`[Webhook] Failed to update canceled order ${order.orderId}:`, updateResult.error);
+          return NextResponse.json({ error: 'Failed to update order' }, { status: 500 });
+        }
+        console.log(`[Webhook] Order ${order.orderId} marked as canceled`, { code: paymentError.code });
+        break;
+      }
+      case 'payment_intent.requires_action': {
+        const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        console.log(`[Webhook] PaymentIntent needs customer action (e.g. 3D Secure): ${paymentIntent.id}`);
+
+        // Record when the customer was sent to authenticate, so payments stuck there can be spotted
+        const updateResult = await db.updateOne('orders',
+          { stripePaymentIntentId: paymentIntent.id, paymentStatus: 'unpaid' },
+          { $set: { paymentActionRequiredAt: new Date(), updatedAt: new Date() } }
+        );
+        if (!updateResult.success) {
+          console.error(`[Webhook] Failed to record requires_action for ${paymentIntent.id}:`, updateResult.error);
+        }
+        break;
+      }
       case 'charge.refunded': {
         const charge = event.data.object as Stripe.Charge;
         console.log(`[Webhook] Charge refunded: ${charge.id}`);
