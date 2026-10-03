@@ -277,7 +277,8 @@ export default function DeliveryLocationBar({
             isLoadingAddresses ? (
               <CircularProgress size={20} />
             ) : addresses.length > 0 ? (
-              // Has saved addresses - show dropdown + zipcode input + Apply button in horizontal row
+              // Has saved addresses - the dropdown alone sets the delivery address (zipcode, minimum order
+              // value and cart all follow the selected address); no zipcode box or Apply button
               <Box
                 sx={{
                   display: 'flex',
@@ -334,59 +335,6 @@ export default function DeliveryLocationBar({
                     })}
                   </Select>
                 </FormControl>
-
-                {/* Zipcode Input Field */}
-                <TextField
-                  size="small"
-                  placeholder="Enter zipcode"
-                  value={zipcodeInput}
-                  onChange={(e) => {
-                    setZipcodeInput(e.target.value);
-                    setZipcodeError('');
-                  }}
-                  onKeyPress={handleKeyPress}
-                  error={!!zipcodeError}
-                  helperText={zipcodeError}
-                  disabled={isValidatingZipcode}
-                  sx={{
-                    minWidth: 150,
-                    maxWidth: 200,
-                    width: { xs: '100%', sm: 'auto' },
-                    '& .MuiOutlinedInput-notchedOutline': {
-                      borderColor: '#E0E0E0',
-                    },
-                    '&:hover .MuiOutlinedInput-notchedOutline': {
-                      borderColor: '#FF9F0D',
-                    },
-                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                      borderColor: '#FF9F0D',
-                    },
-                  }}
-                />
-
-                {/* Apply Button */}
-                <Button
-                  variant="contained"
-                  size="small"
-                  onClick={handleApplyZipcode}
-                  disabled={isValidatingZipcode || !zipcodeInput.trim()}
-                  sx={{
-                    bgcolor: '#FF9F0D',
-                    minWidth: 60,
-                    '&:hover': {
-                      bgcolor: '#e68f0c',
-                    },
-                    '&:disabled': {
-                      bgcolor: '#ccc',
-                    },
-                  }}
-                >
-                  {isValidatingZipcode ? (
-                    <CircularProgress size={16} sx={{ color: '#fff' }} />
-                  ) : (
-                    'Apply'
-                  )}
-                </Button>
               </Box>
             ) : (
               // No addresses, show zipcode input only (same as guest users)
