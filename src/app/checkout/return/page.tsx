@@ -4,6 +4,7 @@ import React, { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Box, CircularProgress, Typography } from '@mui/material';
 import { loadStripe } from '@stripe/stripe-js';
+import { decideReturnDestination, lookupOrderIdForPayment } from '@/lib/checkout/returnDestination';
 
 function CheckoutReturnInner() {
   const router = useRouter();
@@ -45,28 +46,36 @@ function CheckoutReturnInner() {
         return;
       }
 
-      const orderId = (
-        paymentIntent as { metadata?: { orderId?: string } } | null
-      )?.metadata?.orderId;
+      // Stripe does not give payment metadata to the browser, so the order number comes from our server
+      const orderId = paymentIntent?.id ? await lookupOrderIdForPayment(paymentIntent.id) : undefined;
 
-      if (paymentIntent?.status === 'succeeded' && orderId) {
-        router.replace(`/checkout/success?orderId=${encodeURIComponent(orderId)}`);
-        return;
+      const destination = decideReturnDestination({
+        status: paymentIntent?.status,
+        orderId,
+        lastErrorMessage: paymentIntent?.last_payment_error?.message,
+      });
+
+      switch (destination.kind) {
+        case 'success':
+          router.replace(`/checkout/success?orderId=${encodeURIComponent(destination.orderId)}`);
+          return;
+        case 'processing':
+          setMessage('Payment is processing. You will receive an email when it completes.');
+          setTimeout(() => {
+            router.replace(
+              destination.orderId
+                ? `/checkout/success?orderId=${encodeURIComponent(destination.orderId)}`
+                : '/account/orders'
+            );
+          }, 4000);
+          return;
+        case 'orders':
+          // Paid, but we could not tell which order (e.g. signed out): never show this as a failure
+          router.replace('/account/orders');
+          return;
+        default:
+          router.replace(`/checkout/failure?error=${encodeURIComponent(destination.error)}`);
       }
-
-      if (paymentIntent?.status === 'processing') {
-        setMessage('Payment is processing. You will receive an email when it completes.');
-        setTimeout(() => {
-          router.replace(orderId ? `/checkout/success?orderId=${encodeURIComponent(orderId)}` : '/checkout');
-        }, 4000);
-        return;
-      }
-
-      router.replace(
-        `/checkout/failure?error=${encodeURIComponent(
-          paymentIntent?.last_payment_error?.message ?? 'Payment was not completed'
-        )}`
-      );
     };
 
     void run();
