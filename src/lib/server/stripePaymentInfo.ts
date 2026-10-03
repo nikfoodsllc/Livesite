@@ -24,12 +24,15 @@ function compact(values: Record<string, string | number | undefined | null>): Me
 
 const money = (n: number | undefined) => (typeof n === 'number' ? n.toFixed(2) : undefined);
 
-/** Which deployment made the payment, so dev/preview/prod payments can be told apart in Stripe. */
-export function environmentMetadata(env: NodeJS.ProcessEnv = process.env): Metadata {
-  return compact({
-    env: env.VERCEL_ENV || env.NODE_ENV,
-    appCommit: (env.VERCEL_GIT_COMMIT_SHA || '').slice(0, 7),
-  });
+/**
+ * The address the customer used (e.g. www.nikfoods.com or livesite-dev.vercel.app), so payments from
+ * dev, preview and production can be told apart in Stripe. VERCEL_ENV can't do this: the dev project
+ * treats its `staging` branch as its production branch, so it reports "production" too.
+ */
+export function siteFromHeaders(headers: { get(name: string): string | null }): string | undefined {
+  const raw = headers.get('x-forwarded-host') || headers.get('host') || '';
+  const host = raw.split(',')[0].trim().toLowerCase().slice(0, 100);
+  return host || undefined;
 }
 
 /** Metadata for the draft PaymentIntent created when the checkout page loads (no order yet). */
@@ -39,9 +42,9 @@ export function buildDraftPaymentMetadata(input: {
   customerPhone?: string;
   cart: Cart;
   totalPaid: number;
-  env?: NodeJS.ProcessEnv;
+  site?: string;
 }): Metadata {
-  const { userId, customerEmail, customerPhone, cart, totalPaid, env } = input;
+  const { userId, customerEmail, customerPhone, cart, totalPaid, site } = input;
   const dates = Array.from(new Set(cart.days.map((day) => day.date))).sort();
   const itemCount = cart.days.reduce(
     (sum, day) => sum + day.items.reduce((s, item) => s + item.quantity, 0),
@@ -56,14 +59,14 @@ export function buildDraftPaymentMetadata(input: {
     deliveryDates: dates.join(','),
     itemCount,
     cartTotal: money(totalPaid),
-    ...environmentMetadata(env),
+    site,
   });
 }
 
 /** Metadata attached once the order exists (replaces the draft marker with the order details). */
 export function buildOrderPaymentMetadata(
   order: Omit<Order, '_id'>,
-  env?: NodeJS.ProcessEnv
+  site?: string
 ): Metadata {
   const dates = Array.from(
     new Set(
@@ -93,7 +96,7 @@ export function buildOrderPaymentMetadata(
     discount: order.discount ? money(order.discount.amount) : undefined,
     discountCode: order.discount?.code,
     total: money(order.totalPaid),
-    ...environmentMetadata(env),
+    site,
   });
   // An empty value tells Stripe to remove the draft marker set when the checkout page loaded
   return { ...metadata, checkoutDraft: '' };

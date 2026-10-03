@@ -6,7 +6,7 @@ import Stripe from 'stripe';
 import { ObjectId, type Filter } from 'mongodb';
 import { db } from '@/lib/server/db';
 import type { IUser } from '@/types/auth';
-import { buildDraftPaymentMetadata } from '@/lib/server/stripePaymentInfo';
+import { buildDraftPaymentMetadata, siteFromHeaders } from '@/lib/server/stripePaymentInfo';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 if (!stripeSecretKey) {
@@ -113,6 +113,7 @@ export async function POST(request: NextRequest) {
       customerPhone: customer.phone,
       cart,
       totalPaid,
+      site: siteFromHeaders(request.headers),
     });
 
     if (paymentIntentId) {
