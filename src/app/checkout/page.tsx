@@ -35,6 +35,7 @@ import { ZipcodeConfig } from '@/types/zipcode';
 import * as localCart from '@/lib/localStorageCart';
 import { calculateDeliveryDates, type DayDeliveryInfo } from '@/lib/deliveryCalculator';
 import { DEFAULT_MIN_CART_VALUE } from '@/lib/cartLogic';
+import { reportPaymentError } from '@/lib/checkout/reportPaymentError';
 
 /**
  * Interface for error summary items
@@ -860,6 +861,11 @@ useEffect(() => {
 
       if (!response.ok || !data.success) {
         setError(data.error || 'Failed to load payment options');
+        reportPaymentError({
+          stage: 'create_payment_intent',
+          message: data.error || `Failed to load payment options (HTTP ${response.status})`,
+          paymentIntentId: paymentIntentId,
+        });
         return false;
       }
 
@@ -876,6 +882,11 @@ useEffect(() => {
     } catch (err) {
       console.error('Payment intent error:', err);
       setError(err instanceof Error ? err.message : 'Failed to load payment options.');
+      reportPaymentError({
+        stage: 'create_payment_intent',
+        message: err instanceof Error ? err.message : 'Failed to load payment options.',
+        paymentIntentId: paymentIntentId,
+      });
       return false;
     } finally {
       setIsInitializingPayment(false);
@@ -916,6 +927,11 @@ useEffect(() => {
 
       if (!response.ok || !data.success) {
         const errorMessage = data.error || 'Failed to create order';
+        reportPaymentError({
+          stage: 'create_order',
+          message: errorMessage,
+          paymentIntentId: paymentIntentId,
+        });
         router.push(`/checkout/failure?error=${encodeURIComponent(errorMessage)}`);
         return null;
       }
@@ -935,6 +951,11 @@ useEffect(() => {
     } catch (err) {
       console.error('Order creation error:', err);
       setError(err instanceof Error ? err.message : 'Failed to create order. Please try again.');
+      reportPaymentError({
+        stage: 'create_order',
+        message: err instanceof Error ? err.message : 'Failed to create order. Please try again.',
+        paymentIntentId: paymentIntentId,
+      });
       return null;
     } finally {
       setIsInitializingPayment(false);

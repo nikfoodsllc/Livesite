@@ -4,6 +4,7 @@ import React, { forwardRef, useImperativeHandle, useState } from 'react';
 import { Box, Typography, Paper, Alert, CircularProgress } from '@mui/material';
 import { PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
 import { IconLock } from '@tabler/icons-react';
+import { reportPaymentError, paymentIntentIdFromClientSecret } from '@/lib/checkout/reportPaymentError';
 
 export interface CheckoutPaymentDetailsHandle {
   confirmPayment: (orderIdOverride?: string) => Promise<boolean>;
@@ -58,6 +59,14 @@ const CheckoutPaymentDetails = forwardRef<
     try {
       const { error: submitError } = await elements.submit();
       if (submitError) {
+        reportPaymentError({
+          stage: 'submit_form',
+          message: submitError.message ?? 'Please check your payment details.',
+          code: submitError.code,
+          type: submitError.type,
+          orderId: resolvedOrderId,
+          paymentIntentId: paymentIntentIdFromClientSecret(clientSecret),
+        });
         setLocalError(submitError.message ?? 'Please check your payment details.');
         onSubmittingChange(false);
         return false;
@@ -79,6 +88,15 @@ const CheckoutPaymentDetails = forwardRef<
 
       if (error) {
         const msg = error.message ?? 'Payment failed';
+        reportPaymentError({
+          stage: 'confirm_payment',
+          message: msg,
+          code: error.code,
+          declineCode: error.decline_code,
+          type: error.type,
+          orderId: resolvedOrderId,
+          paymentIntentId: error.payment_intent?.id ?? paymentIntentIdFromClientSecret(clientSecret),
+        });
         setLocalError(msg);
         onPaymentError(msg);
         onSubmittingChange(false);
@@ -95,11 +113,23 @@ const CheckoutPaymentDetails = forwardRef<
         return true;
       }
 
+      reportPaymentError({
+        stage: 'confirm_incomplete',
+        message: `Payment did not complete (status: ${paymentIntent?.status ?? 'unknown'})`,
+        orderId: resolvedOrderId,
+        paymentIntentId: paymentIntent?.id ?? paymentIntentIdFromClientSecret(clientSecret),
+      });
       setLocalError('Payment could not be completed. Please try again.');
       onSubmittingChange(false);
       return false;
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Something went wrong';
+      reportPaymentError({
+        stage: 'unexpected',
+        message: msg,
+        orderId: resolvedOrderId,
+        paymentIntentId: paymentIntentIdFromClientSecret(clientSecret),
+      });
       setLocalError(msg);
       onPaymentError(msg);
       onSubmittingChange(false);

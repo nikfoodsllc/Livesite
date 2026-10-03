@@ -14,6 +14,7 @@ import {
 import { calculateDeliveryDates } from '@/lib/deliveryCalculator';
 import { DEFAULT_MIN_CART_VALUE } from '@/lib/cartLogic';
 import Stripe from 'stripe';
+import { buildOrderPaymentMetadata, buildOrderDescription } from '@/lib/server/stripePaymentInfo';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 if (!stripeSecretKey) {
@@ -239,22 +240,16 @@ export async function POST(request: NextRequest) {
           }
 
           paymentIntent = await stripe.paymentIntents.update(paymentIntentId, {
-            metadata: {
-              orderId: order.orderId,
-              userId: userId,
-            },
-            description: `Order ${order.orderId} for ${customer.name}`,
+            metadata: buildOrderPaymentMetadata(order),
+            description: buildOrderDescription(order),
           });
         } else {
           paymentIntent = await stripe.paymentIntents.create({
             amount: amountCents,
             currency: currency || 'usd',
             payment_method_types: ['card'],
-            metadata: {
-              orderId: order.orderId,
-              userId: userId,
-            },
-            description: `Order ${order.orderId} for ${customer.name}`,
+            metadata: buildOrderPaymentMetadata(order),
+            description: buildOrderDescription(order),
           });
         }
 
@@ -270,7 +265,7 @@ export async function POST(request: NextRequest) {
         const result = await db.create('orders', dbOrder);
 
         if (!result.success) {
-          console.error('Failed to create order:', result.error);
+          console.error('Failed to create order:', { orderId: order.orderId, userId, paymentIntentId: paymentIntent.id, error: result.error });
 
           // Cancel the PaymentIntent if order creation fails
           await stripe.paymentIntents.cancel(paymentIntent.id);
@@ -294,7 +289,15 @@ export async function POST(request: NextRequest) {
           },
         });
       } catch (stripeError) {
-        console.error('Stripe error:', stripeError);
+        console.error('Stripe error while creating the order payment:', {
+          orderId: order.orderId,
+          userId,
+          paymentIntentId,
+          message: stripeError instanceof Error ? stripeError.message : String(stripeError),
+          stripeCode: (stripeError as { code?: string })?.code,
+          stripeType: (stripeError as { type?: string })?.type,
+          requestId: (stripeError as { requestId?: string })?.requestId,
+        });
         return NextResponse.json(
           {
             success: false,
