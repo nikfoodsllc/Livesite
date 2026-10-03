@@ -1,7 +1,9 @@
 import { NextRequest } from 'next/server';
 import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+// Same fallback as the other Stripe routes: lets the build run where no secret key is set (e.g. branch
+// previews). A real payment still needs STRIPE_SECRET_KEY at runtime.
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_dummy_key_for_build');
 
 export async function OPTIONS() {
   return new Response(null, {
