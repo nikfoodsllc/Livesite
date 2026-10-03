@@ -9,6 +9,11 @@ import { EmailType } from '@/types/email';
 import { emailAnalytics } from '@/lib/emailAnalytics';
 import { IUser } from '@/types/auth';
 import { Filter, ObjectId } from 'mongodb';
+import {
+  claimConfirmationEmail,
+  releaseConfirmationEmailLock,
+  type OrdersCollectionLike,
+} from '@/lib/server/emailClaim';
 
 // Initialize email analytics (this will be called when the module is imported)
 import '@/lib/emailAnalyticsInit';
@@ -299,6 +304,11 @@ export async function sendOrderConfirmationEmail(
     return { success: true, statusInfo: currentStatus, messageId: currentStatus.messageId };
   }
 
+  // The status as it is in the database once this request holds the send lock (see emailClaim.ts)
+  let baseStatus: EmailStatusInfo = currentStatus;
+  let holdsSendLock = false;
+  let ordersCollection: OrdersCollectionLike | null = null;
+
   try {
     // Check configuration
     if (!isConfigured) {
@@ -387,12 +397,34 @@ export async function sendOrderConfirmationEmail(
       }
     }
 
+    // Take the right to send. Stripe sends two events when a payment succeeds and each one calls this
+    // function, so without an atomic claim both could send before either had recorded "sent".
+    const { db: ordersDb } = await import('@/lib/server/db');
+    ordersCollection = (await ordersDb.getCollectionForOperations('orders')) as unknown as OrdersCollectionLike;
+    const claim = await claimConfirmationEmail(ordersCollection, order.orderId);
+    if (claim.kind === 'already_sent') {
+      console.log(`${logPrefix} ${functionName} - Confirmation email already sent for order: ${order.orderId}`);
+      return {
+        success: true,
+        statusInfo: claim.emailStatus ?? currentStatus,
+        messageId: claim.emailStatus?.messageId,
+      };
+    }
+    if (claim.kind === 'in_progress') {
+      console.log(`${logPrefix} ${functionName} - Another request is already sending the confirmation email for order: ${order.orderId}; skipping`);
+      return { success: true, statusInfo: currentStatus };
+    }
+    if (claim.kind === 'claimed') {
+      holdsSendLock = true;
+      if (claim.emailStatus) baseStatus = claim.emailStatus;
+    }
+
     // Update status to 'retrying' if this is a retry attempt
     const attemptStatus: EmailStatusInfo = {
-      ...currentStatus,
-      status: currentStatus.attempts > 0 ? 'retrying' : 'pending',
+      ...baseStatus,
+      status: baseStatus.attempts > 0 ? 'retrying' : 'pending',
       lastAttempt: new Date(),
-      attempts: currentStatus.attempts + 1,
+      attempts: baseStatus.attempts + 1,
     };
 
     // Update status before sending
@@ -494,12 +526,12 @@ export async function sendOrderConfirmationEmail(
       stack: error instanceof Error ? error.stack : undefined,
       customerEmail: order.customerInfo?.email,
       isConfigured,
-      attempt: currentStatus.attempts + 1,
+      attempt: baseStatus.attempts + 1,
     });
 
     const errorStatus: EmailStatusInfo = {
-      status: currentStatus.attempts + 1 >= MAX_RETRY_ATTEMPTS ? 'failed' : 'retrying',
-      attempts: currentStatus.attempts + 1,
+      status: baseStatus.attempts + 1 >= MAX_RETRY_ATTEMPTS ? 'failed' : 'retrying',
+      attempts: baseStatus.attempts + 1,
       lastAttempt: new Date(),
       error: errorMessage,
     };
@@ -512,6 +544,16 @@ export async function sendOrderConfirmationEmail(
       error: errorMessage,
       statusInfo: errorStatus,
     };
+  } finally {
+    // Hand the send lock back (on success the status is already 'sent', so nobody can claim it again;
+    // on failure this lets the retry job take over)
+    if (holdsSendLock && ordersCollection) {
+      try {
+        await releaseConfirmationEmailLock(ordersCollection, order.orderId);
+      } catch (releaseError) {
+        console.warn(`${logPrefix} ${functionName} - Could not release the send lock for order ${order.orderId} (it expires on its own):`, releaseError);
+      }
+    }
   }
 }
 
