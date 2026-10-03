@@ -605,19 +605,28 @@ export default function CheckoutPage() {
       }
     }, 0);
   }, [user]);
-useEffect(() => {
-  if (userAddresses.length === 0) return;
+  // Contact details come from the address selected on the home page (falling back to the default
+  // address), and are filled in once per selected address so what the customer types is not overwritten.
+  const contactAddressIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (userAddresses.length === 0) return;
 
-  const defaultAddress =
-    userAddresses.find(addr => addr.isDefault) ||
-    userAddresses[0];
+    const storedId =
+      selectedAddressId ||
+      (typeof window !== 'undefined' ? localStorage.getItem('selectedAddressId') : null);
+    const address =
+      (storedId ? userAddresses.find((addr) => addr._id?.toString() === storedId) : undefined) ||
+      userAddresses.find((addr) => addr.isDefault) ||
+      userAddresses[0];
+    const addressId = address?._id?.toString();
 
-  if (defaultAddress) {
-    setName(defaultAddress.name || '');
-    setEmail(defaultAddress.email || '');
-    setPhone(defaultAddress.phone || '');
-  }
-}, [userAddresses]);
+    if (!address || !addressId || contactAddressIdRef.current === addressId) return;
+    contactAddressIdRef.current = addressId;
+
+    setName(address.name || '');
+    setEmail(address.email || '');
+    setPhone(address.phone || '');
+  }, [userAddresses, selectedAddressId]);
   // Redirect if cart is empty (but not after order completion)
   useEffect(() => {
     // Don't redirect if order was just completed - user is being redirected to success page
