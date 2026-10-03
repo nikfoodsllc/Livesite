@@ -10,6 +10,8 @@ import {
 } from '@/lib/orderHelpers';
 import StatusBadge from './StatusBadge';
 import OrderDaySection from './OrderDaySection';
+import RefundNotice from './RefundNotice';
+import { getNetTotal, getRefundedAmount } from '@/lib/orderRefunds';
 
 interface OrderCardProps {
   order: Order;
@@ -32,6 +34,7 @@ export default function OrderCard({
   const showReorder = canReorder(order.status);
   const showAddReview = canReview(order.status, order.hasReview);
   const showUpdateItem = canUpdateOrder(order.status);
+  const refundedAmount = getRefundedAmount(order);
 
   return (
     <Box
@@ -128,6 +131,9 @@ export default function OrderCard({
           />
         ))}
       </Box>
+
+      {/* Refund tile (full or partial refund) */}
+      <RefundNotice order={order} />
 
       {/* Footer Section */}
       <Box
@@ -242,17 +248,24 @@ export default function OrderCard({
           )}
         </Box>
 
-        {/* Total Paid */}
-        <Typography
-          sx={{
-            fontSize: { xs: '18px', sm: '20px' },
-            fontWeight: 700,
-            color: '#111827',
-            alignSelf: { xs: 'flex-end', sm: 'auto' },
-          }}
-        >
-          Total Paid: {formatCurrency(order.totalPaid, order.currency)}
-        </Typography>
+        {/* Total Paid (after any refund) */}
+        <Box sx={{ alignSelf: { xs: 'flex-end', sm: 'auto' }, textAlign: 'right' }}>
+          <Typography
+            sx={{
+              fontSize: { xs: '18px', sm: '20px' },
+              fontWeight: 700,
+              color: '#111827',
+            }}
+          >
+            Total Paid: {formatCurrency(getNetTotal(order), order.currency)}
+          </Typography>
+          {refundedAmount > 0 && (
+            <Typography sx={{ fontSize: '12px', color: '#6B7280', mt: 0.25 }}>
+              Paid {formatCurrency(order.totalPaid, order.currency)} · Refunded{' '}
+              {formatCurrency(refundedAmount, order.currency)}
+            </Typography>
+          )}
+        </Box>
       </Box>
     </Box>
   );
