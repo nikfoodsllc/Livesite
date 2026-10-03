@@ -115,7 +115,13 @@ export async function POST(request: NextRequest) {
         }
 
         console.log(`[Webhook] Order ${order.orderId} confirmed and marked as paid`);
-        await annotatePaymentIntent(stripe, paymentIntent.id, order, { kind: 'paid' });
+        await annotatePaymentIntent(
+          stripe,
+          paymentIntent.id,
+          order,
+          { kind: 'paid' },
+          typeof paymentIntent.latest_charge === 'string' ? paymentIntent.latest_charge : paymentIntent.latest_charge?.id
+        );
 
         try {
           console.log(`[Webhook] Sending confirmation email for successful payment order: ${order.orderId}`);
