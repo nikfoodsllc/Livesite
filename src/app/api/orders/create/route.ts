@@ -14,7 +14,7 @@ import {
 import { calculateDeliveryDates } from '@/lib/deliveryCalculator';
 import { DEFAULT_MIN_CART_VALUE } from '@/lib/cartLogic';
 import Stripe from 'stripe';
-import { buildOrderPaymentMetadata, buildOrderDescription } from '@/lib/server/stripePaymentInfo';
+import { buildOrderPaymentMetadata, buildOrderDescription, siteFromHeaders } from '@/lib/server/stripePaymentInfo';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 if (!stripeSecretKey) {
@@ -240,7 +240,7 @@ export async function POST(request: NextRequest) {
           }
 
           paymentIntent = await stripe.paymentIntents.update(paymentIntentId, {
-            metadata: buildOrderPaymentMetadata(order),
+            metadata: buildOrderPaymentMetadata(order, siteFromHeaders(request.headers)),
             description: buildOrderDescription(order),
           });
         } else {
@@ -248,7 +248,7 @@ export async function POST(request: NextRequest) {
             amount: amountCents,
             currency: currency || 'usd',
             payment_method_types: ['card'],
-            metadata: buildOrderPaymentMetadata(order),
+            metadata: buildOrderPaymentMetadata(order, siteFromHeaders(request.headers)),
             description: buildOrderDescription(order),
           });
         }
