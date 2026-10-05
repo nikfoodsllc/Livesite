@@ -42,104 +42,150 @@ export function getPaymentFailedEmailSubject(order: Order): string {
   return `Action Required: Your Recent Nikfoods Order for ${amount} Could Not Be Placed – Please Resubmit`;
 }
 
+const C = {
+  page: '#F3EBDD',
+  card: '#FFFBF5',
+  surface: '#FBF1E1',
+  line: '#EADBC3',
+  text: '#2B1D0E',
+  body: '#54442F',
+  muted: '#76664F',
+  brand: '#F89C35',
+  brandText: '#A85A00',
+  onBrand: '#1A1106',
+  tile: '#FFE7C2',
+  noteBg: '#FFF1DC',
+  noteLine: '#F3D8A8',
+  noteText: '#5B3F10',
+  strip: '#1E1409',
+};
+const SUPPORT = 'nikfoodsllc@gmail.com';
+
+function firstName(order: Order): string {
+  const name = order.customerInfo?.name?.trim();
+  return name ? name.split(/\s+/)[0] : '';
+}
+
+function logoStrip(logoUrl: string, w: number, pad: string): string {
+  return `<tr><td align="center" bgcolor="${C.strip}" style="padding:${pad};background:${C.strip};">
+    <img src="${logoUrl}" alt="NikFoods" width="${w}" style="display:block;border:0;outline:none;width:${w}px;height:auto;max-width:100%;font-family:Arial,sans-serif;font-size:22px;font-weight:800;color:${C.brand};">
+  </td></tr>`;
+}
+
 /**
- * Payment failed email HTML template
+ * Payment failed email HTML template (same look as the order confirmation email: light-first, every
+ * coloured block is a table cell with a bgcolor, the gold logo sits on its own dark strip).
  */
 export function getPaymentFailedEmailTemplate(
   order: Order,
   failureReason?: string
 ): string {
-  const logoUrl =
-    process.env.EMAIL_LOGO_URL ||
-    'https://res.cloudinary.com/dz30kdodd/image/upload/v1780207579/nikfoods/qwcozcqazeb8cuna8j2q.png';
+  const logoUrl = `${LIVE_SITE_URL}/images/logo.png`;
   // The live site keeps its existing address; the test site (livesite-dev) links to itself instead of the live site.
   const siteUrl = getSiteUrl();
   const checkoutUrl = `${process.env.NEXT_PUBLIC_BASE_URL || (siteUrl === LIVE_SITE_URL ? 'https://nikfoods.com' : siteUrl)}/checkout`;
   const amount = formatOrderAmount(order.totalPaid, order.currency);
   const gracefulFailureMessage = getGracefulFailureMessage(failureReason);
+  const name = firstName(order);
+  const greeting = name ? `Hi ${escapeHtml(name)},` : 'Hi there,';
+  const orderId = escapeHtml(String(order.orderId ?? ''));
 
-  return `
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Order Could Not Be Placed</title>
-    </head>
-    <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5; line-height: 1.6;">
-      <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 24px 12px;">
-        <tr>
-          <td align="center">
-            <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);">
+  return `<!DOCTYPE html>
+<html lang="en" style="color-scheme:light dark;supported-color-schemes:light dark;">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
+<title>Your NikFoods order could not be placed</title>
+<style>
+  :root { color-scheme: light dark; supported-color-schemes: light dark; }
+  body { margin:0; padding:0; -webkit-text-size-adjust:100%; }
+  table { border-collapse:collapse; }
+  a { text-decoration:none; }
+  @media only screen and (max-width: 620px) {
+    .wrap { width:100% !important; border-radius:0 !important; }
+    .px { padding-left:20px !important; padding-right:20px !important; }
+    .hero-h { font-size:28px !important; line-height:34px !important; }
+    .meta-cell { display:block !important; width:100% !important; border-right:0 !important; border-bottom:1px solid ${C.line} !important; padding:12px 0 !important; }
+    .btn a { display:block !important; }
+  }
+</style>
+</head>
+<body bgcolor="${C.page}" style="margin:0;padding:0;background:${C.page};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:${C.text};">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;font-size:1px;line-height:1px;">Your payment didn&rsquo;t go through, and your card has not been charged. Tap to try again.&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="${C.page}" style="background:${C.page};">
+<tr><td align="center" style="padding:28px 12px;">
 
-              <tr>
-                <td style="padding: 24px 32px 0 32px; text-align: left;">
-                  <img
-                    src="${logoUrl}"
-                    alt="Nikfoods"
-                    width="100"
-                    style="display: block; border: 0; outline: none; text-decoration: none;"
-                  />
-                </td>
-              </tr>
+<table role="presentation" class="wrap" width="640" cellpadding="0" cellspacing="0" bgcolor="${C.card}" style="width:640px;max-width:640px;background:${C.card};border-radius:24px;overflow:hidden;border:1px solid ${C.line};border-collapse:separate;">
 
-              <tr>
-                <td style="padding: 24px 32px 28px 32px; color: #374151; font-size: 15px; line-height: 1.7;">
-                  <p style="margin: 0 0 16px 0; color: #1A1106;">Dear Customer,</p>
+  <tr><td height="5" bgcolor="${C.brand}" style="height:5px;line-height:5px;font-size:1px;background:${C.brand};">&nbsp;</td></tr>
 
-                  <p style="margin: 0 0 16px 0;">
-                    Unfortunately, we were unable to process your recent order for <strong style="color: #1A1106;">${amount}</strong>, and <strong style="color: #1A1106;">your card has not been charged.</strong>
-                  </p>
+  ${logoStrip(logoUrl, 170, '22px 32px')}
 
-                  <p style="margin: 0 0 8px 0; color: #1A1106; font-weight: 700;">
-                    What went wrong?
-                  </p>
-                  <p style="margin: 0 0 16px 0;">
-                    ${escapeHtml(gracefulFailureMessage)}
-                  </p>
+  <!-- Hero -->
+  <tr><td class="px" align="center" bgcolor="${C.card}" style="padding:34px 32px 32px;background:${C.card};">
+    <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:0 auto 20px;"><tr><td>
+      <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:separate;"><tr>
+        <td width="62" height="62" align="center" valign="middle" bgcolor="${C.tile}" style="width:62px;height:62px;background:${C.tile};border:2px solid ${C.brand};border-radius:36px;"><span style="font-size:34px;font-weight:800;line-height:62px;color:${C.brandText};">!</span></td>
+      </tr></table>
+    </td></tr></table>
+    <div style="font-size:12px;font-weight:800;letter-spacing:0.16em;text-transform:uppercase;color:${C.brandText};margin-bottom:10px;">Order not placed</div>
+    <div class="hero-h" style="font-size:34px;line-height:40px;font-weight:800;color:${C.text};margin:0;">${greeting} your payment didn&rsquo;t go through</div>
+    <div style="font-size:16px;line-height:25px;color:${C.body};margin:12px auto 0;max-width:440px;">Don&rsquo;t worry &mdash; <strong style="color:${C.text};">your card has not been charged.</strong> It only takes a moment to try again.</div>
+  </td></tr>
 
-                  <p style="margin: 0 0 16px 0;">
-                    To complete your order, please click the link below and <strong style="color: #1A1106;">resubmit your order</strong>
-                  </p>
+  <!-- Meta strip -->
+  <tr><td class="px" bgcolor="${C.surface}" style="padding:0 32px;background:${C.surface};border-top:1px solid ${C.line};border-bottom:1px solid ${C.line};">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+      <td class="meta-cell" style="padding:16px 8px 16px 0;border-right:1px solid ${C.line};">
+        <div style="font-size:11px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:${C.muted};">Order number</div>
+        <div style="font-size:15px;font-weight:800;color:${C.text};margin-top:3px;">${orderId}</div>
+      </td>
+      <td class="meta-cell" style="padding:16px 0 16px 16px;" align="left">
+        <div style="font-size:11px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:${C.muted};">Order total</div>
+        <div style="font-size:15px;font-weight:800;color:${C.brandText};margin-top:3px;">${escapeHtml(amount)}</div>
+      </td>
+    </tr></table>
+  </td></tr>
 
-                  <p style="margin: 0 0 16px 0; color: #1A1106;">
-                    👉 <strong>Resubmit My Order:</strong>
-                    <a href="${escapeHtml(checkoutUrl)}" style="color: #FF9F0D; font-weight: 400; text-decoration: underline;">${escapeHtml(checkoutUrl.replace(/^https?:\/\//, ''))}</a>
-                  </p>
+  <!-- What went wrong -->
+  <tr><td class="px" bgcolor="${C.card}" style="padding:28px 32px 4px;background:${C.card};">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="${C.noteBg}" style="background:${C.noteBg};border:1px solid ${C.noteLine};border-radius:16px;border-collapse:separate;"><tr><td style="padding:16px 18px;">
+      <div style="font-size:11px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:${C.brandText};margin-bottom:6px;">What went wrong</div>
+      <div style="font-size:15px;font-weight:700;color:${C.noteText};line-height:22px;">${escapeHtml(gracefulFailureMessage)}</div>
+    </td></tr></table>
+  </td></tr>
 
-                  <p style="margin: 0 0 16px 0;">
-                    We apologise for the inconvenience and appreciate your understanding.
-                  </p>
+  <!-- CTA -->
+  <tr><td class="px" align="center" bgcolor="${C.card}" style="padding:28px 32px 6px;background:${C.card};">
+    <div style="font-size:15px;line-height:23px;color:${C.body};margin:0 0 16px;">Tap below to resubmit your order. You can use the same card or a different one.</div>
+    <table role="presentation" class="btn" cellpadding="0" cellspacing="0" style="border-collapse:separate;"><tr>
+      <td align="center" bgcolor="${C.brand}" style="border-radius:14px;background:${C.brand};border:2px solid ${C.brand};">
+        <a href="${escapeHtml(checkoutUrl)}" style="display:inline-block;padding:14px 34px;font-size:16px;font-weight:800;color:${C.onBrand};border-radius:14px;">Resubmit my order &rarr;</a>
+      </td>
+    </tr></table>
+    <div style="font-size:12px;color:${C.muted};margin-top:12px;">We&rsquo;re sorry for the trouble and appreciate your patience.</div>
+  </td></tr>
 
-                  <p style="margin: 0 0 16px 0;">
-                    If you continue to experience any issues, simply reply to this email or contact our support team—we'll be happy to help.
-                  </p>
+  <!-- Help -->
+  <tr><td class="px" align="center" bgcolor="${C.card}" style="padding:28px 32px 30px;background:${C.card};">
+    <div style="font-size:17px;font-weight:800;color:${C.text};">Still having trouble?</div>
+    <div style="font-size:14px;color:${C.body};line-height:22px;margin-top:6px;">Just reply to this email or write to us at<br><a href="mailto:${SUPPORT}" style="color:${C.brandText};font-weight:800;">${SUPPORT}</a> &mdash; we&rsquo;re happy to help.</div>
+  </td></tr>
 
-                  <p style="margin: 0 0 16px 0;">
-                    Thank you for choosing Nikfoods. We look forward to serving you soon!
-                  </p>
+  <!-- Footer -->
+  ${logoStrip(logoUrl, 130, '22px 32px 10px')}
+  <tr><td class="px" align="center" bgcolor="${C.card}" style="padding:16px 32px 26px;background:${C.card};">
+    <div style="font-size:13px;color:${C.body};font-style:italic;">Authentic Indian food delivered to your doorstep.</div>
+    <div style="font-size:12px;margin-top:12px;"><a href="${siteUrl}/account/orders" style="color:${C.brandText};">My orders</a> &nbsp;&middot;&nbsp; <a href="${siteUrl}/terms" style="color:${C.brandText};">Terms</a> &nbsp;&middot;&nbsp; <a href="${siteUrl}/privacy" style="color:${C.brandText};">Privacy</a></div>
+    <div style="font-size:11px;color:${C.muted};margin-top:10px;">&copy; ${new Date().getFullYear()} NikFoods. All rights reserved.</div>
+  </td></tr>
 
-                  <p style="margin: 0 0 8px 0; color: #1A1106;">Warm regards,</p>
-                  <p style="margin: 0 0 8px 0; color: #1A1106; font-weight: 700;">Team Nikfoods</p>
-                  <p style="margin: 0; color: #6B7280; font-size: 14px; line-height: 1.5;">
-                    Fresh Homemade Meals Delivered Across Greater Seattle
-                  </p>
-                </td>
-              </tr>
+</table>
 
-              <tr>
-                <td style="background-color: #f9f9f9; padding: 16px 32px; text-align: center; border-top: 1px solid #eeeeee;">
-                  <p style="margin: 0; color: #999999; font-size: 12px;">
-                    © ${new Date().getFullYear()} NikFoods. All rights reserved.
-                  </p>
-                </td>
-              </tr>
-
-            </table>
-          </td>
-        </tr>
-      </table>
-    </body>
-    </html>
-  `;
+</td></tr>
+</table>
+</body>
+</html>`;
 }
