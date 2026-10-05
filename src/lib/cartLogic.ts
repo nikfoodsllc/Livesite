@@ -24,8 +24,8 @@ const getDateForDayName = (dateString: string): Date => {
 export const TAX_RATE = 0.103;
 
 /**
- * Service fee rate applied to cart subtotal
- * @constant {number} SERVICE_FEE_RATE - 4% (0.04)
+ * Platform fee rate applied to cart subtotal
+ * @constant {number} SERVICE_FEE_RATE - 4% (0.04); the customer-facing name is "Platform Fee"
  */
 export const SERVICE_FEE_RATE = 0.04;
 
@@ -247,10 +247,10 @@ export function getCheckoutMessage(
 }
 
 /**
- * Calculates sales tax based on the subtotal and service fee
+ * Calculates sales tax based on the subtotal and platform fee
  *
  * @param subtotal - The cart subtotal before tax
- * @param serviceFee - The platform service fee amount
+ * @param serviceFee - The platform fee amount
  * @returns The calculated tax amount
  */
 export function calculateTax(subtotal: number, serviceFee: number = 0): number {
@@ -258,7 +258,7 @@ export function calculateTax(subtotal: number, serviceFee: number = 0): number {
 }
 
 /**
- * Calculates the platform service fee based on cart subtotal
+ * Calculates the platform fee based on cart subtotal
  *
  * @param subtotal - The cart subtotal before fees
  * @returns The calculated platform fee (4% of subtotal)
