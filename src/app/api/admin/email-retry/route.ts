@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { jwtHandler } from '@/lib/jwt';
 import { processAllEmailRetries, processEmailRetryJob, getEmailRetryStats } from '@/lib/emailRetryJob';
+import { requireAdmin } from '@/lib/adminAuth';
 
 /**
  * POST /api/admin/email-retry
  * Manually trigger email retry processing
  */
 export async function POST(request: NextRequest) {
+  const denied = requireAdmin(request);
+  if (denied) return denied;
   try {
     // Verify authentication
     const authHeader = request.headers.get('authorization');
@@ -83,6 +86,8 @@ export async function POST(request: NextRequest) {
  * Get email retry statistics
  */
 export async function GET(request: NextRequest) {
+  const denied = requireAdmin(request);
+  if (denied) return denied;
   try {
     // Verify authentication
     const authHeader = request.headers.get('authorization');
