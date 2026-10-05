@@ -17,17 +17,28 @@ export function stripeFeeFromBalanceTransaction(
   return { stripeFee: toDollars(bt.fee), stripeNet: toDollars(bt.net) };
 }
 
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
 /**
- * The fee for a charge. The charge event carries the balance transaction as an id (or already
- * expanded); an id is looked up. Returns null instead of throwing: the fee is a bookkeeping extra and
+ * The fee for a charge. The balance transaction is usually NOT on the charge inside the webhook event
+ * yet (Stripe attaches it a moment later), so when it is missing the charge is read again from Stripe,
+ * once more after a short wait. Returns null instead of throwing: the fee is a bookkeeping extra and
  * must never get in the way of confirming the order.
  */
 export async function fetchChargeFee(
-  stripe: Pick<Stripe, 'balanceTransactions'>,
-  charge: Pick<Stripe.Charge, 'balance_transaction'>
+  stripe: Pick<Stripe, 'balanceTransactions' | 'charges'>,
+  charge: Pick<Stripe.Charge, 'id' | 'balance_transaction'>,
+  options: { retries?: number; waitMs?: number } = {}
 ): Promise<StripeFeeInfo | null> {
+  const retries = options.retries ?? 1;
+  const waitMs = options.waitMs ?? 1500;
   try {
-    const ref = charge.balance_transaction;
+    let ref: Stripe.Charge['balance_transaction'] = charge.balance_transaction;
+    for (let attempt = 0; !ref && attempt <= retries; attempt++) {
+      if (attempt > 0) await sleep(waitMs);
+      const fresh = await stripe.charges.retrieve(charge.id, { expand: ['balance_transaction'] });
+      ref = fresh.balance_transaction;
+    }
     if (!ref) return null;
     const bt = typeof ref === 'string' ? await stripe.balanceTransactions.retrieve(ref) : ref;
     return stripeFeeFromBalanceTransaction(bt);
