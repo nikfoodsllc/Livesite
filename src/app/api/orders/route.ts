@@ -3,6 +3,7 @@ import { db } from '@/lib/server/db';
 import { jwtHandler } from '@/lib/jwt';
 import { Order } from '@/types/order';
 import { formatAPIDate } from '@/lib/apiDateFormat';
+import { toCustomerOrder } from '@/lib/server/customerOrder';
 
 /**
  * GET /api/orders
@@ -96,7 +97,7 @@ export async function GET(request: NextRequest) {
     // Ensure Date objects are properly set for serialization
     // NextResponse.json() will automatically serialize Date objects to ISO 8601 strings
     const ordersWithDates = orders.map((order) => ({
-      ...order,
+      ...toCustomerOrder(order),
       // Ensure timestamp fields are Date objects if they exist
       createdAt: order.createdAt ? new Date(order.createdAt) : undefined,
       updatedAt: order.updatedAt ? new Date(order.updatedAt) : undefined,

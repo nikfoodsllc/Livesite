@@ -151,6 +151,8 @@ export interface Order {
   paymentActionRequiredAt?: Date | string; // Stripe asked for extra authentication (e.g. 3D Secure)
   refundedAmount?: number; // Total refunded so far, in dollars (a partial refund keeps the order active)
   refundedAt?: Date | string; // When the latest refund was recorded
+  stripeFee?: number; // What Stripe charged us for this payment, in dollars (business only, never sent to customers)
+  stripeNet?: number; // Amount that reached our balance after Stripe's fee, in dollars (business only)
   deliveryMessages?: string[]; // Cart clubbing messages
   hasReview?: boolean; // Whether this order has been reviewed
   emailStatus?: EmailStatusInfo; // Track order confirmation email status
