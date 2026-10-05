@@ -70,6 +70,7 @@ export async function POST(request: NextRequest) {
 
     const skipped: Partial<Record<BackfillSkipReason, number>> = {};
     const samples: Array<{ orderId: string; totalPaid: number; stripeFee: number; stripeNet: number; formulaFee: number }> = [];
+    const errorKinds: Record<string, number> = {};
     let updated = 0;
     let writeErrors = 0;
     let totalFee = 0;
@@ -85,8 +86,12 @@ export async function POST(request: NextRequest) {
       try {
         intent = await stripe.paymentIntents.retrieve(intentId, { expand: ['latest_charge.balance_transaction'] });
       } catch (error) {
-        const code = (error as { code?: string }).code;
-        return skip(code === 'resource_missing' ? 'not_in_this_stripe_account' : 'stripe_error');
+        const e = error as { code?: string; type?: string; statusCode?: number };
+        if (e.code === 'resource_missing') return skip('not_in_this_stripe_account');
+        // what kind of Stripe error (type / code / HTTP status), so a pile of them can be understood
+        const kind = `${e.type ?? 'unknown'}/${e.code ?? e.statusCode ?? 'none'}`;
+        errorKinds[kind] = (errorKinds[kind] ?? 0) + 1;
+        return skip('stripe_error');
       }
       const decision = planFeeBackfill(order, intent);
       if (decision.action === 'skip') return skip(decision.reason);
@@ -134,6 +139,7 @@ export async function POST(request: NextRequest) {
       [dryRun ? 'wouldUpdate' : 'updated']: updated,
       writeErrors,
       skipped,
+      errorKinds,
       totalFee: Math.round(totalFee * 100) / 100,
       totalPaidOfUpdated: Math.round(totalGross * 100) / 100,
       samples,
