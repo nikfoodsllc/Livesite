@@ -2,12 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sendOrderConfirmationEmail, sendPasswordResetOTP, sendPasswordResetConfirmation, sendPaymentFailedEmail } from '@/lib/email';
 import { Order } from '@/types/order';
 import { formatAPITimestamp } from '@/lib/apiDateFormat';
+import { requireAdmin } from '@/lib/adminAuth';
 
 /**
  * POST /api/test/email
  * Test endpoint to verify email service functionality
  */
 export async function POST(request: NextRequest) {
+  const denied = requireAdmin(request);
+  if (denied) return denied;
   try {
     const body = await request.json();
     const { type, testEmail, orderData } = body;
@@ -171,7 +174,9 @@ export async function POST(request: NextRequest) {
  * GET /api/test/email
  * Get email service configuration status
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const denied = requireAdmin(request);
+  if (denied) return denied;
   try {
     const emailProvider = process.env.EMAIL_PROVIDER === 'mailtrap' ? 'mailtrap' : 'resend';
     const config = {

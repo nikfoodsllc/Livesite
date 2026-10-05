@@ -9,12 +9,15 @@ import { emailAnalytics } from '@/lib/emailAnalytics';
 import { EmailAnalyticsQuery, EmailType, EmailDeliveryStatus, EmailAnalyticsResponse } from '@/types/email';
 import { getPSTDateString } from '@/lib/timezone';
 import { formatAPIDate } from '@/lib/apiDateFormat';
+import { requireAdmin } from '@/lib/adminAuth';
 
 /**
  * GET /api/admin/email-analytics/export
  * Export analytics data in specified format
  */
 export async function GET(request: NextRequest) {
+  const denied = requireAdmin(request);
+  if (denied) return denied;
   try {
     // Verify authentication
     const authHeader = request.headers.get('authorization');

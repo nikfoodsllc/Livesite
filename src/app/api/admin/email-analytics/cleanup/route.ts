@@ -6,12 +6,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { jwtHandler } from '@/lib/jwt';
 import { emailAnalytics } from '@/lib/emailAnalytics';
+import { requireAdmin } from '@/lib/adminAuth';
 
 /**
  * POST /api/admin/email-analytics/cleanup
  * Trigger cleanup of old analytics data
  */
 export async function POST(request: NextRequest) {
+  const denied = requireAdmin(request);
+  if (denied) return denied;
   try {
     // Verify authentication
     const authHeader = request.headers.get('authorization');
