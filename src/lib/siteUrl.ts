@@ -13,3 +13,13 @@ export function getSiteUrl(env: Record<string, string | undefined> = process.env
   if (host && /^[a-z0-9-]+(\.[a-z0-9-]+)*\.vercel\.app$/i.test(host)) return `https://${host}`;
   return LIVE_SITE_URL;
 }
+
+/**
+ * True on the test site (livesite-dev, any *.vercel.app address) and on Vercel preview/development builds;
+ * false on the live site (custom domain, production build), where nothing changes.
+ */
+export function isTestSite(env: Record<string, string | undefined> = process.env): boolean {
+  if (env.VERCEL_ENV === 'preview' || env.VERCEL_ENV === 'development') return true;
+  const host = env.VERCEL_PROJECT_PRODUCTION_URL?.trim().replace(/^https?:\/\//, '').replace(/\/+$/, '');
+  return !!host && /^[a-z0-9-]+(\.[a-z0-9-]+)*\.vercel\.app$/i.test(host);
+}

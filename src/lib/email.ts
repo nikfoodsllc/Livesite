@@ -18,6 +18,7 @@ import {
 // Initialize email analytics (this will be called when the module is imported)
 import '@/lib/emailAnalyticsInit';
 import { EMAIL_LOGO_CID, EMAIL_LOGO_FILENAME, EMAIL_LOGO_PNG_BASE64 } from '@/lib/emailLogo';
+import { markTestSubject } from '@/lib/emailSubject';
 
 // Enhanced logging configuration
 const logPrefix = '[Email Service]';
@@ -110,7 +111,7 @@ async function sendTransactionalEmail(
       },
       to: params.to.map((email) => ({ email })),
       bcc: params.bcc?.map((email) => ({ email })),
-      subject: params.subject,
+      subject: markTestSubject(params.subject),
       html: params.html,
       category: params.category || 'Transactional',
       attachments: params.inlineLogo
@@ -137,7 +138,7 @@ async function sendTransactionalEmail(
     from: fromEmail,
     to: params.to,
     bcc: params.bcc,
-    subject: params.subject,
+    subject: markTestSubject(params.subject),
     html: params.html,
     attachments: params.inlineLogo
       ? [
