@@ -1,5 +1,6 @@
 import { Order } from '@/types/order';
 import { getSiteUrl, LIVE_SITE_URL } from '@/lib/siteUrl';
+import { EMAIL_LOGO_CID } from '@/lib/emailLogo';
 
 function escapeHtml(value: string): string {
   return value
@@ -68,7 +69,7 @@ function firstName(order: Order): string {
 
 function logoStrip(logoUrl: string, w: number, pad: string): string {
   return `<tr><td align="center" bgcolor="${C.strip}" style="padding:${pad};background:${C.strip};">
-    <img src="${logoUrl}" alt="NikFoods" width="${w}" style="display:block;border:0;outline:none;width:${w}px;height:auto;max-width:100%;font-family:Arial,sans-serif;font-size:22px;font-weight:800;color:${C.brand};">
+    <img src="${logoUrl}" alt="NikFoods" width="${w}" style="display:block;border:0;outline:none;width:${w}px;height:auto;max-width:100%;margin:0 auto;text-align:center;font-family:Arial,sans-serif;font-size:26px;font-weight:800;color:${C.brand};">
   </td></tr>`;
 }
 
@@ -80,7 +81,8 @@ export function getPaymentFailedEmailTemplate(
   order: Order,
   failureReason?: string
 ): string {
-  const logoUrl = `${LIVE_SITE_URL}/images/logo.png`;
+  // attached to the email as an inline image (see lib/emailLogo.ts), so it shows without "Load External Images"
+  const logoUrl = `cid:${EMAIL_LOGO_CID}`;
   // The live site keeps its existing address; the test site (livesite-dev) links to itself instead of the live site.
   const siteUrl = getSiteUrl();
   const checkoutUrl = `${process.env.NEXT_PUBLIC_BASE_URL || (siteUrl === LIVE_SITE_URL ? 'https://nikfoods.com' : siteUrl)}/checkout`;
