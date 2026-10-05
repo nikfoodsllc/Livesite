@@ -1,4 +1,5 @@
 import { Order } from '@/types/order';
+import { getSiteUrl, LIVE_SITE_URL } from '@/lib/siteUrl';
 
 function escapeHtml(value: string): string {
   return value
@@ -51,7 +52,9 @@ export function getPaymentFailedEmailTemplate(
   const logoUrl =
     process.env.EMAIL_LOGO_URL ||
     'https://res.cloudinary.com/dz30kdodd/image/upload/v1780207579/nikfoods/qwcozcqazeb8cuna8j2q.png';
-  const checkoutUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://nikfoods.com'}/checkout`;
+  // The live site keeps its existing address; the test site (livesite-dev) links to itself instead of the live site.
+  const siteUrl = getSiteUrl();
+  const checkoutUrl = `${process.env.NEXT_PUBLIC_BASE_URL || (siteUrl === LIVE_SITE_URL ? 'https://nikfoods.com' : siteUrl)}/checkout`;
   const amount = formatOrderAmount(order.totalPaid, order.currency);
   const gracefulFailureMessage = getGracefulFailureMessage(failureReason);
 
