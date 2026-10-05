@@ -8,12 +8,15 @@ import { jwtHandler } from '@/lib/jwt';
 import { emailAnalytics } from '@/lib/emailAnalytics';
 import { sendOrderConfirmationEmail } from '@/lib/email';
 import { Order } from '@/types/order';
+import { requireAdmin } from '@/lib/adminAuth';
 
 /**
  * GET /api/admin/email-analytics/test
  * Test the email analytics system
  */
 export async function GET(request: NextRequest) {
+  const denied = requireAdmin(request);
+  if (denied) return denied;
   try {
     // Verify authentication
     const authHeader = request.headers.get('authorization');
@@ -250,6 +253,8 @@ export async function GET(request: NextRequest) {
  * Send a test email for analytics tracking
  */
 export async function POST(request: NextRequest) {
+  const denied = requireAdmin(request);
+  if (denied) return denied;
   try {
     // Verify authentication
     const authHeader = request.headers.get('authorization');

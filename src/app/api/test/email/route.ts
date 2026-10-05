@@ -2,26 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sendOrderConfirmationEmail, sendPasswordResetOTP, sendPasswordResetConfirmation, sendPaymentFailedEmail } from '@/lib/email';
 import { Order } from '@/types/order';
 import { formatAPITimestamp } from '@/lib/apiDateFormat';
-import { jwtHandler } from '@/lib/jwt';
-
-/**
- * This route can send emails to any address and reports the email configuration, so it is only for
- * logged-in admins (it used to be open to anyone, on the live site too).
- */
-function requireAdmin(request: NextRequest): NextResponse | null {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-  }
-  const verified = jwtHandler.verifyToken(authHeader.substring(7));
-  if (!verified.success || !verified.payload) {
-    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-  }
-  if (verified.payload.role !== 'admin') {
-    return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
-  }
-  return null;
-}
+import { requireAdmin } from '@/lib/adminAuth';
 
 /**
  * POST /api/test/email
