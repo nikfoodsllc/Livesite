@@ -5,7 +5,7 @@ import { db } from '@/lib/server/db';
 import { requireAdmin } from '@/lib/adminAuth';
 import { planFeeBackfill, type BackfillSkipReason } from '@/lib/server/stripeFeeBackfill';
 
-// One batch can make up to 100 Stripe calls (a few at a time, with waits if Stripe asks us to slow down)
+// One batch can make up to 100 Stripe calls
 export const maxDuration = 60;
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_dummy_key_for_build', {
@@ -20,27 +20,7 @@ interface OrderRow {
   paymentIntentId?: string;
 }
 
-// Stripe's test mode allows only about 25 requests per second (live: 100), so stay well under it
-const CONCURRENCY = 3;
-const RATE_LIMIT_RETRIES = 3;
-
-const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
-
-/** Reads a payment; when Stripe says 'slow down' waits a little (longer each time) and tries again. */
-async function retrievePayment(intentId: string): Promise<Stripe.PaymentIntent> {
-  for (let attempt = 0; ; attempt++) {
-    try {
-      return await stripe.paymentIntents.retrieve(intentId, { expand: ['latest_charge.balance_transaction'] });
-    } catch (error) {
-      const e = error as { type?: string };
-      if (e.type === 'StripeRateLimitError' && attempt < RATE_LIMIT_RETRIES) {
-        await sleep(1200 * (attempt + 1));
-        continue;
-      }
-      throw error;
-    }
-  }
-}
+const CONCURRENCY = 6;
 
 /**
  * POST /api/admin/stripe-fee-backfill   (admins only)
@@ -104,7 +84,7 @@ export async function POST(request: NextRequest) {
       if (!intentId) return skip('no_payment_intent');
       let intent: Stripe.PaymentIntent;
       try {
-        intent = await retrievePayment(intentId);
+        intent = await stripe.paymentIntents.retrieve(intentId, { expand: ['latest_charge.balance_transaction'] });
       } catch (error) {
         const e = error as { code?: string; type?: string; statusCode?: number };
         if (e.code === 'resource_missing') return skip('not_in_this_stripe_account');
