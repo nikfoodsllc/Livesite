@@ -4,6 +4,7 @@ import { db } from '@/lib/server/db';
 import { Order, EmailStatus } from '@/types/order';
 import { getPSTDateString, getPSTMidnight } from '@/lib/timezone';
 import { formatAPIDate } from '@/lib/apiDateFormat';
+import { requireAdmin } from '@/lib/adminAuth';
 
 interface EmailStatusQuery {
   status?: EmailStatus;
@@ -59,6 +60,8 @@ interface EmailStatusReport {
  * Get comprehensive email status monitoring data
  */
 export async function GET(request: NextRequest) {
+  const denied = requireAdmin(request);
+  if (denied) return denied;
   try {
     // Verify authentication
     const authHeader = request.headers.get('authorization');
@@ -288,6 +291,8 @@ async function generateEmailStatusReport(orders: Order[]): Promise<EmailStatusRe
  * Resend email for specific order
  */
 export async function POST(request: NextRequest) {
+  const denied = requireAdmin(request);
+  if (denied) return denied;
   try {
     // Verify authentication
     const authHeader = request.headers.get('authorization');

@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { jwtHandler } from '@/lib/jwt';
 import { emailAnalytics } from '@/lib/emailAnalytics';
+import { requireAdmin } from '@/lib/adminAuth';
 import {
   EmailAnalyticsQuery,
   WebhookPayload,
@@ -18,6 +19,8 @@ import {
  * Get email analytics data with filtering options
  */
 export async function GET(request: NextRequest) {
+  const denied = requireAdmin(request);
+  if (denied) return denied;
   try {
     // Verify authentication
     const authHeader = request.headers.get('authorization');
@@ -110,6 +113,8 @@ export async function GET(request: NextRequest) {
  * Handle webhook events from Resend
  */
 export async function POST(request: NextRequest) {
+  const denied = requireAdmin(request);
+  if (denied) return denied;
   try {
     // Verify webhook signature (optional but recommended)
     const signature = request.headers.get('resend-signature');

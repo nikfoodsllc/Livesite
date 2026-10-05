@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { jwtHandler } from '@/lib/jwt';
 import { runEmailRetryCronJob, getEmailRetryHealthCheck, manualEmailRetryTrigger } from '@/lib/emailCronJob';
 import { formatAPITimestamp } from '@/lib/apiDateFormat';
+import { requireAdmin } from '@/lib/adminAuth';
 
 const EMAIL_RETRY_CONFIG = {
   CRON_ENABLED: process.env.EMAIL_RETRY_CRON_ENABLED !== 'false',
@@ -17,6 +18,8 @@ const EMAIL_RETRY_CONFIG = {
  * Manually trigger the email retry cron job
  */
 export async function POST(request: NextRequest) {
+  const denied = requireAdmin(request);
+  if (denied) return denied;
   try {
     // Verify authentication
     const authHeader = request.headers.get('authorization');
@@ -80,6 +83,8 @@ export async function POST(request: NextRequest) {
  * Get email retry system health check and configuration
  */
 export async function GET(request: NextRequest) {
+  const denied = requireAdmin(request);
+  if (denied) return denied;
   try {
     // Verify authentication
     const authHeader = request.headers.get('authorization');
