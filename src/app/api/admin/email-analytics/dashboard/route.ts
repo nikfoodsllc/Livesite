@@ -7,12 +7,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { jwtHandler } from '@/lib/jwt';
 import { emailAnalytics } from '@/lib/emailAnalytics';
 import { EmailAnalyticsQuery } from '@/types/email';
+import { requireAdmin } from '@/lib/adminAuth';
 
 /**
  * GET /api/admin/email-analytics/dashboard
  * Get dashboard data for email analytics
  */
 export async function GET(request: NextRequest) {
+  const denied = requireAdmin(request);
+  if (denied) return denied;
   try {
     // Verify authentication
     const authHeader = request.headers.get('authorization');
