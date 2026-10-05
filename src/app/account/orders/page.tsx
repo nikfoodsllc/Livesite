@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Box, Typography, CircularProgress, IconButton } from '@mui/material';
+import { Box, Button, Typography, CircularProgress, IconButton } from '@mui/material';
 import { IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
 import AccountPageHeader from '@/components/account/AccountPageHeader';
 import OrderCard from '@/components/orders/OrderCard';
@@ -12,6 +12,7 @@ import UpdateItemDialog from '@/components/orders/UpdateItemDialog';
 import ReorderConfirmation from '@/components/orders/ReorderConfirmation';
 import { Order } from '@/types/order';
 import { useApiClient } from '@/hooks/useApiClient';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface OrdersResponse {
   items: Order[];
@@ -25,6 +26,9 @@ interface OrdersResponse {
 
 export default function OrdersPage() {
   const { authenticatedFetch } = useApiClient();
+  const { user, logout } = useAuth();
+  // set when the page was opened from an email link (?order=ORD-...) for an order this account does not own
+  const [otherAccountOrderId, setOtherAccountOrderId] = useState<string | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -99,6 +103,36 @@ export default function OrdersPage() {
     setReorderDialogOpen(true);
   };
 
+  useEffect(() => {
+    if (!user) return;
+    const id = new URLSearchParams(window.location.search).get('order');
+    if (!id || !/^[A-Za-z0-9-]{3,40}$/.test(id)) {
+      setOtherAccountOrderId(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await authenticatedFetch(`/api/orders/${encodeURIComponent(id)}`);
+        // 403 = belongs to another account, 404 = not found: either way it is not on this account
+        if (!cancelled) setOtherAccountOrderId(res.status === 403 || res.status === 404 ? id : null);
+      } catch {
+        // best effort: the notice is only a convenience
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, authenticatedFetch]);
+
+  const handleSwitchAccount = () => {
+    if (!otherAccountOrderId) return;
+    const target = `/account/orders?order=${encodeURIComponent(otherAccountOrderId)}`;
+    logout();
+    // full reload: signed out, the account area then asks for the login and lands back on this link
+    window.location.assign(target);
+  };
+
   const handleAddReview = (order: Order) => {
     setSelectedOrder(order);
     setReviewDialogOpen(true);
@@ -118,6 +152,28 @@ export default function OrdersPage() {
     <Box>
       {/* Page Header */}
       <AccountPageHeader />
+
+      {/* Opened from an email for an order that is on a different account */}
+      {otherAccountOrderId && (
+        <Box
+          role="alert"
+          sx={{ backgroundColor: '#FFF7ED', border: '1px solid #FDBA74', borderRadius: '12px', p: 2.5, mb: 3 }}
+        >
+          <Typography sx={{ fontSize: '16px', fontWeight: 700, color: '#9A3412', mb: 0.5 }}>
+            Order {otherAccountOrderId} isn&apos;t on this account
+          </Typography>
+          <Typography sx={{ fontSize: '14px', color: '#7C2D12', mb: 2 }}>
+            You&apos;re logged in as {user?.email}. To see that order, log in with the email address the confirmation was sent to.
+          </Typography>
+          <Button
+            variant="contained"
+            onClick={handleSwitchAccount}
+            sx={{ textTransform: 'none', fontWeight: 700, borderRadius: 2, width: { xs: '100%', sm: 'auto' } }}
+          >
+            Log in with a different account
+          </Button>
+        </Box>
+      )}
 
       {/* Loading State */}
       {loading && (

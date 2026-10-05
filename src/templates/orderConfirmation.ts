@@ -243,7 +243,7 @@ export function getOrderConfirmationEmailTemplate(order: Order, profileCustomerD
   <tr><td class="px" align="center" bgcolor="${C.card}" style="padding:30px 32px 6px;background:${C.card};">
     <table role="presentation" class="btn" cellpadding="0" cellspacing="0" style="border-collapse:separate;"><tr>
       <td align="center" bgcolor="${C.brand}" style="border-radius:14px;background:${C.brand};border:2px solid ${C.brand};">
-        <a href="${SITE}/account/orders" style="display:inline-block;padding:14px 34px;font-size:16px;font-weight:800;color:${C.onBrand};border-radius:14px;">View my order &rarr;</a>
+        <a href="${SITE}/account/orders?order=${encodeURIComponent(String(order.orderId ?? ''))}" style="display:inline-block;padding:14px 34px;font-size:16px;font-weight:800;color:${C.onBrand};border-radius:14px;">View my order &rarr;</a>
       </td>
     </tr></table>
     <div style="font-size:12px;color:${C.muted};margin-top:12px;">${totalItems} item${totalItems === 1 ? '' : 's'} &middot; ${days.length} delivery day${days.length === 1 ? '' : 's'}</div>
