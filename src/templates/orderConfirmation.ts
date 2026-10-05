@@ -6,7 +6,7 @@
 //  - the gold logo sits on its own dark strip (an opaque image on a solid cell), never directly on a flipping page
 import type { Order, OrderDay, OrderDayItem, CustomerInfo } from '@/types/order';
 const PST = 'America/Los_Angeles';
-const SITE = 'https://www.nikfoods.com';
+import { getSiteUrl, LIVE_SITE_URL } from '@/lib/siteUrl';
 const SUPPORT = 'nikfoodsllc@gmail.com';
 
 const C = {
@@ -167,7 +167,8 @@ export function getOrderConfirmationEmailTemplate(order: Order, profileCustomerD
   const customer = profileCustomerDetails ?? order.customerInfo;
   const currency = order.currency || 'usd';
   const first = has(customer.name) ? customer.name.trim().split(/\s+/)[0] : 'there';
-  const logoUrl = `${SITE}/images/logo.png`;
+  const SITE = getSiteUrl();
+  const logoUrl = `${LIVE_SITE_URL}/images/logo.png`;
   const days: OrderDay[] = order.items;
   const dayLabels = days.map((d) => fmt(toDate(d.actualDeliveryDate || d.deliveryDate), { weekday: 'short', month: 'short', day: 'numeric' }));
   const preheader = `Order ${order.orderId} is confirmed. Delivering ${dayLabels.join(' & ')}.`;
