@@ -159,10 +159,10 @@ export function getPaymentFailedEmailTemplate(
 
   <!-- CTA -->
   <tr><td class="px" align="center" bgcolor="${C.card}" style="padding:28px 32px 6px;background:${C.card};">
-    <div style="font-size:15px;line-height:23px;color:${C.body};margin:0 0 16px;">Tap below to resubmit your order. You can use the same card or a different one.</div>
+    <div style="font-size:15px;line-height:23px;color:${C.body};margin:0 0 16px;">Tap below to head back to checkout and try again. You can use the same card or a different one. If your cart is empty (for example, if you open this on a different phone), just add your items again.</div>
     <table role="presentation" class="btn" cellpadding="0" cellspacing="0" style="border-collapse:separate;"><tr>
       <td align="center" bgcolor="${C.brand}" style="border-radius:14px;background:${C.brand};border:2px solid ${C.brand};">
-        <a href="${escapeHtml(checkoutUrl)}" style="display:inline-block;padding:14px 34px;font-size:16px;font-weight:800;color:${C.onBrand};border-radius:14px;">Resubmit my order &rarr;</a>
+        <a href="${escapeHtml(checkoutUrl)}" style="display:inline-block;padding:14px 34px;font-size:16px;font-weight:800;color:${C.onBrand};border-radius:14px;">Back to checkout &rarr;</a>
       </td>
     </tr></table>
     <div style="font-size:12px;color:${C.muted};margin-top:12px;">We&rsquo;re sorry for the trouble and appreciate your patience.</div>
