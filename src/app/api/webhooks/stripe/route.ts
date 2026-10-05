@@ -7,6 +7,7 @@ import { paymentMethodLabelFromCharge, resolvePaymentMethodLabel } from '@/lib/s
 import { paymentErrorFromIntent } from '@/lib/server/stripePaymentInfo';
 import { refundFromCharge } from '@/lib/server/refundInfo';
 import { annotatePaymentIntent } from '@/lib/server/stripePaymentNote';
+import { fetchChargeFee } from '@/lib/server/stripeFee';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 if (!stripeSecretKey) {
@@ -195,6 +196,20 @@ export async function POST(request: NextRequest) {
         }
 
         console.log(`[Webhook] Order ${order.orderId} confirmed and marked as paid`);
+
+        // Record what Stripe charged us for this payment (shown in the admin, never to customers).
+        // Best effort: a missing fee must not affect the order or its confirmation email.
+        const feeInfo = await fetchChargeFee(stripe, charge);
+        if (feeInfo) {
+          const feeResult = await db.updateOne('orders', { orderId: order.orderId }, { $set: feeInfo });
+          if (!feeResult.success) {
+            console.error(`[Webhook] Failed to save the Stripe fee for order ${order.orderId}:`, feeResult.error);
+          } else {
+            console.log(`[Webhook] Saved the Stripe fee for order ${order.orderId}`);
+          }
+        } else {
+          console.warn(`[Webhook] No Stripe fee available yet for order ${order.orderId} (charge ${charge.id})`);
+        }
 
         // Send order confirmation email
         try {
