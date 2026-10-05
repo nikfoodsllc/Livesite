@@ -6,7 +6,8 @@
 //  - the gold logo sits on its own dark strip (an opaque image on a solid cell), never directly on a flipping page
 import type { Order, OrderDay, OrderDayItem, CustomerInfo } from '@/types/order';
 const PST = 'America/Los_Angeles';
-import { getSiteUrl, LIVE_SITE_URL } from '@/lib/siteUrl';
+import { getSiteUrl } from '@/lib/siteUrl';
+import { EMAIL_LOGO_CID } from '@/lib/emailLogo';
 const SUPPORT = 'nikfoodsllc@gmail.com';
 
 const C = {
@@ -159,7 +160,7 @@ function step(n: number, title: string, text: string, done: boolean, last: boole
 
 function logoStrip(logoUrl: string, w: number, pad: string): string {
   return `<tr><td align="center" bgcolor="${C.strip}" style="padding:${pad};background:${C.strip};">
-    <img src="${logoUrl}" alt="NikFoods" width="${w}" style="display:block;border:0;outline:none;width:${w}px;height:auto;max-width:100%;font-family:Arial,sans-serif;font-size:22px;font-weight:800;color:${C.brand};">
+    <img src="${logoUrl}" alt="NikFoods" width="${w}" style="display:block;border:0;outline:none;width:${w}px;height:auto;max-width:100%;margin:0 auto;text-align:center;font-family:Arial,sans-serif;font-size:26px;font-weight:800;color:${C.brand};">
   </td></tr>`;
 }
 
@@ -168,7 +169,8 @@ export function getOrderConfirmationEmailTemplate(order: Order, profileCustomerD
   const currency = order.currency || 'usd';
   const first = has(customer.name) ? customer.name.trim().split(/\s+/)[0] : 'there';
   const SITE = getSiteUrl();
-  const logoUrl = `${LIVE_SITE_URL}/images/logo.png`;
+  // attached to the email as an inline image (see lib/emailLogo.ts), so it shows without "Load External Images"
+  const logoUrl = `cid:${EMAIL_LOGO_CID}`;
   const days: OrderDay[] = order.items;
   const dayLabels = days.map((d) => fmt(toDate(d.actualDeliveryDate || d.deliveryDate), { weekday: 'short', month: 'short', day: 'numeric' }));
   const preheader = `Order ${order.orderId} is confirmed. Delivering ${dayLabels.join(' & ')}.`;
