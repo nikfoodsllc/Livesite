@@ -23,6 +23,7 @@ import {
   addPSTDays,
   getPSTMidnight,
 } from '@/lib/timezone';
+import { cutoffInfo, isPastCustomCutoff, normalizeDateString, parseCutoffOverride, type ClosedDate } from './orderCutoff';
 
 /**
  * Date Option Interface
@@ -60,6 +61,13 @@ export interface DateOption {
    * Example: Thursday 2 PM PST - Friday is not in the past (isPast=false) but is past cutoff (isPastCutoff=true)
    */
   isPastCutoff: boolean;
+  /**
+   * When ordering for this date closes (ISO moment): the admin's custom cutoff if one is set,
+   * otherwise the standard 1 PM Pacific the day before.
+   */
+  closesAt?: string;
+  /** True when `closesAt` is a custom cutoff set by an admin for this date. */
+  cutoffOverridden?: boolean;
 }
 
 /**
@@ -72,6 +80,8 @@ interface AvailableDateDocument {
   dayWiseCategoryEnabled: boolean;
   createdAt?: Date;
   updatedAt?: Date;
+  /** Custom order cutoff for this date (an absolute moment). Missing = the standard rule. */
+  cutoffAt?: Date | string | null;
 }
 
 /**
@@ -98,7 +108,11 @@ interface AvailableDateDocument {
  * // Thursday 2 PM PST, checking Saturday
  * isPastCutoffTime(saturdayDate); // Returns false (Saturday still available)
  */
-function isPastCutoffTime(targetDate: Date): boolean {
+function isPastCutoffTime(targetDate: Date, customCutoff?: Date | string | null): boolean {
+  // An admin-set cutoff for this date replaces the standard rule completely: it closes the date at that
+  // moment and, if it is later than the standard cutoff, keeps the date open until then.
+  if (parseCutoffOverride(customCutoff)) return isPastCustomCutoff(customCutoff);
+
   const now = getPSTNow();
 
   // Get midnight for today and the target date in PST timezone
@@ -168,9 +182,10 @@ export async function getOrderableDayWiseDateStrings(
     }
 
     return result.data
-      .map((doc) => doc.date.trim())
-      .filter((date) => /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/.test(date))
-      .filter((date) => !isDateDisabled(date));
+      .map((doc) => ({ date: doc.date.trim(), cutoffAt: doc.cutoffAt }))
+      .filter(({ date }) => /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/.test(date))
+      .filter(({ date, cutoffAt }) => !isDateDisabled(date, cutoffAt))
+      .map(({ date }) => date);
   } catch (error) {
     console.error('Error in getOrderableDayWiseDateStrings:', error);
     return [];
@@ -291,7 +306,8 @@ export function generateAvailableDateOptions(
        * - Tomorrow: Check if past 1 PM PST cutoff
        * - Future (beyond tomorrow): Not affected by cutoff
        */
-      const isPastCutoff = isPastCutoffTime(dateObj);
+      const isPastCutoff = isPastCutoffTime(dateObj, doc.cutoffAt);
+      const cutoff = cutoffInfo(doc.date, doc.cutoffAt);
 
       return {
         id: doc.date,
@@ -303,6 +319,8 @@ export function generateAvailableDateOptions(
         isToday,
         isPast,
         isPastCutoff,
+        closesAt: cutoff.closesAt.toISOString(),
+        cutoffOverridden: cutoff.overridden,
       };
     })
     .sort((a, b) => a.date.localeCompare(b.date)); // Ensure ascending sort
@@ -352,7 +370,7 @@ export async function getNextAvailableDate(): Promise<DateOption | null> {
  * @param date - Date string in YYYY-MM-DD format or Date object
  * @returns true if the date is disabled (past or past cutoff), false otherwise
  */
-export function isDateDisabled(date: string | Date): boolean {
+export function isDateDisabled(date: string | Date, customCutoff?: Date | string | null): boolean {
   try {
     let dateObj: Date;
 
@@ -373,7 +391,7 @@ export function isDateDisabled(date: string | Date): boolean {
     const isPast = isInPSTPast(dateObj);
 
     // Check if cutoff time has passed (1 PM PST the day before)
-    const isPastCutoff = isPastCutoffTime(dateObj);
+    const isPastCutoff = isPastCutoffTime(dateObj, customCutoff);
 
     // Date is disabled if it's in the past OR if the cutoff time has passed
     return isPast || isPastCutoff;
@@ -381,4 +399,32 @@ export function isDateDisabled(date: string | Date): boolean {
     console.error('Error in isDateDisabled:', error);
     return false;
   }
+}
+
+/**
+ * Of these delivery dates (e.g. the days in a customer's cart), the ones ordering has closed for,
+ * using the same rule as the menu: the date is in the past, or its cutoff (custom or standard) has
+ * passed. Used by checkout and order creation so a closed day cannot be ordered from an old page.
+ * If the database cannot be read this returns nothing (never block a sale because of a lookup problem).
+ */
+export async function findClosedDeliveryDates(dates: unknown[]): Promise<ClosedDate[]> {
+  const unique = Array.from(new Set(dates.map(normalizeDateString).filter((d): d is string => d !== null)));
+  if (unique.length === 0) return [];
+
+  const customCutoffs = new Map<string, Date | string | null | undefined>();
+  try {
+    const result = await db.read<AvailableDateDocument>('availableDates', { date: { $in: unique } });
+    if (!result.success || !result.data) {
+      console.error('findClosedDeliveryDates: could not read availableDates:', result.error);
+      return [];
+    }
+    for (const doc of result.data) customCutoffs.set(doc.date.trim(), doc.cutoffAt);
+  } catch (error) {
+    console.error('findClosedDeliveryDates failed:', error);
+    return [];
+  }
+
+  return unique
+    .filter((date) => isDateDisabled(date, customCutoffs.get(date)))
+    .map((date) => ({ date, closesAt: cutoffInfo(date, customCutoffs.get(date)).closesAt.toISOString() }));
 }
