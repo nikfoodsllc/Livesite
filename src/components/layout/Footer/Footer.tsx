@@ -139,14 +139,14 @@ export default function Footer() {
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
               <Typography variant="body2">
                 <Link
-                  href="mailto:nikfoodsllc@gmail.com"
+                  href="mailto:support@nikfoods.com"
                   sx={{
                     color: theme.palette.primary.main,
                     textDecoration: 'none',
                     '&:hover': { textDecoration: 'underline' },
                   }}
                 >
-                  nikfoodsllc@gmail.com
+                  support@nikfoods.com
                 </Link>
               </Typography>
             </Box>
