@@ -7,6 +7,8 @@ import { ObjectId, type Filter } from 'mongodb';
 import { db } from '@/lib/server/db';
 import type { IUser } from '@/types/auth';
 import { buildDraftPaymentMetadata, siteFromHeaders } from '@/lib/server/stripePaymentInfo';
+import { findClosedDeliveryDates } from '@/lib/server/availableDates';
+import { closedDatesMessage } from '@/lib/server/orderCutoff';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 if (!stripeSecretKey) {
@@ -89,6 +91,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: 'Cart does not meet minimum order requirements' },
         { status: 400 }
+      );
+    }
+
+    // Refuse days ordering has closed for (same rule as the menu, including a custom cutoff set by an
+    // admin), so an old page or a stale cart cannot order a closed day
+    const closedDates = await findClosedDeliveryDates(cart.days.map((day) => day.date));
+    if (closedDates.length > 0) {
+      return NextResponse.json(
+        { success: false, error: closedDatesMessage(closedDates), code: 'ORDER_CUTOFF_CLOSED', closedDates },
+        { status: 409 }
       );
     }
 
