@@ -121,10 +121,10 @@ export interface ClosedDate {
   closesAt: string;
 }
 
-/** The sentence shown to a customer whose cart contains days that are no longer open. */
+/** The plain sentence naming the days that are no longer open (the checkout page adds what it did about it). */
 export function closedDatesMessage(closed: ClosedDate[]): string {
   const sorted = [...closed].sort((a, b) => a.date.localeCompare(b.date));
   const parts = sorted.map((c) => `${formatDeliveryDate(c.date)} (closed ${formatPacificMoment(new Date(c.closesAt))} Pacific time)`);
   const list = parts.length === 1 ? parts[0] : parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1];
-  return `Ordering has closed for ${list}. Please go back to your cart and remove ${sorted.length === 1 ? 'that day' : 'those days'} to continue.`;
+  return `Ordering has closed for ${list}.`;
 }
