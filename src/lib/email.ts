@@ -2,7 +2,7 @@
 
 import { MailtrapClient } from 'mailtrap';
 import { Resend } from 'resend';
-import { getOrderConfirmationEmailTemplate } from '@/templates/orderConfirmation';
+import { getOrderConfirmationEmailTemplate, getOrderConfirmationEmailSubject } from '@/templates/orderConfirmation';
 import { getPaymentFailedEmailTemplate, getPaymentFailedEmailSubject } from '@/templates/paymentFailed';
 import { Order, EmailStatusInfo, CustomerInfo } from '@/types/order';
 import { EmailType } from '@/types/email';
@@ -373,7 +373,7 @@ export async function sendOrderConfirmationEmail(
     }
 
     const email = order.customerInfo.email;
-    const subject = 'NikFoods order confirmation';
+    const subject = getOrderConfirmationEmailSubject(order);
     const profileCustomerDetails = await resolveProfileCustomerDetails(order);
 
     // Validate email format

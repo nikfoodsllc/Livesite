@@ -38,9 +38,8 @@ function getGracefulFailureMessage(failureReason?: string): string {
   return 'Your card was declined, payment authorization timed out, or your session expired.';
 }
 
-export function getPaymentFailedEmailSubject(order: Order): string {
-  const amount = formatOrderAmount(order.totalPaid, order.currency);
-  return `Action Required: Your Recent Nikfoods Order for ${amount} Could Not Be Placed – Please Resubmit`;
+export function getPaymentFailedEmailSubject(_order?: Order): string {
+  return 'Oops, NikFoods Order Submission Failed - Please Resubmit';
 }
 
 const C = {
@@ -60,7 +59,7 @@ const C = {
   noteText: '#5B3F10',
   strip: '#1E1409',
 };
-const SUPPORT = 'nikfoodsllc@gmail.com';
+const SUPPORT = 'support@nikfoods.com';
 
 function firstName(order: Order): string {
   const name = order.customerInfo?.name?.trim();
@@ -108,80 +107,69 @@ export function getPaymentFailedEmailTemplate(
   @media only screen and (max-width: 620px) {
     .wrap { width:100% !important; border-radius:0 !important; }
     .px { padding-left:20px !important; padding-right:20px !important; }
-    .hero-h { font-size:28px !important; line-height:34px !important; }
+    .hero-h { font-size:25px !important; line-height:30px !important; }
     .meta-cell { display:block !important; width:100% !important; border-right:0 !important; border-bottom:1px solid ${C.line} !important; padding:12px 0 !important; }
     .btn a { display:block !important; }
+    .hero-l { font-size:11px !important; letter-spacing:0.04em !important; }
+    .outer { padding:0 !important; }
   }
 </style>
 </head>
 <body bgcolor="${C.page}" style="margin:0;padding:0;background:${C.page};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:${C.text};">
 <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;font-size:1px;line-height:1px;">Your payment didn&rsquo;t go through, and your card has not been charged. Tap to try again.&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="${C.page}" style="background:${C.page};">
-<tr><td align="center" style="padding:28px 12px;">
+<tr><td class="outer" align="center" style="padding:16px 12px;">
 
 <table role="presentation" class="wrap" width="640" cellpadding="0" cellspacing="0" bgcolor="${C.card}" style="width:640px;max-width:640px;background:${C.card};border-radius:24px;overflow:hidden;border:1px solid ${C.line};border-collapse:separate;">
 
   <tr><td height="5" bgcolor="${C.brand}" style="height:5px;line-height:5px;font-size:1px;background:${C.brand};">&nbsp;</td></tr>
 
-  ${logoStrip(logoUrl, 170, '22px 32px')}
+  ${logoStrip(logoUrl, 150, '14px 32px')}
 
   <!-- Hero -->
-  <tr><td class="px" align="center" bgcolor="${C.card}" style="padding:34px 32px 32px;background:${C.card};">
-    <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:0 auto 20px;"><tr><td>
+  <tr><td class="px" align="center" bgcolor="${C.card}" style="padding:12px 32px 12px;background:${C.card};">
+    <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:0 auto 6px;"><tr><td>
       <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:separate;"><tr>
-        <td width="62" height="62" align="center" valign="middle" bgcolor="${C.tile}" style="width:62px;height:62px;background:${C.tile};border:2px solid ${C.brand};border-radius:36px;"><span style="font-size:34px;font-weight:800;line-height:62px;color:${C.brandText};">!</span></td>
+        <td width="44" height="44" align="center" valign="middle" bgcolor="${C.tile}" style="width:44px;height:44px;background:${C.tile};border:2px solid ${C.brand};border-radius:26px;"><span style="font-size:24px;font-weight:800;line-height:44px;color:${C.brandText};">!</span></td>
       </tr></table>
     </td></tr></table>
-    <div style="font-size:12px;font-weight:800;letter-spacing:0.16em;text-transform:uppercase;color:${C.brandText};margin-bottom:10px;">Order not placed</div>
-    <div class="hero-h" style="font-size:34px;line-height:40px;font-weight:800;color:${C.text};margin:0;">${greeting} your payment didn&rsquo;t go through</div>
-    <div style="font-size:16px;line-height:25px;color:${C.body};margin:12px auto 0;max-width:440px;">Don&rsquo;t worry &mdash; <strong style="color:${C.text};">your card has not been charged.</strong> It only takes a moment to try again.</div>
-  </td></tr>
-
-  <!-- Meta strip -->
-  <tr><td class="px" bgcolor="${C.surface}" style="padding:0 32px;background:${C.surface};border-top:1px solid ${C.line};border-bottom:1px solid ${C.line};">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-      <td class="meta-cell" style="padding:16px 8px 16px 0;border-right:1px solid ${C.line};">
-        <div style="font-size:11px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:${C.muted};">Order number</div>
-        <div style="font-size:15px;font-weight:800;color:${C.text};margin-top:3px;">${orderId}</div>
-      </td>
-      <td class="meta-cell" style="padding:16px 0 16px 16px;" align="left">
-        <div style="font-size:11px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:${C.muted};">Order total</div>
-        <div style="font-size:15px;font-weight:800;color:${C.brandText};margin-top:3px;">${escapeHtml(amount)}</div>
-      </td>
-    </tr></table>
+    <div class="hero-l" style="font-size:12px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:${C.brandText};margin-bottom:4px;word-break:break-word;">Order # ${orderId} not placed</div>
+    <div class="hero-h" style="font-size:30px;line-height:36px;font-weight:800;color:${C.text};margin:0;">${greeting} your payment didn&rsquo;t go through</div>
+    <div style="font-size:15px;line-height:22px;color:${C.body};margin:4px auto 0;max-width:440px;">Don&rsquo;t worry &mdash; <strong style="color:${C.text};">your card has not been charged.</strong> It only takes a moment to try again.</div>
   </td></tr>
 
   <!-- What went wrong -->
-  <tr><td class="px" bgcolor="${C.card}" style="padding:28px 32px 4px;background:${C.card};">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="${C.noteBg}" style="background:${C.noteBg};border:1px solid ${C.noteLine};border-radius:16px;border-collapse:separate;"><tr><td style="padding:16px 18px;">
-      <div style="font-size:11px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:${C.brandText};margin-bottom:6px;">What went wrong</div>
-      <div style="font-size:15px;font-weight:700;color:${C.noteText};line-height:22px;">${escapeHtml(gracefulFailureMessage)}</div>
+  <tr><td class="px" bgcolor="${C.card}" style="padding:12px 32px 0;background:${C.card};">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="${C.noteBg}" style="background:${C.noteBg};border:1px solid ${C.noteLine};border-radius:16px;border-collapse:separate;"><tr><td style="padding:9px 14px;">
+      <div style="font-size:11px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:${C.brandText};margin-bottom:4px;">What went wrong</div>
+      <div style="font-size:15px;font-weight:700;color:${C.noteText};line-height:21px;">${escapeHtml(gracefulFailureMessage)}</div>
+      <div style="font-size:13px;color:${C.noteText};line-height:20px;margin-top:4px;">Order total: <strong>${escapeHtml(amount)}</strong> (not charged)</div>
     </td></tr></table>
   </td></tr>
 
   <!-- CTA -->
-  <tr><td class="px" align="center" bgcolor="${C.card}" style="padding:28px 32px 6px;background:${C.card};">
-    <div style="font-size:15px;line-height:23px;color:${C.body};margin:0 0 16px;">Tap below to head back to checkout and try again. You can use the same card or a different one. If your cart is empty (for example, if you open this on a different phone), just add your items again.</div>
+  <tr><td class="px" align="center" bgcolor="${C.card}" style="padding:12px 32px 0;background:${C.card};">
+    <div style="font-size:15px;line-height:22px;color:${C.body};margin:0 0 10px;">Tap below to head back to checkout and try again. You can use the same card or a different one. If your cart is empty (for example, if you open this on a different phone), just add your items again.</div>
     <table role="presentation" class="btn" cellpadding="0" cellspacing="0" style="border-collapse:separate;"><tr>
       <td align="center" bgcolor="${C.brand}" style="border-radius:14px;background:${C.brand};border:2px solid ${C.brand};">
-        <a href="${escapeHtml(checkoutUrl)}" style="display:inline-block;padding:14px 34px;font-size:16px;font-weight:800;color:${C.onBrand};border-radius:14px;">Back to checkout &rarr;</a>
+        <a href="${escapeHtml(checkoutUrl)}" style="display:inline-block;padding:9px 30px;font-size:16px;font-weight:800;color:${C.onBrand};border-radius:14px;">Back to checkout &rarr;</a>
       </td>
     </tr></table>
-    <div style="font-size:12px;color:${C.muted};margin-top:12px;">We&rsquo;re sorry for the trouble and appreciate your patience.</div>
+    <div style="font-size:12px;color:${C.muted};margin-top:6px;">We&rsquo;re sorry for the trouble and appreciate your patience.</div>
   </td></tr>
 
   <!-- Help -->
-  <tr><td class="px" align="center" bgcolor="${C.card}" style="padding:28px 32px 30px;background:${C.card};">
-    <div style="font-size:17px;font-weight:800;color:${C.text};">Still having trouble?</div>
-    <div style="font-size:14px;color:${C.body};line-height:22px;margin-top:6px;">Just reply to this email or write to us at<br><a href="mailto:${SUPPORT}" style="color:${C.brandText};font-weight:800;">${SUPPORT}</a> &mdash; we&rsquo;re happy to help.</div>
+  <tr><td class="px" align="center" bgcolor="${C.card}" style="padding:10px 32px 8px;background:${C.card};">
+    <div style="font-size:16px;font-weight:800;color:${C.text};">Still having trouble?</div>
+    <div style="font-size:14px;color:${C.body};line-height:20px;margin-top:3px;">Just reply to this email or write to us at<br><a href="mailto:${SUPPORT}" style="color:${C.brandText};font-weight:800;">${SUPPORT}</a> &mdash; we&rsquo;re happy to help.</div>
   </td></tr>
 
   <!-- Footer -->
-  ${logoStrip(logoUrl, 130, '22px 32px 10px')}
-  <tr><td class="px" align="center" bgcolor="${C.card}" style="padding:16px 32px 26px;background:${C.card};">
+  ${logoStrip(logoUrl, 100, '10px 32px 4px')}
+  <tr><td class="px" align="center" bgcolor="${C.card}" style="padding:6px 32px 10px;background:${C.card};">
     <div style="font-size:13px;color:${C.body};font-style:italic;">Authentic Indian food delivered to your doorstep.</div>
-    <div style="font-size:12px;margin-top:12px;"><a href="${siteUrl}/account/orders" style="color:${C.brandText};">My orders</a> &nbsp;&middot;&nbsp; <a href="${siteUrl}/terms" style="color:${C.brandText};">Terms</a> &nbsp;&middot;&nbsp; <a href="${siteUrl}/privacy" style="color:${C.brandText};">Privacy</a></div>
-    <div style="font-size:11px;color:${C.muted};margin-top:10px;">&copy; ${new Date().getFullYear()} NikFoods. All rights reserved.</div>
+    <div style="font-size:12px;margin-top:4px;"><a href="${siteUrl}/account/orders" style="color:${C.brandText};">My orders</a> &nbsp;&middot;&nbsp; <a href="${siteUrl}/terms" style="color:${C.brandText};">Terms</a> &nbsp;&middot;&nbsp; <a href="${siteUrl}/privacy" style="color:${C.brandText};">Privacy</a></div>
+    <div style="font-size:11px;color:${C.muted};margin-top:3px;">&copy; ${new Date().getFullYear()} NikFoods. All rights reserved.</div>
   </td></tr>
 
 </table>

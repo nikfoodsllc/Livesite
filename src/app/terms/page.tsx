@@ -979,7 +979,7 @@ export default function TermsPage() {
                   <strong>Email:</strong>{' '}
                   <Box
                     component="a"
-                    href="mailto:nikfoodsllc@gmail.com"
+                    href="mailto:support@nikfoods.com"
                     sx={{
                       color: 'primary.main',
                       textDecoration: 'none',
@@ -989,7 +989,7 @@ export default function TermsPage() {
                       },
                     }}
                   >
-                    nikfoodsllc@gmail.com
+                    support@nikfoods.com
                   </Box>
                 </Typography>
                 <Typography

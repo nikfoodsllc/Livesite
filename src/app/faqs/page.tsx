@@ -37,7 +37,7 @@ const faqSections = [
       },
       {
         question: 'Can I change my delivery address/contact info after placing an order?',
-        answer: 'Yes, you can reach out to our support team via chat or email nikfoodsllc@gmail.com, and request changes. We\'ll try our best to accommodate the change.',
+        answer: 'Yes, you can reach out to our support team via chat or email support@nikfoods.com, and request changes. We\'ll try our best to accommodate the change.',
       },
     ],
   },
@@ -69,7 +69,7 @@ const faqSections = [
       },
       {
         question: 'How do I place a party order?',
-        answer: 'Please reach us via chat or email nikfoodsllc@gmail.com, and share details like your contact info, event date, number of guests (adults and kids), veg/non-veg preference. Our event expert shall get in touch with you to share party catering menu and help you plan the event.',
+        answer: 'Please reach us via chat or email support@nikfoods.com, and share details like your contact info, event date, number of guests (adults and kids), veg/non-veg preference. Our event expert shall get in touch with you to share party catering menu and help you plan the event.',
       },
       {
         question: 'What are the payment requirements for party orders?',
@@ -311,7 +311,7 @@ export default function FAQPage() {
               Email us at:{' '}
               <Box
                 component="a"
-                href="mailto:nikfoodsllc@gmail.com"
+                href="mailto:support@nikfoods.com"
                 sx={{
                   color: 'white',
                   textDecoration: 'underline',
@@ -321,7 +321,7 @@ export default function FAQPage() {
                   },
                 }}
               >
-                nikfoodsllc@gmail.com
+                support@nikfoods.com
               </Box>
             </Typography>
           </Box>
