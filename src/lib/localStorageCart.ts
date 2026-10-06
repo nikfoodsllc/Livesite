@@ -406,6 +406,25 @@ export function clearCart(): void {
   }
 }
 
+/**
+ * Removes every day of the cart whose delivery date is one of `dates` ('YYYY-MM-DD'), items included.
+ * Used when the server says ordering has closed for those days. Returns what was removed and the cart that is left.
+ */
+export function removeDaysByDate(dates: string[]): { removed: Array<{ day: DayType; date: string }>; cart: LocalCart } {
+  const wanted = new Set(dates.map((d) => String(d).slice(0, 10)));
+  const cart = getCart();
+  const removed: Array<{ day: DayType; date: string }> = [];
+  for (const dayKey of Object.keys(cart.days) as DayType[]) {
+    const date = String(cart.days[dayKey]?.date ?? '').slice(0, 10);
+    if (wanted.has(date)) {
+      removed.push({ day: dayKey, date });
+      delete cart.days[dayKey];
+    }
+  }
+  if (removed.length > 0) saveCart(cart);
+  return { removed, cart };
+}
+
 export function clearDay(day: DayType): LocalCart {
   const cart = getCart();
 
