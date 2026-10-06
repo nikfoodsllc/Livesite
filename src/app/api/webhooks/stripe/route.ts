@@ -197,20 +197,6 @@ export async function POST(request: NextRequest) {
 
         console.log(`[Webhook] Order ${order.orderId} confirmed and marked as paid`);
 
-        // Record what Stripe charged us for this payment (shown in the admin, never to customers).
-        // Best effort: a missing fee must not affect the order or its confirmation email.
-        const feeInfo = await fetchChargeFee(stripe, charge);
-        if (feeInfo) {
-          const feeResult = await db.updateOne('orders', { orderId: order.orderId }, { $set: feeInfo });
-          if (!feeResult.success) {
-            console.error(`[Webhook] Failed to save the Stripe fee for order ${order.orderId}:`, feeResult.error);
-          } else {
-            console.log(`[Webhook] Saved the Stripe fee for order ${order.orderId}`);
-          }
-        } else {
-          console.warn(`[Webhook] No Stripe fee available yet for order ${order.orderId} (charge ${charge.id})`);
-        }
-
         // Send order confirmation email
         try {
           console.log(`[Webhook] Sending confirmation email for successful payment order: ${order.orderId}`);
@@ -232,6 +218,44 @@ export async function POST(request: NextRequest) {
           // Email failure should not break webhook processing - continue with normal flow
         }
 
+        // Record what Stripe charged us for this payment (shown in the admin, never to customers).
+        // Best effort, and done AFTER the confirmation email: waiting for Stripe to attach the fee can take a few
+        // seconds and must never delay the email. A fee still missing here is picked up by charge.updated.
+        const feeInfo = await fetchChargeFee(stripe, charge);
+        if (feeInfo) {
+          const feeResult = await db.updateOne('orders', { orderId: order.orderId }, { $set: feeInfo });
+          if (!feeResult.success) {
+            console.error(`[Webhook] Failed to save the Stripe fee for order ${order.orderId}:`, feeResult.error);
+          } else {
+            console.log(`[Webhook] Saved the Stripe fee for order ${order.orderId}`);
+          }
+        } else {
+          console.warn(`[Webhook] No Stripe fee available yet for order ${order.orderId} (charge ${charge.id})`);
+        }
+
+        break;
+      }
+      case 'charge.updated': {
+        // Stripe sends this when it attaches the balance transaction (the fee) to a charge. It only matters for
+        // orders whose fee was not available when the payment succeeded; everything else is acknowledged.
+        const charge = event.data.object as Stripe.Charge;
+        if (!charge.payment_intent || charge.status !== 'succeeded') break;
+
+        const orderResult = await db.readOne<Order>('orders', {
+          stripePaymentIntentId: charge.payment_intent.toString(),
+        });
+        const order = orderResult.success ? orderResult.data : null;
+        if (!order || order.stripeFee !== undefined) break;
+
+        const feeInfo = await fetchChargeFee(stripe, charge, { retries: 0 });
+        if (feeInfo) {
+          const feeResult = await db.updateOne('orders', { orderId: order.orderId }, { $set: feeInfo });
+          if (!feeResult.success) {
+            console.error(`[Webhook] Failed to save the Stripe fee for order ${order.orderId}:`, feeResult.error);
+          } else {
+            console.log(`[Webhook] Saved the Stripe fee for order ${order.orderId} (charge.updated)`);
+          }
+        }
         break;
       }
 
