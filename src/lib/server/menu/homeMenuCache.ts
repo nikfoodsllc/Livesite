@@ -1,4 +1,5 @@
 import type { HomeMenuPayload } from '@/lib/server/menu/buildHomeMenu';
+import { cacheLifetimeMs } from '@/lib/server/orderCutoff';
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
@@ -11,8 +12,17 @@ export function getCachedHomeMenu(): HomeMenuPayload | null {
   return null;
 }
 
+/**
+ * Keeps the menu for up to 5 minutes, but never past the next moment ordering closes for a delivery date,
+ * so a cutoff (standard or custom) takes effect on time instead of up to 5 minutes late.
+ */
 export function setCachedHomeMenu(data: HomeMenuPayload): void {
-  cache = { data, expiresAt: Date.now() + CACHE_TTL_MS };
+  const lifetime = cacheLifetimeMs(
+    data.dates.map((date) => date.closesAt),
+    new Date(),
+    CACHE_TTL_MS
+  );
+  cache = { data, expiresAt: Date.now() + lifetime };
 }
 
 export function invalidateHomeMenuCache(): void {
