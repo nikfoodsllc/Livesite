@@ -1,4 +1,5 @@
 import { MongoClient, Db, Collection, Document, Filter, UpdateFilter, OptionalId, OptionalUnlessRequiredId } from 'mongodb';
+import { withoutAdminOnlyFields } from './adminOnlyFields';
 
 /**
  * Database Handler Class
@@ -184,7 +185,7 @@ class DatabaseHandler {
 
       return {
         success: true,
-        data: data as T[],
+        data: data.map((doc) => withoutAdminOnlyFields(collectionName, doc)) as T[],
       };
     } catch (error) {
       console.error(`Error reading documents from ${collectionName}:`, error);
@@ -208,7 +209,7 @@ class DatabaseHandler {
 
       return {
         success: true,
-        data: data as T | null,
+        data: withoutAdminOnlyFields(collectionName, data) as T | null,
       };
     } catch (error) {
       console.error(`Error reading document from ${collectionName}:`, error);
