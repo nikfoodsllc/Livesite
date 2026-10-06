@@ -33,6 +33,7 @@ import { Cart } from '@/types/cart';
 import { IAddress } from '@/types/auth';
 import { ZipcodeConfig } from '@/types/zipcode';
 import * as localCart from '@/lib/localStorageCart';
+import { closedDaysNotice, parseClosedDates } from '@/lib/closedDaysNotice';
 import { calculateDeliveryDates, type DayDeliveryInfo } from '@/lib/deliveryCalculator';
 import { DEFAULT_MIN_CART_VALUE } from '@/lib/cartLogic';
 import { reportPaymentError } from '@/lib/checkout/reportPaymentError';
@@ -453,6 +454,8 @@ export default function CheckoutPage() {
   const [tipPercentage, setTipPercentage] = useState(5);
   const [orderCompleted, setOrderCompleted] = useState(false);
   const [error, setError] = useState('');
+  // Red banner about days in the cart that ordering has closed for (stays until dismissed)
+  const [closedNotice, setClosedNotice] = useState<string | null>(null);
 
   // Address dialog states
   const [showAddressDialog, setShowAddressDialog] = useState(false);
@@ -634,10 +637,11 @@ export default function CheckoutPage() {
       return;
     }
 
-    if (!cartLoading && (!cart || cart.days.length === 0)) {
+    // (also not when the cart was just emptied because ordering closed for its days: the notice stays on this page)
+    if (!cartLoading && (!cart || cart.days.length === 0) && !closedNotice) {
       router.push('/cart');
     }
-  }, [cart, cartLoading, router, orderCompleted]);
+  }, [cart, cartLoading, router, orderCompleted, closedNotice]);
 
   // Fetch user addresses on mount
   useEffect(() => {
@@ -843,6 +847,25 @@ export default function CheckoutPage() {
     return paymentMethod === 'Credit Card';
   }, [cart, paymentMethod]);
 
+  /**
+   * The server refused the checkout because ordering has closed for some of the days in the cart. Stay on
+   * this page: remove those days from the cart, say so in a red banner at the top, and let the customer carry
+   * on with the rest. Returns true when the response was this kind of refusal (so nothing else should react).
+   */
+  const handleClosedDays = useCallback(
+    async (status: number, data: { code?: string; closedDates?: unknown } | null): Promise<boolean> => {
+      if (status !== 409 || data?.code !== 'ORDER_CUTOFF_CLOSED') return false;
+      const closed = parseClosedDates(data.closedDates);
+      const { removed, cart: cartLeft } = localCart.removeDaysByDate(closed.map((c) => c.date));
+      setClosedNotice(closedDaysNotice(closed, removed.length, Object.keys(cartLeft.days).length));
+      setError('');
+      await refreshCart();
+      if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+      return true;
+    },
+    [refreshCart]
+  );
+
   const initializePaymentIntent = useCallback(async (): Promise<boolean> => {
     if (!cart || cart.days.length === 0) {
       return false;
@@ -869,6 +892,7 @@ export default function CheckoutPage() {
       const data = await response.json();
 
       if (!response.ok || !data.success) {
+        if (await handleClosedDays(response.status, data)) return false;
         setError(data.error || 'Failed to load payment options');
         reportPaymentError({
           stage: 'create_payment_intent',
@@ -903,6 +927,7 @@ export default function CheckoutPage() {
   }, [
     authenticatedFetch,
     cart,
+    handleClosedDays,
     paymentIntentId,
     paymentMethod,
     tipPercentage,
@@ -935,6 +960,8 @@ export default function CheckoutPage() {
       const data = await response.json();
 
       if (!response.ok || !data.success) {
+        // ordering closed for a day in the cart: stay here, remove it, show the banner (not a payment error)
+        if (await handleClosedDays(response.status, data)) return null;
         const errorMessage = data.error || 'Failed to create order';
         reportPaymentError({
           stage: 'create_order',
@@ -973,6 +1000,7 @@ export default function CheckoutPage() {
     authenticatedFetch,
     cart,
     email,
+    handleClosedDays,
     name,
     paymentIntentId,
     paymentMethod,
@@ -1107,6 +1135,21 @@ export default function CheckoutPage() {
     await paymentFormRef.current.confirmPayment(orderIdForPayment);
   };
 
+  if (closedNotice && (!cart || cart.days.length === 0)) {
+    return (
+      <Box sx={{ bgcolor: '#FAFAFA', minHeight: '60vh', py: 4 }}>
+        <Container maxWidth="sm">
+          <Alert severity="error" sx={{ mb: 3 }} onClose={() => setClosedNotice(null)} role="alert">
+            {closedNotice}
+          </Alert>
+          <Button variant="contained" onClick={() => router.push('/')} sx={{ bgcolor: '#FF9F0D', '&:hover': { bgcolor: '#E68A00' }, textTransform: 'none' }}>
+            Back to the menu
+          </Button>
+        </Container>
+      </Box>
+    );
+  }
+
   if (cartLoading || authLoading) {
     return (
       <Box
@@ -1149,6 +1192,13 @@ export default function CheckoutPage() {
             Complete your order and get your delicious food delivered
           </Typography>
         </Box>
+
+        {/* Ordering closed for days in the cart: they were removed, say so at the top */}
+        {closedNotice && (
+          <Alert severity="error" sx={{ mb: 3 }} onClose={() => setClosedNotice(null)} role="alert">
+            {closedNotice}
+          </Alert>
+        )}
 
         {/* Error Alert */}
         {error && (
