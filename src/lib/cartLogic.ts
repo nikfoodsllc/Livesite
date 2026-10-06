@@ -24,10 +24,13 @@ const getDateForDayName = (dateString: string): Date => {
 export const TAX_RATE = 0.103;
 
 /**
- * Service fee rate applied to cart subtotal
- * @constant {number} SERVICE_FEE_RATE - 4% (0.04)
+ * Platform Fee: a percentage of the cart subtotal plus a flat amount. It is sized to cover what Stripe
+ * charges us (2.9% + 30 cents of the whole payment, tax and tip included), with a small cushion.
+ * @constant {number} SERVICE_FEE_RATE - 4% (0.04) of the subtotal
+ * @constant {number} PLATFORM_FEE_FLAT - 31 cents added to every non-empty cart
  */
 export const SERVICE_FEE_RATE = 0.04;
+export const PLATFORM_FEE_FLAT = 0.31;
 
 /**
  * Base delivery fee (delivery is now always free)
@@ -261,10 +264,12 @@ export function calculateTax(subtotal: number, serviceFee: number = 0): number {
  * Calculates the platform service fee based on cart subtotal
  *
  * @param subtotal - The cart subtotal before fees
- * @returns The calculated platform fee (4% of subtotal)
+ * @returns The calculated platform fee: 4% of the subtotal + $0.31 (0 for an empty cart), rounded to the cent
  */
 export function getPlatformFee(subtotal: number): number {
-  return Number((subtotal * SERVICE_FEE_RATE).toFixed(2));
+  if (!(subtotal > 0)) return 0;
+  // the small epsilon keeps exact half-cent amounts from rounding down because of floating point
+  return Math.round((subtotal * SERVICE_FEE_RATE + PLATFORM_FEE_FLAT) * 100 + 1e-9) / 100;
 }
 
 /**
