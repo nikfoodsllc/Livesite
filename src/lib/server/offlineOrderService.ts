@@ -20,6 +20,7 @@ import { validateZipcodeServiceabilityServer } from '@/utils/zipcodeValidation';
 import { calculateDeliveryDates } from '@/lib/deliveryCalculator';
 import { convertCartToOrderItems, createAddressSnapshot, formatOrderForDatabase, generateOrderId } from '@/lib/orderHelpers';
 import { sendPaymentLinkEmail } from '@/lib/offlineOrderEmail';
+import { recordPaymentLinkEmailSent, type PaymentLinkEmailRecord, type PaymentLinkViews } from '@/lib/server/paymentLinkTracking';
 import { sendOrderConfirmationEmail } from '@/lib/email';
 
 const MAX_LINES = 60;
@@ -348,6 +349,7 @@ export async function createOfflineOrder(
   const emailResult = await sendPaymentLinkEmail(pendingOrder, payLink, ensured.accountCreated);
   if (emailResult.success) {
     await db.updateOne('orders', { orderId } as never, { $set: { paymentLinkSentAt: new Date() } } as never);
+    await recordPaymentLinkEmailSent(orderId, emailResult);
   }
   return {
     ok: true,
@@ -361,6 +363,27 @@ export async function createOfflineOrder(
       emailError: emailResult.error,
     },
   };
+}
+
+const iso = (d: unknown) => (d instanceof Date ? d.toISOString() : d ? new Date(d as string).toISOString() : undefined);
+
+/** The latest pay-link email of an order, as the admin list shows it. */
+function latestEmail(o: Order): OfflineOrderRow['linkEmail'] {
+  const list = (o as unknown as { paymentLinkEmails?: PaymentLinkEmailRecord[] }).paymentLinkEmails;
+  const e = list && list.length > 0 ? list[list.length - 1] : undefined;
+  if (!e) return undefined;
+  return {
+    status: e.status,
+    sentAt: iso(e.sentAt),
+    ...(e.deliveredAt ? { deliveredAt: iso(e.deliveredAt) } : {}),
+    ...(e.bounceReason ? { bounceReason: e.bounceReason } : {}),
+    ...(e.firstOpenedAt && e.lastOpenedAt ? { opened: { firstAt: iso(e.firstOpenedAt)!, lastAt: iso(e.lastOpenedAt)!, count: e.openCount ?? 1 } } : {}),
+  };
+}
+
+function viewsOf(o: Order): OfflineOrderRow['linkViews'] {
+  const v = (o as unknown as { paymentLinkViews?: PaymentLinkViews }).paymentLinkViews;
+  return v && v.count > 0 ? { firstAt: iso(v.firstAt)!, lastAt: iso(v.lastAt)!, count: v.count } : undefined;
 }
 
 export interface OfflineOrderRow {
@@ -377,6 +400,10 @@ export interface OfflineOrderRow {
   /** Still waiting for the customer to pay the link */
   awaitingPayment: boolean;
   linkSentAt?: string;
+  /** What the email provider reported about the latest pay-link email */
+  linkEmail?: { status: string; sentAt?: string; deliveredAt?: string; bounceReason?: string; opened?: { firstAt: string; lastAt: string; count: number } };
+  /** When the customer's browser loaded the pay page (not email scanners) */
+  linkViews?: { firstAt: string; lastAt: string; count: number };
   deliveryDates: string[];
   offlinePaymentNote?: string;
 }
@@ -411,6 +438,8 @@ export async function listOfflineOrders(limit = 40): Promise<OfflineOrderRow[]> 
     awaitingPayment: Boolean(o.stripePaymentIntentId) && o.paymentStatus !== 'paid' && o.status !== 'cancelled',
     linkSentAt: o.paymentLinkSentAt ? (o.paymentLinkSentAt instanceof Date ? o.paymentLinkSentAt.toISOString() : String(o.paymentLinkSentAt)) : undefined,
     deliveryDates: Array.from(new Set((o.items ?? []).map((d) => String(d.actualDeliveryDate ?? d.deliveryDate).slice(0, 10)))).sort(),
+    ...(latestEmail(o) ? { linkEmail: latestEmail(o) } : {}),
+    ...(viewsOf(o) ? { linkViews: viewsOf(o) } : {}),
     offlinePaymentNote: o.offlinePaymentNote,
   }));
 }
@@ -430,7 +459,10 @@ export async function resendPaymentLink(orderId: string, options: { sendEmail?: 
   const payLink = buildPayLink(orderId, token);
   if (options.sendEmail === false) return { ok: true, payLink, emailSent: false };
   const sent = await sendPaymentLinkEmail(order, payLink, false);
-  if (sent.success) await db.updateOne('orders', { orderId } as never, { $set: { paymentLinkSentAt: new Date() } } as never);
+  if (sent.success) {
+    await db.updateOne('orders', { orderId } as never, { $set: { paymentLinkSentAt: new Date() } } as never);
+    await recordPaymentLinkEmailSent(orderId, sent);
+  }
   return { ok: true, payLink, emailSent: sent.success, emailError: sent.error };
 }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { Alert, Box, Button, CircularProgress, Container, Divider, Paper, Typography } from '@mui/material';
 import { IconLock, IconMail, IconMapPin, IconPhone, IconUser } from '@tabler/icons-react';
@@ -386,6 +386,7 @@ function PayInner() {
   const [data, setData] = useState<PayData | null>(null);
   const [problem, setProblem] = useState('');
   const [justPaid, setJustPaid] = useState(false);
+  const viewReported = useRef(false);
 
   const load = useCallback(async () => {
     try {
@@ -396,6 +397,11 @@ function PayInner() {
         return;
       }
       setData(body.data);
+      // tell the shop the link was opened in a browser (once per page load; never blocks anything)
+      if (!viewReported.current) {
+        viewReported.current = true;
+        void fetch(`/api/pay/${encodeURIComponent(orderId)}/seen?t=${encodeURIComponent(token)}`, { method: 'POST', keepalive: true, cache: 'no-store' }).catch(() => undefined);
+      }
     } catch {
       setProblem('We could not load your order. Please check your connection and try again.');
     }

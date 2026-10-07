@@ -14,7 +14,7 @@ export async function sendPaymentLinkEmail(
   order: Order,
   payUrl: string,
   accountCreated: boolean
-): Promise<{ success: boolean; error?: string; messageId?: string }> {
+): Promise<{ success: boolean; error?: string; messageId?: string; provider?: 'resend' | 'mailtrap' }> {
   try {
     const to = order.customerInfo?.email;
     if (!to) return { success: false, error: 'The order has no customer email' };
@@ -44,7 +44,7 @@ export async function sendPaymentLinkEmail(
         category: 'Payment Link',
         attachments: [{ filename: EMAIL_LOGO_FILENAME, type: 'image/png', content: logo, disposition: 'inline', content_id: EMAIL_LOGO_CID }],
       });
-      return { success: true, messageId: sent.message_ids[0] };
+      return { success: true, messageId: sent.message_ids[0], provider: 'mailtrap' };
     }
 
     const apiKey = process.env.RESEND_API_KEY;
@@ -59,7 +59,7 @@ export async function sendPaymentLinkEmail(
       attachments: [{ filename: EMAIL_LOGO_FILENAME, contentType: 'image/png', content: logo, contentId: EMAIL_LOGO_CID }],
     });
     if (result.error) return { success: false, error: result.error.message };
-    return { success: true, messageId: result.data?.id };
+    return { success: true, messageId: result.data?.id, provider: 'resend' };
   } catch (error) {
     console.error('[offline-order] Failed to send the payment link email', { orderId: order.orderId, error: error instanceof Error ? error.message : String(error) });
     return { success: false, error: error instanceof Error ? error.message : 'Email failed' };
