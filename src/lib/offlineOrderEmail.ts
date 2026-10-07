@@ -20,6 +20,11 @@ export async function sendPaymentLinkEmail(
     if (!to) return { success: false, error: 'The order has no customer email' };
 
     const subject = markTestSubject(getPaymentLinkEmailSubject(order));
+    // support gets a copy of every pay-link email (same setting as the order confirmation copy; support@nikfoods.com if unset)
+    const bcc = (process.env.ORDER_CONFIRMATION_BCC_EMAIL || 'support@nikfoods.com')
+      .split(',')
+      .map((e) => e.trim())
+      .filter((e) => e && e.toLowerCase() !== to.toLowerCase());
     const html = getPaymentLinkEmailTemplate(order, payUrl, accountCreated);
     const logo = Buffer.from(EMAIL_LOGO_PNG_BASE64, 'base64');
 
@@ -33,6 +38,7 @@ export async function sendPaymentLinkEmail(
       const sent = await client.send({
         from: { email: process.env.MAILTRAP_FROM_EMAIL || 'hello@demomailtrap.co', name: process.env.MAILTRAP_FROM_NAME || 'Nikfoods Test' },
         to: [{ email: to }],
+        bcc: bcc.length > 0 ? bcc.map((email) => ({ email })) : undefined,
         subject,
         html,
         category: 'Payment Link',
@@ -47,6 +53,7 @@ export async function sendPaymentLinkEmail(
     const result = await resend.emails.send({
       from: process.env.RESEND_FROM_EMAIL || '"Nikfoods" <no-reply@nikfoods-email.synngular.com>',
       to: [to],
+      bcc: bcc.length > 0 ? bcc : undefined,
       subject,
       html,
       attachments: [{ filename: EMAIL_LOGO_FILENAME, contentType: 'image/png', content: logo, contentId: EMAIL_LOGO_CID }],
