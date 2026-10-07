@@ -3,8 +3,8 @@ import Stripe from 'stripe';
 import { db } from '@/lib/server/db';
 import { Order, OrderDay } from '@/types/order';
 import { paymentTokenMatches } from '@/lib/server/paymentLink';
-import { findClosedDeliveryDates } from '@/lib/server/availableDates';
-import { closedDatesMessage } from '@/lib/server/orderCutoff';
+import { findClosedLines } from '@/lib/server/availableDates';
+import { closedLinesMessage } from '@/lib/server/orderCutoff';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,9 +56,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   // same rule as the website's checkout: a delivery day that has closed since the order was entered cannot be paid for
-  const closed = await findClosedDeliveryDates(order.items.map((day) => day.deliveryDate));
+  const closed = await findClosedLines(
+    order.items.flatMap((day) =>
+      day.items.map((it) => ({
+        date: day.deliveryDate instanceof Date ? day.deliveryDate.toISOString().slice(0, 10) : String(day.deliveryDate).slice(0, 10),
+        foodItemId: it.food._id,
+        name: it.food.name,
+        kind: it.listingType,
+      }))
+    )
+  );
   if (closed.length > 0) {
-    return NextResponse.json({ success: true, data: { state: 'cutoff', orderId: order.orderId, message: closedDatesMessage(closed) } });
+    return NextResponse.json({ success: true, data: { state: 'cutoff', orderId: order.orderId, message: closedLinesMessage(closed) } });
   }
 
   const key = process.env.STRIPE_SECRET_KEY;

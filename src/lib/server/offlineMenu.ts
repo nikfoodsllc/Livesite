@@ -20,21 +20,26 @@ export function orderableDates(menu: HomeMenuPayload): HomeMenuPayload['dates'] 
 }
 
 /**
- * The menu item for a day, or null when it is not on the menu that day. Flat categories (pickles, batters,
- * sweets...) are on sale every open day that has them switched on; day-wise items only on their own date.
+ * The menu item for a day and which kind of item it is there, or null when it is not on the menu that day. Flat
+ * categories (pickles, batters, sweets...) are on sale every open day that has them switched on; day-wise items only
+ * on their own date. (The cutoff of each kind is checked separately, when the order is priced.)
  */
-export function findMenuItem(menu: HomeMenuPayload, date: string, foodItemId: string): FoodItem | null {
+export function findMenuItem(
+  menu: HomeMenuPayload,
+  date: string,
+  foodItemId: string
+): { item: FoodItem; kind: 'flat' | 'day-wise' } | null {
   const day = menu.dates.find((d) => d.date === date);
   if (!day) return null;
   for (const category of Object.values(menu.categoryItems)) {
     if (category.listingType === 'flat') {
       if (!day.flatCategoryEnabled) continue;
       const hit = category.foodItems.find((i) => String(i._id) === foodItemId);
-      if (hit) return hit as unknown as FoodItem;
+      if (hit) return { item: hit as unknown as FoodItem, kind: 'flat' };
     } else {
       if (!day.dayWiseCategoryEnabled) continue;
       const hit = category.dayWiseItems?.[date]?.find((i) => String(i._id) === foodItemId);
-      if (hit) return hit as unknown as FoodItem;
+      if (hit) return { item: hit as unknown as FoodItem, kind: 'day-wise' };
     }
   }
   return null;

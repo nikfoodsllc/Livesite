@@ -28,6 +28,16 @@ export interface DayOption {
   isToday: boolean;
   /** Whether this date is in the past (timezone-aware) */
   isPast: boolean;
+  /** Both kinds of items have passed their cutoff for this date (nothing can be ordered for it any more) */
+  isPastCutoff?: boolean;
+  /** Flat items (batters, sweets, pickles...) can no longer be ordered for this date */
+  flatPastCutoff?: boolean;
+  /** Day-wise (Food Menu) items can no longer be ordered for this date */
+  dayWisePastCutoff?: boolean;
+  /** When ordering flat items for this date closes (ISO moment) */
+  flatClosesAt?: string;
+  /** When ordering day-wise items for this date closes (ISO moment) */
+  dayWiseClosesAt?: string;
 
   // Computed property for backward compatibility
   /** Day name extracted from date (e.g., 'monday', 'tuesday') */

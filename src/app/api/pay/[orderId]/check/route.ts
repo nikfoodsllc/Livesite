@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/server/db';
 import { Order } from '@/types/order';
 import { paymentTokenMatches } from '@/lib/server/paymentLink';
-import { findClosedDeliveryDates } from '@/lib/server/availableDates';
-import { closedDatesMessage } from '@/lib/server/orderCutoff';
+import { findClosedLines } from '@/lib/server/availableDates';
+import { closedLinesMessage } from '@/lib/server/orderCutoff';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,9 +20,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!order || !paymentTokenMatches(token, order.paymentLinkTokenHash)) {
     return NextResponse.json({ success: false, error: 'This payment link is not valid.' }, { status: 404 });
   }
-  const closed = await findClosedDeliveryDates(order.items.map((day) => day.deliveryDate));
+  const closed = await findClosedLines(
+    order.items.flatMap((day) =>
+      day.items.map((it) => ({
+        date: day.deliveryDate instanceof Date ? day.deliveryDate.toISOString().slice(0, 10) : String(day.deliveryDate).slice(0, 10),
+        foodItemId: it.food._id,
+        name: it.food.name,
+        kind: it.listingType,
+      }))
+    )
+  );
   if (closed.length > 0) {
-    return NextResponse.json({ success: false, code: 'ORDER_CUTOFF_CLOSED', error: closedDatesMessage(closed) }, { status: 409 });
+    return NextResponse.json({ success: false, code: 'ORDER_CUTOFF_CLOSED', error: closedLinesMessage(closed) }, { status: 409 });
   }
   return NextResponse.json({ success: true });
 }
