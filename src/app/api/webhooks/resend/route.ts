@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
 import { applyPaymentLinkEmailEvent } from '@/lib/server/paymentLinkTracking';
+import { applyConfirmationEmailEvent } from '@/lib/server/confirmationEmailTracking';
 import { emailAnalytics } from '@/lib/emailAnalytics';
 import { WebhookPayload } from '@/types/email';
 import { formatAPITimestamp } from '@/lib/apiDateFormat';
@@ -77,16 +78,18 @@ export async function POST(request: NextRequest) {
       eventCount: webhookPayload.data?.events?.length,
     });
 
-    // The payment-link email of an admin-entered order: remember delivered / bounced / opened on the order (verified requests only)
+    // The payment-link or the confirmation email of an order: remember delivered / bounced / opened on the order (verified requests only)
     if (verified) {
       const data = webhookPayload.data as unknown as { email_id?: string; bounce?: { message?: string } };
       const when = new Date(webhookPayload.created_at ?? Date.now());
-      await applyPaymentLinkEmailEvent({
+      const event = {
         type: webhookPayload.type,
         emailId: String(data.email_id ?? ''),
         at: Number.isNaN(when.getTime()) ? new Date() : when,
         bounceReason: data.bounce?.message,
-      });
+      };
+      // an email belongs to one of the two: a payment link (kept on the order's link emails) or the order confirmation
+      if (!(await applyPaymentLinkEmailEvent(event))) await applyConfirmationEmailEvent(event);
     }
 
     // Process webhook events through analytics service
