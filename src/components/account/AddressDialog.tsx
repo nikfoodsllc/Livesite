@@ -1,5 +1,6 @@
 'use client';
 
+import { useAuth } from '@/contexts/AuthContext';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Dialog,
@@ -66,6 +67,10 @@ export default function AddressDialog({
 }: AddressDialogProps) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const { refreshUser } = useAuth();
+  // the latest profile, read when the form is set up (the form must not reset when the profile object changes while typing)
+  const profileRef = useRef(userProfile);
+  profileRef.current = userProfile;
 
   const [formData, setFormData] = useState<Address>({
     name: '',
@@ -155,9 +160,9 @@ export default function AddressDialog({
         setAddressSelected(true);
       } else {
         setFormData({
-          name: userProfile?.name || '',
-          email: userProfile?.email || '',
-          phone: userProfile?.phone || '',
+          name: profileRef.current?.name || '',
+          email: profileRef.current?.email || '',
+          phone: profileRef.current?.phone || '',
           street_address: '',
           city: '',
           postal_code: '',
@@ -176,7 +181,23 @@ export default function AddressDialog({
       setIsValidatingZipcode(false);
       setPhoneError(null);
     }, 0);
-  }, [address, mode, open, userProfile, existingAddressCount]);
+  }, [address, mode, open, existingAddressCount]);
+
+  // opening the form for a new address: get the current profile first (a phone saved a moment ago must not be asked for again)
+  useEffect(() => {
+    if (open && mode === 'add') void refreshUser();
+  }, [open, mode, refreshUser]);
+
+  // when the profile arrives or changes, fill only what is still empty, never what the person has typed
+  useEffect(() => {
+    if (!open || mode !== 'add') return;
+    setFormData((current) => ({
+      ...current,
+      name: current.name || userProfile?.name || '',
+      email: current.email || userProfile?.email || '',
+      phone: current.phone || userProfile?.phone || '',
+    }));
+  }, [open, mode, userProfile?.name, userProfile?.email, userProfile?.phone]);
 
   useEffect(() => {
     validateZipcode(formData.postal_code);
@@ -556,7 +577,7 @@ export default function AddressDialog({
                 onChange={handleChange('phone')}
                 error={!!phoneError}
                 helperText={phoneError}
-                inputProps={{ maxLength: 10 }}
+                inputProps={{ maxLength: 16 }}
                 sx={{ mb: 2 }}
               />
 

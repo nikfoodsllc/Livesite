@@ -442,7 +442,12 @@ function CheckoutFormContent({
 export default function CheckoutPage() {
   const router = useRouter();
   const { cart, isLoading: cartLoading, refreshCart, updateAddress, zipcodeConfig, selectedAddressId } = useCart();
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, isLoading: authLoading, refreshUser } = useAuth();
+  // the profile saved in this browser can be older than the server's (a phone saved by the last order, say): get the current one
+  const checkoutUserId = user?.id;
+  useEffect(() => {
+    if (checkoutUserId) void refreshUser();
+  }, [checkoutUserId, refreshUser]);
   const { openLoginDialog, closeLoginDialog, openSignupDialog, closeSignupDialog, openForgotPasswordDialog, closeForgotPasswordDialog } = useHeader();
   const { authenticatedFetch } = useApiClient();
 
@@ -602,9 +607,10 @@ export default function CheckoutPage() {
     // Use setTimeout to avoid synchronous setState in useEffect
     setTimeout(() => {
       if (user) {
-        setName(user.name || '');
-        setEmail(user.email || '');
-        setPhone(user.phone || '');
+        // fill only what is still empty: the profile can refresh while the customer is typing
+        setName((current) => current || user.name || '');
+        setEmail((current) => current || user.email || '');
+        setPhone((current) => current || user.phone || '');
       }
     }, 0);
   }, [user]);
@@ -626,9 +632,11 @@ export default function CheckoutPage() {
     if (!address || !addressId || contactAddressIdRef.current === addressId) return;
     contactAddressIdRef.current = addressId;
 
-    setName(address.name || '');
-    setEmail(address.email || '');
-    setPhone(address.phone || '');
+    // the address's own contact, else what the profile knows (an address saved without a phone must not blank the phone)
+    setName(address.name || user?.name || '');
+    setEmail(address.email || user?.email || '');
+    setPhone(address.phone || user?.phone || '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userAddresses, selectedAddressId]);
   // Redirect if cart is empty (but not after order completion)
   useEffect(() => {
@@ -712,9 +720,9 @@ export default function CheckoutPage() {
       );
 
       if (selectedAddress) {
-        setName(selectedAddress.name || '');
-        setEmail(selectedAddress.email || '');
-        setPhone(selectedAddress.phone || '');
+        setName(selectedAddress.name || user?.name || '');
+        setEmail(selectedAddress.email || user?.email || '');
+        setPhone(selectedAddress.phone || user?.phone || '');
       }
       await updateAddress(addressId);
       await refreshCart();
