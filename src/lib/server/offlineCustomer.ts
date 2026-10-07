@@ -4,6 +4,7 @@ import { db } from '@/lib/server/db';
 import { hashPassword } from '@/lib/password';
 import { IUser } from '@/types/auth';
 import { OfflineAddressInput } from '@/lib/server/offlineOrder';
+import { rememberUserPhone } from '@/lib/server/userPhone';
 
 /**
  * Customers for orders an admin enters. A customer who has no account gets one (no password: nobody can sign
@@ -134,6 +135,8 @@ export async function ensureCustomer(customer: CustomerInput, address: OfflineAd
       return { error: 'That email belongs to a staff account. Use the customer’s own email address.' };
     }
     userId = existing.data._id.toString();
+    // an account that has no phone yet gets the number entered for this order (an existing number is never replaced)
+    await rememberUserPhone(userId, phone);
   } else {
     // a random password nobody knows: the account cannot be signed in to until the customer sets one
     const unusablePassword = await hashPassword(randomBytes(32).toString('hex'));

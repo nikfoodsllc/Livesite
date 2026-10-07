@@ -6,6 +6,7 @@ import { ObjectId as MongoObjectId, UpdateFilter, Filter } from 'mongodb';
 import { z } from 'zod';
 import { validateZipcodeServiceabilityServer } from '@/utils/zipcodeValidation';
 import { validateUSPhone } from '@/utils/validation';
+import { rememberUserPhone } from '@/lib/server/userPhone';
 
 // Validation schema for address
 const addressSchema = z.object({
@@ -232,6 +233,9 @@ export async function POST(request: NextRequest) {
       } as UpdateFilter<IUser>
     );
 
+    // the phone given with the address is also saved on the profile when the profile has none (best effort)
+    await rememberUserPhone(userObjectId.toString(), addressData.phone);
+
     // Get created address
     const createdAddress = await db.readOne<IAddress>('addresses', {
       _id: addressId,
@@ -355,6 +359,9 @@ export async function PUT(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    // same for an edited address: a phone added to it is saved on the profile when the profile has none (best effort)
+    await rememberUserPhone(String(userId), validatedData.phone);
 
     // Get updated address
     const updatedAddress = await db.readOne<IAddress>('addresses', {
