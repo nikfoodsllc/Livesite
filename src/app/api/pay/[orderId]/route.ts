@@ -3,8 +3,6 @@ import Stripe from 'stripe';
 import { db } from '@/lib/server/db';
 import { Order, OrderDay } from '@/types/order';
 import { paymentTokenMatches } from '@/lib/server/paymentLink';
-import { findClosedLines } from '@/lib/server/availableDates';
-import { closedLinesMessage } from '@/lib/server/orderCutoff';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,20 +53,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ success: true, data: { state: 'closed', orderId: order.orderId } });
   }
 
-  // same rule as the website's checkout: a delivery day that has closed since the order was entered cannot be paid for
-  const closed = await findClosedLines(
-    order.items.flatMap((day) =>
-      day.items.map((it) => ({
-        date: day.deliveryDate instanceof Date ? day.deliveryDate.toISOString().slice(0, 10) : String(day.deliveryDate).slice(0, 10),
-        foodItemId: it.food._id,
-        name: it.food.name,
-        kind: it.listingType,
-      }))
-    )
-  );
-  if (closed.length > 0) {
-    return NextResponse.json({ success: true, data: { state: 'cutoff', orderId: order.orderId, message: closedLinesMessage(closed) } });
-  }
+  // Create Order is the admin's master tool: no cutoff applies, a delivery day that has closed since the order was entered can still be paid for
 
   const key = process.env.STRIPE_SECRET_KEY;
   if (!key) return NextResponse.json({ success: false, error: 'Payments are not available right now.' }, { status: 503 });
