@@ -3,7 +3,7 @@
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { Alert, Box, Button, CircularProgress, Container, Divider, Paper, Typography } from '@mui/material';
-import { IconLock } from '@tabler/icons-react';
+import { IconLock, IconMail, IconMapPin, IconPhone, IconUser } from '@tabler/icons-react';
 import { loadStripe, StripeElementsOptions } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
 
@@ -200,48 +200,73 @@ function OrderSummary({ data }: { data: PayData }) {
   );
 }
 
-function DetailRow({ label, value }: { label: string; value?: string }) {
-  if (!value || !value.trim()) return null;
+/** A small orange icon tile like the one the checkout page puts next to the address. */
+function IconTile({ children }: { children: React.ReactNode }) {
   return (
-    <Box sx={{ display: 'flex', gap: 1.25, py: '3px' }}>
-      <Typography sx={{ fontSize: 12, color: C.muted, whiteSpace: 'nowrap', lineHeight: '18px' }}>{label}</Typography>
-      <Typography sx={{ fontSize: 13, fontWeight: 600, color: C.text, lineHeight: '18px', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{value.trim()}</Typography>
+    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: '8px', bgcolor: '#FFF5E6', color: '#FF9F0D', flexShrink: 0 }}>
+      {children}
     </Box>
   );
 }
 
-/** Customer Details and Delivery Details, like the boxes of the confirmation email. */
+/** Contact Information and Delivery Address, in the same cards as the checkout page. */
 function DeliveryDetails({ data }: { data: PayData }) {
   const a = data.address ?? {};
   const street = (a.street ?? '').trim();
-  const cityLine = [a.city, a.state, a.zip].filter(Boolean).join(', ');
-  const address = street && a.city && !street.toLowerCase().includes(a.city.trim().toLowerCase()) ? `${street}, ${cityLine}` : street || cityLine;
-  const boxSx = { bgcolor: C.surface, border: `1px solid ${C.line}`, borderRadius: '16px', px: 1.75, py: 1.1 };
-  const title = (text: string) => (
-    <Typography sx={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.brandText, mb: 1 }}>{text}</Typography>
-  );
+  const cityLine = [a.city, a.state].filter(Boolean).join(', ') + (a.zip ? ` ${a.zip}` : '');
+  const streetHasCity = street && a.city ? street.toLowerCase().includes(a.city.trim().toLowerCase()) : false;
+  const cardSx = { p: 3, mb: 3, border: '1px solid #EDEDED' } as const;
   return (
-    <Paper elevation={0} sx={{ p: 3, mb: 3, border: '1px solid #EDEDED', borderRadius: '12px', bgcolor: '#fff' }}>
-      <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-        Delivery details
-      </Typography>
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '42fr 56fr' }, gap: 2 }}>
-        <Box sx={boxSx}>
-          {title('Customer Details')}
-          <DetailRow label="Name" value={data.customer?.name} />
-          <DetailRow label="Mobile" value={data.customer?.phone} />
-          <DetailRow label="Email" value={data.customer?.email} />
+    <>
+      <Paper elevation={0} sx={cardSx}>
+        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+          Contact Information
+        </Typography>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+          {[
+            { icon: <IconUser size={20} />, value: data.customer?.name },
+            { icon: <IconMail size={20} />, value: data.customer?.email },
+            { icon: <IconPhone size={20} />, value: data.customer?.phone },
+          ]
+            .filter((row) => row.value)
+            .map((row, i) => (
+              <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <IconTile>{row.icon}</IconTile>
+                <Typography variant="body1" sx={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{row.value}</Typography>
+              </Box>
+            ))}
         </Box>
-        <Box sx={boxSx}>
-          {title('Delivery Details')}
-          <DetailRow label="Address" value={address} />
-          <DetailRow label="Apartment" value={a.apartment} />
-          <DetailRow label="Gate Code" value={a.entrance} />
-          <DetailRow label="Delivery Instruction" value={a.floor} />
-          <DetailRow label="Landmark" value={a.landmark} />
+      </Paper>
+
+      <Paper elevation={0} sx={cardSx}>
+        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+          Delivery Address
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          <IconTile>
+            <IconMapPin size={24} />
+          </IconTile>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography variant="body1" sx={{ mb: 0.5, wordBreak: 'break-word' }}>{street}</Typography>
+            {a.apartment && (
+              <Typography variant="body2" sx={{ color: '#666', mb: 0.5 }}>{a.apartment}</Typography>
+            )}
+            {!streetHasCity && cityLine.trim() && (
+              <Typography variant="body2" sx={{ color: '#666' }}>{cityLine}</Typography>
+            )}
+            {a.entrance && (
+              <Typography variant="body2" sx={{ color: '#666', mt: 0.5 }}>Gate code: {a.entrance}</Typography>
+            )}
+            {a.floor && (
+              <Typography variant="body2" sx={{ color: '#666', mt: 0.5 }}>Delivery instructions: {a.floor}</Typography>
+            )}
+            {a.landmark && (
+              <Typography variant="body2" sx={{ color: '#666', mt: 0.5 }}>Landmark: {a.landmark}</Typography>
+            )}
+          </Box>
         </Box>
-      </Box>
-    </Paper>
+      </Paper>
+    </>
   );
 }
 
