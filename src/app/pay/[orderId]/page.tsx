@@ -6,7 +6,6 @@ import { Alert, Box, Button, CircularProgress, Container, Divider, Paper, Typogr
 import { IconLock } from '@tabler/icons-react';
 import { loadStripe, StripeElementsOptions } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
-import { formatSpiceLevel } from '@/utils/formatters';
 
 /**
  * The page behind the pay link an admin emails for an order they entered. It is laid out like the website's
@@ -77,90 +76,64 @@ function Header({ orderId }: { orderId?: string }) {
   );
 }
 
-function SummaryRow({ label, value, green }: { label: string; value: string; green?: boolean }) {
+// colours of the "Your order" card in the NikFoods emails
+const C = { card: '#FFFBF5', line: '#EADBC3', text: '#2B1D0E', body: '#54442F', muted: '#76664F', brandText: '#A85A00', tile: '#FFE7C2' };
+
+function SummaryRow({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
-    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-      <Typography variant="body2" sx={{ color: green ? '#28a745' : undefined }}>{label}</Typography>
-      <Typography variant="body2" sx={{ fontWeight: 500, color: green ? '#28a745' : undefined }}>{value}</Typography>
+    <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.25 }}>
+      <Typography sx={{ fontSize: 15, color: C.body }}>
+        {label}
+        {note ? <Typography component="span" sx={{ fontSize: 15, color: C.muted }}> {note}</Typography> : null}
+      </Typography>
+      <Typography sx={{ fontSize: 15, color: C.body }}>{value}</Typography>
     </Box>
   );
 }
 
+/** The order, laid out like the "Your order" card of the confirmation and payment-link emails. */
 function OrderSummary({ data }: { data: PayData }) {
-  const itemCount = data.days?.reduce((sum, d) => sum + d.items.length, 0) ?? 0;
+  const taxesAndFees = (data.platformFee ?? 0) + (data.tax ?? 0) + (data.deliveryFee ?? 0);
   return (
     <Box sx={{ position: { md: 'sticky' }, top: 20 }}>
-      <Paper elevation={0} sx={{ p: 3, border: '1px solid #EDEDED' }}>
-        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-          Order Summary
-        </Typography>
-        <Box sx={{ mb: 2 }}>
-          {data.days?.map((day) => (
-            <Box key={day.date} sx={{ mb: 2 }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#FF9F0D', mb: 1 }}>
-                {dayLabel(day.date)}
+      <Typography sx={{ fontSize: 22, fontWeight: 800, color: C.text, mb: 1 }}>Your order</Typography>
+      <Paper elevation={0} sx={{ p: 2, bgcolor: C.card, border: `1px solid ${C.line}`, borderRadius: '14px' }}>
+        {data.days?.map((day) => (
+          <Box key={day.date} sx={{ mb: 0.5 }}>
+            <Box sx={{ borderTop: `1px solid ${C.line}`, pt: 1, pb: 0.5 }}>
+              <Typography sx={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.brandText }}>
+                Delivery · {dayLabel(day.date).replace(/,\s*\d{4}$/, '')}
               </Typography>
-              {day.items.map((item, i) => (
-                <Box key={i} sx={{ mb: 1, pl: 1 }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
-                    <Typography variant="body2" sx={{ color: '#666' }}>
-                      {item.name} x {item.quantity}
-                    </Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 500, whiteSpace: 'nowrap' }}>
-                      {money(item.price * item.quantity)}
-                    </Typography>
-                  </Box>
-                  {item.combo.length > 0 && (
-                    <Box sx={{ mt: 0.5, pl: 1 }}>
-                      {item.combo.map((line) => (
-                        <Typography key={line} variant="caption" sx={{ color: '#999', fontSize: '0.7rem', display: 'block' }}>
-                          • {line}
-                        </Typography>
-                      ))}
-                    </Box>
-                  )}
-                  {(item.portion || item.spice || item.eco) && (
-                    <Box sx={{ mt: 0.5, pl: 1 }}>
-                      {item.portion && (
-                        <Typography variant="caption" sx={{ color: '#999', fontSize: '0.7rem', display: 'block' }}>• {item.portion}</Typography>
-                      )}
-                      {item.spice && (
-                        <Typography variant="caption" sx={{ color: '#999', fontSize: '0.7rem', display: 'block' }}>• Spice: {formatSpiceLevel(item.spice)}</Typography>
-                      )}
-                      {item.eco && (
-                        <Typography variant="caption" sx={{ color: '#999', fontSize: '0.7rem', display: 'block' }}>• Eco container</Typography>
-                      )}
-                    </Box>
-                  )}
-                </Box>
-              ))}
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', pt: 1, pl: 1 }}>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>Day Total:</Typography>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>{money(day.dayTotal)}</Typography>
-              </Box>
             </Box>
-          ))}
-        </Box>
-
-        <Divider sx={{ my: 2 }} />
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+            {day.items.map((item, i) => {
+              const tags = [item.portion, item.spice ?? '', item.eco ? 'Eco container' : ''].filter(Boolean).join(' · ');
+              return (
+                <Box key={i} sx={{ py: 0.6 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                    <Typography sx={{ fontSize: 16, color: C.text, wordBreak: 'break-word' }}>
+                      {item.quantity} × {item.name}
+                    </Typography>
+                    <Typography sx={{ fontSize: 16, fontWeight: 800, color: C.text, whiteSpace: 'nowrap' }}>{money(item.price * item.quantity)}</Typography>
+                  </Box>
+                  {item.combo.map((line) => (
+                    <Typography key={line} sx={{ fontSize: 13, color: C.muted }}>{line}</Typography>
+                  ))}
+                  {tags && <Typography sx={{ fontSize: 13, color: C.muted }}>{tags}</Typography>}
+                </Box>
+              );
+            })}
+          </Box>
+        ))}
+        <Box sx={{ borderTop: `1px solid ${C.line}`, mt: 1, pt: 1 }}>
           <SummaryRow label="Subtotal" value={money(data.subtotal)} />
-          <SummaryRow label="Platform Fee" value={money(data.platformFee)} />
-          <SummaryRow label="Delivery Fee" value={(data.deliveryFee ?? 0) > 0 ? money(data.deliveryFee) : 'Free'} green={(data.deliveryFee ?? 0) <= 0} />
-          <SummaryRow label="Tax (10.3%)" value={money(data.tax)} />
-          {(data.tip ?? 0) > 0 && <SummaryRow label="Tip" value={money(data.tip)} />}
-          {(data.discount ?? 0) > 0 && (
-            <SummaryRow label={data.discountCode ? `Discount (${data.discountCode})` : 'Discount'} value={`-${money(data.discount)}`} green />
-          )}
+          <SummaryRow label="Taxes & Fees" value={money(taxesAndFees)} />
+          {(data.tip ?? 0) > 0 && <SummaryRow label="Tip" note="— thank you!" value={money(data.tip)} />}
+          {(data.discount ?? 0) > 0 && <SummaryRow label={data.discountCode ? `Discount (${data.discountCode})` : 'Discount'} value={`-${money(data.discount)}`} />}
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: C.tile, borderRadius: '12px', px: 2, py: 1.25, mt: 1 }}>
+            <Typography sx={{ fontSize: 17, fontWeight: 800, color: C.text }}>Total to pay</Typography>
+            <Typography sx={{ fontSize: 22, fontWeight: 800, color: C.text }}>{money(data.total)}</Typography>
+          </Box>
         </Box>
-        <Divider sx={{ my: 2 }} />
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-          <Typography variant="h6" sx={{ fontWeight: 600 }}>Total</Typography>
-          <Typography variant="h6" sx={{ fontWeight: 600, color: '#FF9F0D' }}>{money(data.total)}</Typography>
-        </Box>
-        <Typography variant="body2" sx={{ mt: 2, color: '#666', textAlign: 'center' }}>
-          {itemCount} items in order
-        </Typography>
       </Paper>
     </Box>
   );
