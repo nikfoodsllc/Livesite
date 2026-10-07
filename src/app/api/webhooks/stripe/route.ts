@@ -1,3 +1,4 @@
+import { markDraftConverted } from '@/lib/server/checkoutDrafts';
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/server/db';
 import { Order } from '@/types/order';
@@ -74,6 +75,9 @@ export async function POST(request: NextRequest) {
       case 'payment_intent.succeeded': {
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
         console.log(`[Webhook] Payment succeeded for PaymentIntent: ${paymentIntent.id}`);
+
+        // the checkout draft of this payment is no longer a lead (best effort, before anything that can fail)
+        await markDraftConverted(paymentIntent.id, paymentIntent.metadata?.userId);
 
         // Find order by stripePaymentIntentId
         const orderResult = await db.readOne<Order>('orders', {
