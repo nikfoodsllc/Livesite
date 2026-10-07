@@ -269,6 +269,8 @@ export default function LoginDialog({ open, onClose, onSwitchToSignup, onSwitchT
           <Box>
             <TextField
               fullWidth
+              // a new input each time the eye is pressed: Safari keeps a password it filled in itself (yellow field) masked when only the type changes
+              key={showPassword ? 'showPassword-visible' : 'showPassword-hidden'}
               type={showPassword ? 'text' : 'password'}
               placeholder="Enter your password"
               value={password}
