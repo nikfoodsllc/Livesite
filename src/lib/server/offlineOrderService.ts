@@ -39,6 +39,8 @@ export interface OfflineOrderInput {
   payment: OfflinePayment;
   /** One id per press of Create: a second request with the same id is refused, so a double tap or a retry cannot make the order twice */
   requestId: string;
+  /** Editing: the unpaid link order this one replaces. When the new order is saved, the old one is cancelled and its link stops working. */
+  replacesOrderId?: string;
 }
 
 export type ServiceFailure = { ok: false; status: number; error: string; problems?: string[]; code?: string; closedItems?: unknown };
@@ -214,6 +216,8 @@ export interface CreatedOfflineOrder {
   payLink?: string;
   emailSent: boolean;
   emailError?: string;
+  /** Set when this order replaced another: whether the old one is now cancelled */
+  replaced?: { orderId: string; cancelled: boolean; error?: string };
 }
 
 /**
@@ -222,6 +226,24 @@ export interface CreatedOfflineOrder {
  * outside the website (cash or similar) and the customer gets the usual order confirmation.
  */
 export async function createOfflineOrder(
+  input: OfflineOrderInput,
+  context: { adminId: string; site?: string }
+): Promise<{ ok: true; order: CreatedOfflineOrder } | ServiceFailure> {
+  const replaces = typeof input.replacesOrderId === 'string' ? input.replacesOrderId.trim() : '';
+  if (!replaces) return createNewOfflineOrder(input, context);
+
+  // editing: the order being replaced must still be waiting for payment, checked BEFORE anything new is made
+  const old = await loadCancellableOrder(replaces);
+  if (!old.ok) return old;
+  const created = await createNewOfflineOrder(input, context);
+  if (!created.ok) return created;
+  // the new order exists; now close the old one (best effort: if the customer paid it meanwhile, say so)
+  const closed = await cancelOfflineOrder(replaces);
+  created.order.replaced = closed.ok ? { orderId: replaces, cancelled: true } : { orderId: replaces, cancelled: false, error: closed.error };
+  return created;
+}
+
+async function createNewOfflineOrder(
   input: OfflineOrderInput,
   context: { adminId: string; site?: string }
 ): Promise<{ ok: true; order: CreatedOfflineOrder } | ServiceFailure> {
@@ -442,6 +464,133 @@ export async function listOfflineOrders(limit = 40): Promise<OfflineOrderRow[]> 
     ...(viewsOf(o) ? { linkViews: viewsOf(o) } : {}),
     offlinePaymentNote: o.offlinePaymentNote,
   }));
+}
+
+/** An admin-entered link order that is still waiting for payment (the only kind that can be cancelled or edited here). */
+async function loadCancellableOrder(orderId: string): Promise<{ ok: true; order: Order } | ServiceFailure> {
+  const found = await db.readOne<Order>('orders', { orderId } as never);
+  const order = found.success ? found.data : null;
+  if (!order || order.source !== 'admin') return fail(404, 'No admin-entered order with that number');
+  if (order.paymentStatus === 'paid') return fail(409, 'This order is already paid. Refunds are done in Stripe.');
+  if (order.status === 'cancelled') return fail(409, 'This order was already cancelled');
+  if (!order.stripePaymentIntentId) return fail(409, 'Only an order waiting for a payment link can be cancelled or edited here');
+  return { ok: true, order };
+}
+
+/** Cancels an unpaid link order: the Stripe payment is closed first (Stripe refuses if the customer already paid), then the order. */
+export async function cancelOfflineOrder(orderId: string, adminId?: string): Promise<{ ok: true } | ServiceFailure> {
+  const loaded = await loadCancellableOrder(orderId);
+  if (!loaded.ok) return loaded;
+  const order = loaded.order;
+
+  const stripe = stripeClient();
+  if (!stripe) return fail(500, 'Stripe is not configured on the site');
+  try {
+    const pi = await stripe.paymentIntents.retrieve(order.stripePaymentIntentId!);
+    if (pi.status === 'succeeded' || pi.status === 'processing') return fail(409, 'The customer has already paid by card, so it cannot be cancelled. Refunds are done in Stripe.');
+    if (pi.status !== 'canceled') {
+      try {
+        await stripe.paymentIntents.cancel(pi.id);
+      } catch (error) {
+        const again = await stripe.paymentIntents.retrieve(pi.id).catch(() => null);
+        if (again?.status === 'succeeded' || again?.status === 'processing') return fail(409, 'The customer just paid by card, so it cannot be cancelled. Refunds are done in Stripe.');
+        if (again?.status !== 'canceled') throw error;
+      }
+    }
+  } catch (error) {
+    console.error('[offline-order] Could not close the Stripe payment', { orderId, message: error instanceof Error ? error.message : String(error) });
+    return fail(502, 'Could not close the card payment with Stripe. Nothing was cancelled. Try again in a moment.');
+  }
+
+  const update = await db.updateOne(
+    'orders',
+    { orderId, paymentStatus: { $ne: 'paid' } } as never,
+    {
+      $set: { status: 'cancelled', cancelledAt: new Date(), ...(adminId ? { cancelledByAdmin: adminId } : {}), updatedAt: new Date() },
+      $unset: { paymentLinkTokenHash: '' },
+    } as never
+  );
+  if (!update.success) return fail(500, 'The payment was closed but the order could not be updated. Try again.');
+  return { ok: true };
+}
+
+export interface EditableOrder {
+  orderId: string;
+  customer: { name: string; email: string; phone: string };
+  address: { street_address: string; apartment: string; city: string; postal_code: string; entrance: string; floor: string };
+  lines: Array<{
+    date: string;
+    foodItemId: string;
+    quantity: number;
+    selectedPortion?: string;
+    selectedSpiceLevel?: string;
+    isEcoFriendlyContainer?: boolean;
+    comboSelections?: Record<string, string[]>;
+    notes?: string;
+    name: string;
+    unitPrice: number;
+    tags: string[];
+  }>;
+  tipPercentage: number;
+  waivePlatformFee: boolean;
+}
+
+/** The order laid out the way the Create Order form holds it, so an admin can change it and submit it as a replacement. */
+export async function getOrderForEdit(orderId: string): Promise<{ ok: true; order: EditableOrder } | ServiceFailure> {
+  const loaded = await loadCancellableOrder(orderId);
+  if (!loaded.ok) return loaded;
+  const o = loaded.order;
+  const lines: EditableOrder['lines'] = [];
+  for (const day of o.items ?? []) {
+    const date = String(day.deliveryDate instanceof Date ? day.deliveryDate.toISOString() : day.deliveryDate).slice(0, 10);
+    for (const item of day.items ?? []) {
+      const picks = item.comboSelections ?? {};
+      const tags: string[] = [];
+      if (item.selectedPortion) tags.push(item.selectedPortion);
+      if (item.spiceLevel) tags.push(item.spiceLevel);
+      if (item.isEcoFriendlyContainer) tags.push('Eco container');
+      for (const section of ((item.food as unknown as { sections?: Array<{ _id?: string; title?: string; selectedItems?: Array<{ _id?: string; portion?: string; item?: { name?: string } }> }> }).sections ?? [])) {
+        const names = ((section._id && picks[section._id]) || [])
+          .map((id) => section.selectedItems?.find((s) => s._id === id))
+          .filter((s): s is NonNullable<typeof s> => Boolean(s))
+          .map((s) => `${s.item?.name ?? 'Item'}${s.portion ? ` (${s.portion})` : ''}`);
+        if (names.length > 0) tags.push(`${section.title ?? 'Choice'}: ${names.join(', ')}`);
+      }
+      lines.push({
+        date,
+        foodItemId: String(item.food._id),
+        quantity: item.quantity,
+        ...(item.selectedPortion ? { selectedPortion: item.selectedPortion } : {}),
+        ...(item.spiceLevel ? { selectedSpiceLevel: item.spiceLevel } : {}),
+        ...(item.isEcoFriendlyContainer ? { isEcoFriendlyContainer: true } : {}),
+        ...(item.comboSelections && Object.keys(item.comboSelections).length > 0 ? { comboSelections: item.comboSelections } : {}),
+        ...(item.notes ? { notes: item.notes } : {}),
+        name: item.food.name,
+        unitPrice: item.price,
+        tags,
+      });
+    }
+  }
+  const pct = o.subtotal > 0 ? (o.tip / o.subtotal) * 100 : 0;
+  const tipPercentage = TIP_PERCENTAGES.reduce((best, p) => (Math.abs(p - pct) < Math.abs(best - pct) ? p : best), 0 as number);
+  return {
+    ok: true,
+    order: {
+      orderId: o.orderId,
+      customer: { name: o.customerInfo?.name ?? '', email: o.customerInfo?.email ?? '', phone: o.customerInfo?.phone ?? '' },
+      address: {
+        street_address: o.address?.street ?? '',
+        apartment: o.address?.apartment ?? '',
+        city: o.address?.city ?? '',
+        postal_code: o.address?.zipCode ?? '',
+        entrance: o.address?.entrance ?? '',
+        floor: o.address?.floor ?? '',
+      },
+      lines,
+      tipPercentage,
+      waivePlatformFee: Boolean((o as unknown as { platformFeeWaived?: boolean }).platformFeeWaived),
+    },
+  };
 }
 
 /**
