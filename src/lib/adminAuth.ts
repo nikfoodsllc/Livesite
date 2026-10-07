@@ -20,3 +20,11 @@ export function requireAdmin(request: NextRequest): NextResponse | null {
   }
   return null;
 }
+
+/** Like requireAdmin, and also returns the admin's user id (for "entered by" records). */
+export function requireAdminWithId(request: NextRequest): { error: NextResponse } | { adminId: string } {
+  const error = requireAdmin(request);
+  if (error) return { error };
+  const verified = jwtHandler.verifyToken((request.headers.get('authorization') ?? '').substring(7));
+  return { adminId: String(verified.payload?.userId ?? '') };
+}
