@@ -466,6 +466,8 @@ export default function SignupDialog({
             {/* Password Input */}
             <TextField
               fullWidth
+              // a new input each time the eye is pressed: Safari keeps a password it filled in itself (yellow field) masked when only the type changes
+              key={showPassword ? 'showPassword-visible' : 'showPassword-hidden'}
               type={showPassword ? 'text' : 'password'}
               placeholder="Create a password"
               value={password}

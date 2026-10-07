@@ -770,6 +770,8 @@ export default function ForgotPasswordDialog({
             {/* New Password Input */}
             <TextField
               fullWidth
+              // a new input each time the eye is pressed: Safari keeps a password it filled in itself (yellow field) masked when only the type changes
+              key={showNewPassword ? 'showNewPassword-visible' : 'showNewPassword-hidden'}
               type={showNewPassword ? 'text' : 'password'}
               placeholder="Enter new password"
               value={newPassword}
@@ -848,6 +850,8 @@ export default function ForgotPasswordDialog({
             {/* Confirm Password Input */}
             <TextField
               fullWidth
+              // a new input each time the eye is pressed: Safari keeps a password it filled in itself (yellow field) masked when only the type changes
+              key={showConfirmPassword ? 'showConfirmPassword-visible' : 'showConfirmPassword-hidden'}
               type={showConfirmPassword ? 'text' : 'password'}
               placeholder="Confirm new password"
               value={confirmPassword}

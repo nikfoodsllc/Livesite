@@ -195,6 +195,7 @@ export async function sendPasswordResetOTP(
       subject: 'Reset Your Password - NikFoods',
       html: getPasswordResetEmailTemplate(otp),
       category: 'Password Reset',
+      inlineLogo: true,
     });
 
     console.log(`${logPrefix} ${functionName} - Email sent successfully:`, {
@@ -796,6 +797,7 @@ export async function sendPasswordResetConfirmation(
       subject: 'Password Reset Successful - NikFoods',
       html: getPasswordResetConfirmationTemplate(),
       category: 'Password Reset Confirmation',
+      inlineLogo: true,
     });
 
     console.log(`${logPrefix} ${functionName} - Password reset confirmation email sent successfully:`, {
@@ -848,23 +850,29 @@ function getPasswordResetEmailTemplate(otp: string): string {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="color-scheme" content="light dark">
+      <meta name="supported-color-schemes" content="light dark">
       <title>Reset Your Password</title>
     </head>
     <body style="margin: 0; padding: 0; font-family: 'Arial', sans-serif; background-color: #f5f5f5;">
       <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 40px 20px;">
         <tr>
           <td align="center">
-            <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1);">
-              <!-- Header -->
+            <table width="600" cellpadding="0" cellspacing="0" bgcolor="#FFFBF5" style="background-color: #FFFBF5; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1);">
+              <!-- Logo -->
               <tr>
-                <td style="background: linear-gradient(135deg, #FF9F0D 0%, #FF6B35 100%); padding: 40px; text-align: center;">
-                  <h1 style="margin: 0; color: #ffffff; font-size: 32px; font-weight: 700;">NikFoods</h1>
+                <td height="5" bgcolor="#F89C35" style="height: 5px; line-height: 5px; font-size: 1px; background-color: #F89C35;">&nbsp;</td>
+              </tr>
+              <tr>
+                <td align="center" bgcolor="#1E1409" style="background-color: #1E1409; padding: 18px 40px;">
+                  <img src="cid:${EMAIL_LOGO_CID}" alt="NikFoods" width="170" style="display: block; border: 0; width: 170px; height: auto; max-width: 100%; margin: 0 auto; font-family: Arial, sans-serif; font-size: 28px; font-weight: 800; color: #F89C35;">
                 </td>
               </tr>
 
+
               <!-- Content -->
               <tr>
-                <td style="padding: 40px;">
+                <td bgcolor="#FFFBF5" style="background-color: #FFFBF5; padding: 40px;">
                   <h2 style="margin: 0 0 20px 0; color: #1A1106; font-size: 24px; font-weight: 700;">Reset Your Password</h2>
 
                   <p style="margin: 0 0 30px 0; color: #666666; font-size: 16px; line-height: 1.6;">
@@ -875,10 +883,14 @@ function getPasswordResetEmailTemplate(otp: string): string {
                   <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 30px;">
                     <tr>
                       <td align="center">
-                        <div style="display: inline-block; background: linear-gradient(135deg, #FFF9F2 0%, #FFE8CC 100%); border: 3px solid #FF9F0D; border-radius: 12px; padding: 24px 48px;">
-                          <p style="margin: 0; color: #999999; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">Verification Code</p>
-                          <p style="margin: 8px 0 0 0; color: #FF9F0D; font-size: 48px; font-weight: 800; letter-spacing: 8px; font-family: 'Courier New', monospace;">${otp}</p>
-                        </div>
+                        <table cellpadding="0" cellspacing="0" style="border-collapse: separate;">
+                          <tr>
+                            <td align="center" bgcolor="#FFF1DC" style="background-color: #FFF1DC; border: 3px solid #FF9F0D; border-radius: 12px; padding: 24px 48px;">
+                              <p style="margin: 0; color: #8A6A3B; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">Verification Code</p>
+                              <p style="margin: 8px 0 0 0; color: #C26A00; font-size: 48px; font-weight: 800; letter-spacing: 8px; font-family: 'Courier New', monospace;">${otp}</p>
+                            </td>
+                          </tr>
+                        </table>
                       </td>
                     </tr>
                   </table>
@@ -888,7 +900,7 @@ function getPasswordResetEmailTemplate(otp: string): string {
                   </p>
 
                   <!-- Warning Box -->
-                  <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0; background-color: #FFF4E4; border-left: 4px solid #FFB82E; border-radius: 8px;">
+                  <table width="100%" cellpadding="0" cellspacing="0" bgcolor="#FFF4E4" style="margin: 30px 0; background-color: #FFF4E4; border-left: 4px solid #FFB82E; border-radius: 8px;">
                     <tr>
                       <td style="padding: 16px;">
                         <p style="margin: 0; color: #996B00; font-size: 14px; line-height: 1.5;">
@@ -902,7 +914,7 @@ function getPasswordResetEmailTemplate(otp: string): string {
 
               <!-- Footer -->
               <tr>
-                <td style="background-color: #f9f9f9; padding: 30px; text-align: center; border-top: 1px solid #eeeeee;">
+                <td bgcolor="#f9f9f9" style="background-color: #f9f9f9; padding: 30px; text-align: center; border-top: 1px solid #eeeeee;">
                   <p style="margin: 0 0 10px 0; color: #999999; font-size: 14px;">
                     © ${new Date().getFullYear()} NikFoods. All rights reserved.
                   </p>
@@ -951,23 +963,35 @@ function getPasswordResetConfirmationTemplate(): string {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="color-scheme" content="light dark">
+      <meta name="supported-color-schemes" content="light dark">
       <title>Password Reset Successful</title>
     </head>
     <body style="margin: 0; padding: 0; font-family: 'Arial', sans-serif; background-color: #f5f5f5;">
       <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 40px 20px;">
         <tr>
           <td align="center">
-            <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1);">
+            <table width="600" cellpadding="0" cellspacing="0" bgcolor="#FFFBF5" style="background-color: #FFFBF5; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1);">
+              <!-- Logo -->
+              <tr>
+                <td height="5" bgcolor="#F89C35" style="height: 5px; line-height: 5px; font-size: 1px; background-color: #F89C35;">&nbsp;</td>
+              </tr>
+              <tr>
+                <td align="center" bgcolor="#1E1409" style="background-color: #1E1409; padding: 18px 40px;">
+                  <img src="cid:${EMAIL_LOGO_CID}" alt="NikFoods" width="170" style="display: block; border: 0; width: 170px; height: auto; max-width: 100%; margin: 0 auto; font-family: Arial, sans-serif; font-size: 28px; font-weight: 800; color: #F89C35;">
+                </td>
+              </tr>
+
               <!-- Header -->
               <tr>
-                <td style="background: linear-gradient(135deg, #4CAF50 0%, #45A049 100%); padding: 40px; text-align: center;">
+                <td bgcolor="#4CAF50" style="background: linear-gradient(135deg, #4CAF50 0%, #45A049 100%); background-color: #4CAF50; padding: 30px 40px; text-align: center;">
                   <h1 style="margin: 0; color: #ffffff; font-size: 32px; font-weight: 700;">✓ Success!</h1>
                 </td>
               </tr>
 
               <!-- Content -->
               <tr>
-                <td style="padding: 40px;">
+                <td bgcolor="#FFFBF5" style="background-color: #FFFBF5; padding: 40px;">
                   <h2 style="margin: 0 0 20px 0; color: #1A1106; font-size: 24px; font-weight: 700;">Password Reset Successful</h2>
 
                   <p style="margin: 0 0 20px 0; color: #666666; font-size: 16px; line-height: 1.6;">
@@ -979,7 +1003,7 @@ function getPasswordResetConfirmationTemplate(): string {
                   </p>
 
                   <!-- Security Tips -->
-                  <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0; background-color: #F0F9FF; border-left: 4px solid #2196F3; border-radius: 8px;">
+                  <table width="100%" cellpadding="0" cellspacing="0" bgcolor="#F0F9FF" style="margin: 30px 0; background-color: #F0F9FF; border-left: 4px solid #2196F3; border-radius: 8px;">
                     <tr>
                       <td style="padding: 20px;">
                         <p style="margin: 0 0 12px 0; color: #1A1106; font-size: 16px; font-weight: 600;">
@@ -999,7 +1023,7 @@ function getPasswordResetConfirmationTemplate(): string {
 
               <!-- Footer -->
               <tr>
-                <td style="background-color: #f9f9f9; padding: 30px; text-align: center; border-top: 1px solid #eeeeee;">
+                <td bgcolor="#f9f9f9" style="background-color: #f9f9f9; padding: 30px; text-align: center; border-top: 1px solid #eeeeee;">
                   <p style="margin: 0 0 10px 0; color: #999999; font-size: 14px;">
                     © ${new Date().getFullYear()} NikFoods. All rights reserved.
                   </p>
