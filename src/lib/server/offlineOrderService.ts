@@ -413,6 +413,8 @@ export interface OfflineOrderRow {
   createdAt: string;
   customerName: string;
   customerEmail: string;
+  /** As entered for the order (10 digits), so the admin can search the list by phone */
+  customerPhone: string;
   total: number;
   status: string;
   paymentStatus: string;
@@ -452,6 +454,7 @@ export async function listOfflineOrders(limit = 40): Promise<OfflineOrderRow[]> 
     createdAt: o.createdAt instanceof Date ? o.createdAt.toISOString() : String(o.createdAt ?? ''),
     customerName: o.customerInfo?.name ?? '',
     customerEmail: o.customerInfo?.email ?? '',
+    customerPhone: o.customerInfo?.phone ?? '',
     total: o.totalPaid,
     status: o.status,
     paymentStatus: o.paymentStatus,
