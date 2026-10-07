@@ -20,8 +20,6 @@ export interface EmailDelivery {
   firstOpenedAt?: Date;
   lastOpenedAt?: Date;
   openCount?: number;
-  /** set by the one-off fill of older orders (the provider's last event is known, not when it happened) */
-  filledFromHistory?: boolean;
 }
 
 interface Update {
@@ -76,26 +74,5 @@ export async function applyConfirmationEmailEvent(event: EmailEventInput): Promi
   } catch (error) {
     console.warn('[confirmation-email-tracking] apply event failed', error instanceof Error ? error.message : error);
     return false;
-  }
-}
-
-/** What an old email's provider record tells us: its last event ('delivered', 'opened', 'bounced'...). */
-export function deliveryFromLastEvent(lastEvent: string | null | undefined): EmailDelivery | null {
-  switch ((lastEvent ?? '').toLowerCase()) {
-    case 'delivered':
-      return { status: 'delivered', filledFromHistory: true };
-    case 'opened':
-    case 'clicked':
-      return { status: 'delivered', openCount: 1, filledFromHistory: true };
-    case 'bounced':
-      return { status: 'bounced', filledFromHistory: true };
-    case 'complained':
-      return { status: 'complained', filledFromHistory: true };
-    case 'delivery_delayed':
-      return { status: 'delayed', filledFromHistory: true };
-    case 'failed':
-      return { status: 'failed', filledFromHistory: true };
-    default:
-      return null; // still 'sent' or 'queued': nothing new to say
   }
 }
