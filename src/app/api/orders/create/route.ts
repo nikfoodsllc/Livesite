@@ -17,6 +17,7 @@ import Stripe from 'stripe';
 import { buildOrderPaymentMetadata, buildOrderDescription, siteFromHeaders } from '@/lib/server/stripePaymentInfo';
 import { findClosedLines } from '@/lib/server/availableDates';
 import { closedLinesMessage, legacyClosedDates } from '@/lib/server/orderCutoff';
+import { attachOrderToDraft } from '@/lib/server/checkoutDrafts';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 if (!stripeSecretKey) {
@@ -289,6 +290,9 @@ export async function POST(request: NextRequest) {
             { status: 500 }
           );
         }
+
+        // the customer pressed Pay: remember which order belongs to the checkout draft (best effort)
+        await attachOrderToDraft(paymentIntent.id, order.orderId);
 
         // Email will be sent via Stripe webhook when payment succeeds
         // This ensures emails are only sent for successful payments
