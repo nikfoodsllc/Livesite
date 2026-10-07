@@ -19,6 +19,8 @@ interface AuthContextType {
   login: (userData: User, token: string, refreshToken: string) => void;
   logout: () => void;
   updateUser: (userData: User) => void;
+  /** Reloads name / phone / completed flag from the server (the saved copy in the browser is only set at login) */
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -166,8 +168,47 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem('user', JSON.stringify(userData));
   };
 
+  // The profile saved in the browser is from the day of login, but the shop saves a phone number to the profile whenever the
+  // person gives one (an address, an order), so fetch the current one: when the page opens, and when the tab is used again.
+  const refreshUser = React.useCallback(async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const stored = localStorage.getItem('user');
+      if (!token || !stored || isTokenExpired(token)) return;
+      const res = await fetch('/api/account/profile', { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' });
+      if (!res.ok) return;
+      const body = await res.json();
+      const fresh = body?.data;
+      if (!fresh || fresh.id !== (JSON.parse(stored) as User).id) return;
+      setUser((current) => {
+        if (!current || current.id !== fresh.id) return current;
+        if (current.name === fresh.name && current.phone === fresh.phone && current.isCompleted === fresh.isCompleted) return current;
+        const merged = { ...current, name: fresh.name ?? current.name, phone: fresh.phone || undefined, isCompleted: fresh.isCompleted ?? current.isCompleted };
+        localStorage.setItem('user', JSON.stringify(merged));
+        return merged;
+      });
+    } catch {
+      // keep what we have: this is only a freshness bonus
+    }
+  }, []);
+
+  const userId = user?.id;
+  useEffect(() => {
+    if (!userId) return;
+    void refreshUser();
+    let last = Date.now();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && Date.now() - last > 60_000) {
+        last = Date.now();
+        void refreshUser();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [userId, refreshUser]);
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout, updateUser }}>
+    <AuthContext.Provider value={{ user, isLoading, login, logout, updateUser, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

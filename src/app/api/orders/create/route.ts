@@ -18,6 +18,7 @@ import { buildOrderPaymentMetadata, buildOrderDescription, siteFromHeaders } fro
 import { findClosedLines } from '@/lib/server/availableDates';
 import { closedLinesMessage, legacyClosedDates } from '@/lib/server/orderCutoff';
 import { attachOrderToDraft } from '@/lib/server/checkoutDrafts';
+import { rememberUserPhone } from '@/lib/server/userPhone';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 if (!stripeSecretKey) {
@@ -293,6 +294,9 @@ export async function POST(request: NextRequest) {
 
         // the customer pressed Pay: remember which order belongs to the checkout draft (best effort)
         await attachOrderToDraft(paymentIntent.id, order.orderId);
+
+        // the phone given at checkout is also saved on the profile when the profile has none (best effort)
+        await rememberUserPhone(userId, customerInfo.phone);
 
         // Email will be sent via Stripe webhook when payment succeeds
         // This ensures emails are only sent for successful payments
