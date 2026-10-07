@@ -96,8 +96,33 @@ if (emailProvider === 'mailtrap' && mailtrapApiToken) {
   console.warn(`${logPrefix} MAILTRAP_API_TOKEN not available, Mailtrap client not initialized`);
 }
 
+/**
+ * Sends the email to `to`. When `bcc` is given, each of those addresses (the team's copy) gets its OWN identical email
+ * afterwards instead of a Bcc on the customer's message: a Bcc shares the customer's message id and tracking pixel, so
+ * a team member opening their copy would mark the customer's email as opened. The copy has its own message id, which
+ * the Resend webhook does not match to any order, so it never changes an order. A failed copy never fails the send.
+ */
 async function sendTransactionalEmail(
   params: TransactionalEmailParams
+): Promise<{ messageId?: string }> {
+  const { bcc, ...rest } = params;
+  const result = await sendOneEmail(rest);
+
+  const customers = new Set(rest.to.map((e) => e.toLowerCase()));
+  for (const copy of (bcc ?? []).filter((e) => e && !customers.has(e.toLowerCase()))) {
+    try {
+      // Resend allows about 2 sends a second per team: wait a moment so the copy is not rejected as too fast
+      await new Promise((resolve) => setTimeout(resolve, 700));
+      await sendOneEmail({ ...rest, to: [copy] });
+    } catch (copyError) {
+      console.error(`${logPrefix} Could not send the team copy of "${rest.subject}"`, copyError instanceof Error ? copyError.message : copyError);
+    }
+  }
+  return result;
+}
+
+async function sendOneEmail(
+  params: Omit<TransactionalEmailParams, 'bcc'>
 ): Promise<{ messageId?: string }> {
   if (emailProvider === 'mailtrap') {
     if (!mailtrap) {
@@ -110,7 +135,6 @@ async function sendTransactionalEmail(
         name: mailtrapFromName,
       },
       to: params.to.map((email) => ({ email })),
-      bcc: params.bcc?.map((email) => ({ email })),
       subject: markTestSubject(params.subject),
       html: params.html,
       category: params.category || 'Transactional',
@@ -137,7 +161,6 @@ async function sendTransactionalEmail(
   const result = await resend.emails.send({
     from: fromEmail,
     to: params.to,
-    bcc: params.bcc,
     subject: markTestSubject(params.subject),
     html: params.html,
     attachments: params.inlineLogo

@@ -35,30 +35,49 @@ export async function sendPaymentLinkEmail(
       const inbox = process.env.MAILTRAP_INBOX_ID ? Number(process.env.MAILTRAP_INBOX_ID) : undefined;
       if (useSandbox && !inbox) return { success: false, error: 'Email service not configured' };
       const client = new MailtrapClient({ token, sandbox: useSandbox, testInboxId: useSandbox ? inbox : undefined });
-      const sent = await client.send({
-        from: { email: process.env.MAILTRAP_FROM_EMAIL || 'hello@demomailtrap.co', name: process.env.MAILTRAP_FROM_NAME || 'Nikfoods Test' },
-        to: [{ email: to }],
-        bcc: bcc.length > 0 ? bcc.map((email) => ({ email })) : undefined,
-        subject,
-        html,
-        category: 'Payment Link',
-        attachments: [{ filename: EMAIL_LOGO_FILENAME, type: 'image/png', content: logo, disposition: 'inline', content_id: EMAIL_LOGO_CID }],
-      });
+      const sendTo = (recipient: string) =>
+        client.send({
+          from: { email: process.env.MAILTRAP_FROM_EMAIL || 'hello@demomailtrap.co', name: process.env.MAILTRAP_FROM_NAME || 'Nikfoods Test' },
+          to: [{ email: recipient }],
+          subject,
+          html,
+          category: 'Payment Link',
+          attachments: [{ filename: EMAIL_LOGO_FILENAME, type: 'image/png', content: logo, disposition: 'inline', content_id: EMAIL_LOGO_CID }],
+        });
+      const sent = await sendTo(to);
+      for (const copy of bcc) {
+        try {
+          await sendTo(copy);
+        } catch (copyError) {
+          console.error('[offline-order] Could not send the team copy of the payment link email', { orderId: order.orderId, error: copyError instanceof Error ? copyError.message : String(copyError) });
+        }
+      }
       return { success: true, messageId: sent.message_ids[0], provider: 'mailtrap' };
     }
 
     const apiKey = process.env.RESEND_API_KEY;
     if (!apiKey) return { success: false, error: 'Email service not configured' };
     const resend = new Resend(apiKey);
-    const result = await resend.emails.send({
-      from: process.env.RESEND_FROM_EMAIL || '"Nikfoods" <no-reply@nikfoods-email.synngular.com>',
-      to: [to],
-      bcc: bcc.length > 0 ? bcc : undefined,
-      subject,
-      html,
-      attachments: [{ filename: EMAIL_LOGO_FILENAME, contentType: 'image/png', content: logo, contentId: EMAIL_LOGO_CID }],
-    });
+    const sendTo = (recipient: string) =>
+      resend.emails.send({
+        from: process.env.RESEND_FROM_EMAIL || '"Nikfoods" <no-reply@nikfoods-email.synngular.com>',
+        to: [recipient],
+        subject,
+        html,
+        attachments: [{ filename: EMAIL_LOGO_FILENAME, contentType: 'image/png', content: logo, contentId: EMAIL_LOGO_CID }],
+      });
+    const result = await sendTo(to);
     if (result.error) return { success: false, error: result.error.message };
+    // the team's copy is its own identical email (not a Bcc) so opening it cannot mark the customer's email as opened; best effort
+    for (const copy of bcc) {
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 700)); // Resend allows about 2 sends a second
+        const sentCopy = await sendTo(copy);
+        if (sentCopy.error) console.error('[offline-order] Team copy of the payment link email was rejected', { orderId: order.orderId, error: sentCopy.error.message });
+      } catch (copyError) {
+        console.error('[offline-order] Could not send the team copy of the payment link email', { orderId: order.orderId, error: copyError instanceof Error ? copyError.message : String(copyError) });
+      }
+    }
     return { success: true, messageId: result.data?.id, provider: 'resend' };
   } catch (error) {
     console.error('[offline-order] Failed to send the payment link email', { orderId: order.orderId, error: error instanceof Error ? error.message : String(error) });
