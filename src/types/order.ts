@@ -73,6 +73,8 @@ export interface OrderDayItem {
   ecoContainerCharge?: number;
   comboSelections?: Record<string, string[]>; // { sectionId: itemId[] }
   notes?: string;
+  /** Flat or day-wise item (decides which order cutoff applies). Set for admin-entered orders; otherwise worked out from the menu. */
+  listingType?: 'flat' | 'day-wise';
 }
 
 export interface OrderDay {

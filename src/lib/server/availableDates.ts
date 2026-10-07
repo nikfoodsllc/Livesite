@@ -13,6 +13,7 @@
  */
 
 import { db } from './db';
+import { ObjectId } from 'mongodb';
 import {
   getPSTNow,
   isInPSTPast,
@@ -23,7 +24,17 @@ import {
   addPSTDays,
   getPSTMidnight,
 } from '@/lib/timezone';
-import { cutoffInfo, isPastCustomCutoff, normalizeDateString, parseCutoffOverride, type ClosedDate } from './orderCutoff';
+import {
+  cutoffInfo,
+  DEFAULT_CUTOFF_HOUR_BY_KIND,
+  isPastCustomCutoff,
+  ITEM_KINDS,
+  normalizeDateString,
+  overrideFor,
+  parseCutoffOverride,
+  type ClosedLine,
+  type ItemKind,
+} from './orderCutoff';
 
 /**
  * Date Option Interface
@@ -68,6 +79,16 @@ export interface DateOption {
   closesAt?: string;
   /** True when `closesAt` is a custom cutoff set by an admin for this date. */
   cutoffOverridden?: boolean;
+  /**
+   * Flat items and day-wise (Food Menu) items have their own cutoff. `isPastCutoff` above is true only when BOTH
+   * have passed (the whole date is closed); these say which kind has closed, and when each closes.
+   */
+  flatPastCutoff?: boolean;
+  dayWisePastCutoff?: boolean;
+  flatClosesAt?: string;
+  dayWiseClosesAt?: string;
+  flatCutoffOverridden?: boolean;
+  dayWiseCutoffOverridden?: boolean;
 }
 
 /**
@@ -80,8 +101,12 @@ interface AvailableDateDocument {
   dayWiseCategoryEnabled: boolean;
   createdAt?: Date;
   updatedAt?: Date;
-  /** Custom order cutoff for this date (an absolute moment). Missing = the standard rule. */
+  /** Older single custom cutoff: applies to both kinds of items when the kind's own field is not set. */
   cutoffAt?: Date | string | null;
+  /** Custom order cutoff of this date for flat items (an absolute moment). Missing = the standard rule. */
+  flatCutoffAt?: Date | string | null;
+  /** Custom order cutoff of this date for day-wise (Food Menu) items (an absolute moment). Missing = the standard rule. */
+  dayWiseCutoffAt?: Date | string | null;
 }
 
 /**
@@ -108,7 +133,7 @@ interface AvailableDateDocument {
  * // Thursday 2 PM PST, checking Saturday
  * isPastCutoffTime(saturdayDate); // Returns false (Saturday still available)
  */
-function isPastCutoffTime(targetDate: Date, customCutoff?: Date | string | null): boolean {
+function isPastCutoffTime(targetDate: Date, customCutoff?: Date | string | null, kind: ItemKind = 'day-wise'): boolean {
   // An admin-set cutoff for this date replaces the standard rule completely: it closes the date at that
   // moment and, if it is later than the standard cutoff, keeps the date open until then.
   if (parseCutoffOverride(customCutoff)) return isPastCustomCutoff(customCutoff);
@@ -128,9 +153,9 @@ function isPastCutoffTime(targetDate: Date, customCutoff?: Date | string | null)
     return false;
   }
 
-  // For tomorrow's date, check if current time is past 1 PM PST (13:00)
-  // If it's 1 PM PST or later, tomorrow is past cutoff and should be disabled
-  return isAfterOrEqualPSTHour(13, now);
+  // For tomorrow's date, check if the current time is past the standard hour of this kind of item
+  // (5 PM PST for flat items, 1 PM PST for day-wise items); from then on tomorrow is past cutoff
+  return isAfterOrEqualPSTHour(DEFAULT_CUTOFF_HOUR_BY_KIND[kind], now);
 }
 
 /**
@@ -182,9 +207,9 @@ export async function getOrderableDayWiseDateStrings(
     }
 
     return result.data
-      .map((doc) => ({ date: doc.date.trim(), cutoffAt: doc.cutoffAt }))
+      .map((doc) => ({ date: doc.date.trim(), cutoffAt: overrideFor(doc, 'day-wise') as Date | string | null | undefined }))
       .filter(({ date }) => /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/.test(date))
-      .filter(({ date, cutoffAt }) => !isDateDisabled(date, cutoffAt))
+      .filter(({ date, cutoffAt }) => !isDateDisabled(date, cutoffAt, 'day-wise'))
       .map(({ date }) => date);
   } catch (error) {
     console.error('Error in getOrderableDayWiseDateStrings:', error);
@@ -306,8 +331,16 @@ export function generateAvailableDateOptions(
        * - Tomorrow: Check if past 1 PM PST cutoff
        * - Future (beyond tomorrow): Not affected by cutoff
        */
-      const isPastCutoff = isPastCutoffTime(dateObj, doc.cutoffAt);
-      const cutoff = cutoffInfo(doc.date, doc.cutoffAt);
+      // each kind of item has its own cutoff; the date as a whole is closed only when both have passed
+      const flatOverride = overrideFor(doc, 'flat') as Date | string | null | undefined;
+      const dayWiseOverride = overrideFor(doc, 'day-wise') as Date | string | null | undefined;
+      const flatPastCutoff = isPastCutoffTime(dateObj, flatOverride, 'flat');
+      const dayWisePastCutoff = isPastCutoffTime(dateObj, dayWiseOverride, 'day-wise');
+      const isPastCutoff = flatPastCutoff && dayWisePastCutoff;
+      const flatCutoff = cutoffInfo(doc.date, flatOverride, 'flat');
+      const dayWiseCutoff = cutoffInfo(doc.date, dayWiseOverride, 'day-wise');
+      // the single "closes at" of the date is when it closes completely: the later of the two
+      const cutoff = flatCutoff.closesAt.getTime() >= dayWiseCutoff.closesAt.getTime() ? flatCutoff : dayWiseCutoff;
 
       return {
         id: doc.date,
@@ -320,7 +353,13 @@ export function generateAvailableDateOptions(
         isPast,
         isPastCutoff,
         closesAt: cutoff.closesAt.toISOString(),
-        cutoffOverridden: cutoff.overridden,
+        cutoffOverridden: flatCutoff.overridden || dayWiseCutoff.overridden,
+        flatPastCutoff,
+        dayWisePastCutoff,
+        flatClosesAt: flatCutoff.closesAt.toISOString(),
+        dayWiseClosesAt: dayWiseCutoff.closesAt.toISOString(),
+        flatCutoffOverridden: flatCutoff.overridden,
+        dayWiseCutoffOverridden: dayWiseCutoff.overridden,
       };
     })
     .sort((a, b) => a.date.localeCompare(b.date)); // Ensure ascending sort
@@ -370,7 +409,7 @@ export async function getNextAvailableDate(): Promise<DateOption | null> {
  * @param date - Date string in YYYY-MM-DD format or Date object
  * @returns true if the date is disabled (past or past cutoff), false otherwise
  */
-export function isDateDisabled(date: string | Date, customCutoff?: Date | string | null): boolean {
+export function isDateDisabled(date: string | Date, customCutoff?: Date | string | null, kind: ItemKind = 'day-wise'): boolean {
   try {
     let dateObj: Date;
 
@@ -391,7 +430,7 @@ export function isDateDisabled(date: string | Date, customCutoff?: Date | string
     const isPast = isInPSTPast(dateObj);
 
     // Check if cutoff time has passed (1 PM PST the day before)
-    const isPastCutoff = isPastCutoffTime(dateObj, customCutoff);
+    const isPastCutoff = isPastCutoffTime(dateObj, customCutoff, kind);
 
     // Date is disabled if it's in the past OR if the cutoff time has passed
     return isPast || isPastCutoff;
@@ -401,30 +440,101 @@ export function isDateDisabled(date: string | Date, customCutoff?: Date | string
   }
 }
 
+/** A cart or order line to check against the cutoffs. */
+export interface LineToCheck {
+  date: unknown;
+  foodItemId?: unknown;
+  /** Flat or day-wise. When not given it is worked out from where the item is listed (see below). */
+  kind?: ItemKind;
+  /** The item's name, used in the message shown to the customer. */
+  name?: string;
+}
+
 /**
- * Of these delivery dates (e.g. the days in a customer's cart), the ones ordering has closed for,
- * using the same rule as the menu: the date is in the past, or its cutoff (custom or standard) has
- * passed. Used by checkout and order creation so a closed day cannot be ordered from an old page.
+ * Of these lines (the items in a customer's cart or order, each for a delivery date), the ones ordering has
+ * closed for. Flat items and day-wise items have their own cutoff, so one day can be open for one kind and closed
+ * for the other. A line's kind is the one given, otherwise it comes from how the item is listed: an item listed
+ * under a flat category is flat, one listed for that date in a day-wise category is day-wise, and an item listed as
+ * both is closed only when both kinds are closed (it can still be ordered the other way). An item that is not
+ * listed anywhere counts as day-wise (the earlier cutoff). A date in the past is closed for every kind.
  * If the database cannot be read this returns nothing (never block a sale because of a lookup problem).
  */
-export async function findClosedDeliveryDates(dates: unknown[]): Promise<ClosedDate[]> {
-  const unique = Array.from(new Set(dates.map(normalizeDateString).filter((d): d is string => d !== null)));
-  if (unique.length === 0) return [];
+export async function findClosedLines(lines: LineToCheck[]): Promise<ClosedLine[]> {
+  const checked = lines
+    .map((l) => ({
+      date: normalizeDateString(l.date),
+      foodItemId: l.foodItemId === undefined || l.foodItemId === null ? undefined : String(l.foodItemId),
+      kind: l.kind,
+      name: l.name,
+    }))
+    .filter((l): l is { date: string; foodItemId: string | undefined; kind: ItemKind | undefined; name: string | undefined } => l.date !== null);
+  if (checked.length === 0) return [];
 
-  const customCutoffs = new Map<string, Date | string | null | undefined>();
+  const dates = Array.from(new Set(checked.map((l) => l.date)));
+  const docs = new Map<string, AvailableDateDocument>();
+  const flatItems = new Set<string>();
+  const dayWiseDates = new Map<string, Set<string>>();
   try {
-    const result = await db.read<AvailableDateDocument>('availableDates', { date: { $in: unique } });
+    const result = await db.read<AvailableDateDocument>('availableDates', { date: { $in: dates } });
     if (!result.success || !result.data) {
-      console.error('findClosedDeliveryDates: could not read availableDates:', result.error);
+      console.error('findClosedLines: could not read availableDates:', result.error);
       return [];
     }
-    for (const doc of result.data) customCutoffs.set(doc.date.trim(), doc.cutoffAt);
+    for (const doc of result.data) docs.set(doc.date.trim(), doc);
+
+    const needKind = Array.from(
+      new Set(checked.filter((l) => !l.kind && l.foodItemId && /^[0-9a-fA-F]{24}$/.test(l.foodItemId)).map((l) => l.foodItemId as string))
+    );
+    if (needKind.length > 0) {
+      const mappings = await db.read<{ foodItemId?: unknown; mappingType?: string; day?: string }>('categoryfoodmapping', {
+        foodItemId: { $in: needKind.map((id) => new ObjectId(id)) },
+      } as never);
+      if (!mappings.success || !mappings.data) {
+        console.error('findClosedLines: could not read categoryfoodmapping:', mappings.error);
+        return [];
+      }
+      for (const m of mappings.data) {
+        const id = String((m.foodItemId as { toString(): string } | undefined)?.toString?.() ?? m.foodItemId);
+        if (m.mappingType === 'DAY_WISE') {
+          if (m.day) {
+            const days = dayWiseDates.get(id) ?? new Set<string>();
+            days.add(m.day.trim());
+            dayWiseDates.set(id, days);
+          }
+        } else {
+          flatItems.add(id);
+        }
+      }
+    }
   } catch (error) {
-    console.error('findClosedDeliveryDates failed:', error);
+    console.error('findClosedLines failed:', error);
     return [];
   }
 
-  return unique
-    .filter((date) => isDateDisabled(date, customCutoffs.get(date)))
-    .map((date) => ({ date, closesAt: cutoffInfo(date, customCutoffs.get(date)).closesAt.toISOString() }));
+  const closed: ClosedLine[] = [];
+  for (const line of checked) {
+    let kinds: ItemKind[];
+    if (line.kind) {
+      kinds = [line.kind];
+    } else {
+      kinds = [];
+      if (line.foodItemId && flatItems.has(line.foodItemId)) kinds.push('flat');
+      if (line.foodItemId && dayWiseDates.get(line.foodItemId)?.has(line.date)) kinds.push('day-wise');
+      if (kinds.length === 0) kinds = ['day-wise'];
+    }
+    const doc = docs.get(line.date);
+    const isClosed = (kind: ItemKind) => isDateDisabled(line.date, overrideFor(doc, kind) as Date | string | null | undefined, kind);
+    if (!kinds.every(isClosed)) continue;
+    const kind = kinds[0];
+    closed.push({
+      date: line.date,
+      foodItemId: line.foodItemId,
+      kind,
+      closesAt: cutoffInfo(line.date, overrideFor(doc, kind), kind).closesAt.toISOString(),
+      name: line.name,
+    });
+  }
+  return closed;
 }
+
+export { ITEM_KINDS };

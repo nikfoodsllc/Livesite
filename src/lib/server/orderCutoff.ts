@@ -1,16 +1,25 @@
 /**
  * Order cutoff helpers: when does ordering for a delivery date close?
  *
- * The standard rule is 1:00 PM Pacific on the day before the delivery date. An admin can set a custom
- * cutoff for one date (`cutoffAt`, an absolute moment) to close earlier or to extend / reopen it.
+ * There are two kinds of items, each with its own cutoff: flat items (batters, sweets, pickles...) close at
+ * 5:00 PM Pacific on the day before the delivery date, day-wise items (the daily Food Menu) at 1:00 PM. An admin
+ * can set a custom cutoff for one date and one kind (`flatCutoffAt` / `dayWiseCutoffAt`, an absolute moment) to
+ * close earlier or to extend / reopen it. The older single `cutoffAt` of a date applies to both kinds until an
+ * admin saves the date again.
  *
  * Pure functions with no imports, so they can be tested on their own. Dates are 'YYYY-MM-DD' strings
  * (the delivery date in Pacific time), moments are `Date` objects.
  */
 
 export const CUTOFF_TIMEZONE = 'America/Los_Angeles';
-/** Standard cutoff: this hour (24h clock, Pacific) on the day before the delivery date. */
-export const DEFAULT_CUTOFF_HOUR = 13;
+/** The two kinds of items that have their own cutoff. */
+export type ItemKind = 'flat' | 'day-wise';
+export const ITEM_KINDS: readonly ItemKind[] = ['flat', 'day-wise'];
+
+/** Standard cutoff per kind: this hour (24h clock, Pacific) on the day before the delivery date. */
+export const DEFAULT_CUTOFF_HOUR_BY_KIND: Record<ItemKind, number> = { flat: 17, 'day-wise': 13 };
+/** The day-wise standard hour (kept under its old name). */
+export const DEFAULT_CUTOFF_HOUR = DEFAULT_CUTOFF_HOUR_BY_KIND['day-wise'];
 
 const DATE_PATTERN = /^(\d{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/;
 
@@ -57,9 +66,9 @@ export function previousDay(dateString: string): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** The standard cutoff for a delivery date: 1:00 PM Pacific on the day before. */
-export function defaultCutoffInstant(deliveryDate: string): Date {
-  return zonedWallTimeToInstant(previousDay(deliveryDate), DEFAULT_CUTOFF_HOUR);
+/** The standard cutoff for a delivery date: 5:00 PM (flat) or 1:00 PM (day-wise) Pacific on the day before. */
+export function defaultCutoffInstant(deliveryDate: string, kind: ItemKind = 'day-wise'): Date {
+  return zonedWallTimeToInstant(previousDay(deliveryDate), DEFAULT_CUTOFF_HOUR_BY_KIND[kind]);
 }
 
 /** A stored custom cutoff as a valid `Date`, or null (missing / empty / unreadable values mean "standard"). */
@@ -76,9 +85,24 @@ export interface CutoffInfo {
   overridden: boolean;
 }
 
-export function cutoffInfo(deliveryDate: string, override?: unknown): CutoffInfo {
+export function cutoffInfo(deliveryDate: string, override?: unknown, kind: ItemKind = 'day-wise'): CutoffInfo {
   const custom = parseCutoffOverride(override);
-  return custom ? { closesAt: custom, overridden: true } : { closesAt: defaultCutoffInstant(deliveryDate), overridden: false };
+  return custom ? { closesAt: custom, overridden: true } : { closesAt: defaultCutoffInstant(deliveryDate, kind), overridden: false };
+}
+
+/** The custom cutoff fields of a date document. */
+export interface CutoffOverrides {
+  /** Older single cutoff: applies to both kinds when the kind's own field is not set. */
+  cutoffAt?: unknown;
+  flatCutoffAt?: unknown;
+  dayWiseCutoffAt?: unknown;
+}
+
+/** The custom cutoff in effect for one kind of a date: the kind's own field, else the older single one, else none. */
+export function overrideFor(doc: CutoffOverrides | null | undefined, kind: ItemKind): unknown {
+  if (!doc) return undefined;
+  const own = kind === 'flat' ? doc.flatCutoffAt : doc.dayWiseCutoffAt;
+  return parseCutoffOverride(own) ? own : doc.cutoffAt;
 }
 
 /** True when a custom cutoff exists and it has passed. (Only used with a custom cutoff; the standard rule keeps its own check.) */
@@ -121,10 +145,41 @@ export interface ClosedDate {
   closesAt: string;
 }
 
+/** One cart or order line that can no longer be ordered, with the kind of item and when its ordering closed. */
+export interface ClosedLine {
+  date: string;
+  foodItemId?: string;
+  kind: ItemKind;
+  closesAt: string;
+  /** The item's name, when the caller has it (used in the message) */
+  name?: string;
+}
+
 /** The plain sentence naming the days that are no longer open (the checkout page adds what it did about it). */
 export function closedDatesMessage(closed: ClosedDate[]): string {
   const sorted = [...closed].sort((a, b) => a.date.localeCompare(b.date));
   const parts = sorted.map((c) => `${formatDeliveryDate(c.date)} (closed ${formatPacificMoment(new Date(c.closesAt))} Pacific time)`);
+  const list = parts.length === 1 ? parts[0] : parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1];
+  return `Ordering has closed for ${list}.`;
+}
+
+/**
+ * The plain sentence naming what can no longer be ordered, grouped by day and closing time:
+ * "Ordering has closed for Dosa Batter and Mithai Box on Friday, Oct 9 (closed Thursday, Oct 8 at 5:00 PM Pacific time)."
+ */
+export function closedLinesMessage(closed: ClosedLine[]): string {
+  const groups = new Map<string, { date: string; closesAt: string; names: string[] }>();
+  for (const line of [...closed].sort((a, b) => a.date.localeCompare(b.date) || a.closesAt.localeCompare(b.closesAt))) {
+    const key = `${line.date}|${line.closesAt}`;
+    const group = groups.get(key) ?? { date: line.date, closesAt: line.closesAt, names: [] };
+    if (line.name && !group.names.includes(line.name)) group.names.push(line.name);
+    groups.set(key, group);
+  }
+  const joinNames = (names: string[]) =>
+    names.length === 0 ? 'some items' : names.length === 1 ? names[0] : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
+  const parts = [...groups.values()].map(
+    (g) => `${joinNames(g.names)} on ${formatDeliveryDate(g.date)} (closed ${formatPacificMoment(new Date(g.closesAt))} Pacific time)`
+  );
   const list = parts.length === 1 ? parts[0] : parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1];
   return `Ordering has closed for ${list}.`;
 }
