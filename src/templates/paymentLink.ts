@@ -114,7 +114,7 @@ export function getPaymentLinkEmailTemplate(order: Order, payUrl: string, accoun
 
   <tr><td class="px" bgcolor="${C.card}" style="padding:12px 32px 0;background:${C.card};">
     <div style="font-size:18px;font-weight:800;color:${C.text};margin-bottom:4px;">Your order</div>
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#FFFFFF;border:1px solid ${C.line};border-radius:14px;border-collapse:separate;"><tr><td style="padding:6px 14px 10px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="${C.card}" style="background:${C.card};border:1px solid ${C.line};border-radius:14px;border-collapse:separate;"><tr><td bgcolor="${C.card}" style="padding:6px 14px 10px;background:${C.card};">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${itemLines(order)}</table>
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:6px;border-top:1px solid ${C.line};">
         <tr><td style="padding:6px 0 2px;font-size:14px;color:${C.body};">Subtotal</td><td align="right" style="padding:6px 0 2px;font-size:14px;color:${C.body};">${money(order.subtotal, order.currency)}</td></tr>
