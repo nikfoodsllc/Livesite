@@ -392,7 +392,7 @@ export function getOrderConfirmationEmailTemplate(order: Order, profileCustomerD
   ${logoStrip(logoUrl, 100, '10px 32px 4px')}
   <tr><td class="px" align="center" bgcolor="${C.card}" style="padding:6px 32px 10px;background:${C.card};">
     <div style="font-size:13px;color:${C.body};font-style:italic;">Authentic Indian food delivered to your doorstep.</div>
-    <div style="font-size:12px;margin-top:4px;"><a href="${SITE}/account/orders" style="color:${C.brandText};">My orders</a> &nbsp;&middot;&nbsp; <a href="${SITE}/terms" style="color:${C.brandText};">Terms</a> &nbsp;&middot;&nbsp; <a href="${SITE}/privacy" style="color:${C.brandText};">Privacy</a></div>
+    <div style="font-size:12px;margin-top:4px;"><a href="${SITE}/terms" style="color:${C.brandText};">Terms</a> &nbsp;&middot;&nbsp; <a href="${SITE}/privacy" style="color:${C.brandText};">Privacy</a></div>
     <div style="font-size:11px;color:${C.muted};margin-top:3px;">&copy; ${new Date().getFullYear()} NikFoods. All rights reserved.</div>
   </td></tr>
 
