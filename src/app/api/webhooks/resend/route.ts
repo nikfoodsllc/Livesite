@@ -4,7 +4,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import crypto from 'crypto';
+import { Resend } from 'resend';
+import { applyPaymentLinkEmailEvent } from '@/lib/server/paymentLinkTracking';
 import { emailAnalytics } from '@/lib/emailAnalytics';
 import { WebhookPayload } from '@/types/email';
 import { formatAPITimestamp } from '@/lib/apiDateFormat';
@@ -16,29 +17,34 @@ import { formatAPITimestamp } from '@/lib/apiDateFormat';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.text();
-    const signature = request.headers.get('resend-signature');
     const webhookSecret = process.env.RESEND_WEBHOOK_SECRET;
 
+    // Resend signs every webhook (Svix headers). With a secret configured the signature MUST be valid; without one the
+    // request is not trusted: it can only feed the older analytics, and never touches an order.
+    let verified = false;
+    if (webhookSecret) {
+      try {
+        new Resend(process.env.RESEND_API_KEY || 're_unused').webhooks.verify({
+          payload: body,
+          headers: {
+            id: request.headers.get('svix-id') ?? '',
+            timestamp: request.headers.get('svix-timestamp') ?? '',
+            signature: request.headers.get('svix-signature') ?? '',
+          },
+          webhookSecret,
+        });
+        verified = true;
+      } catch {
+        console.error('[Webhook] Invalid or missing webhook signature');
+        return NextResponse.json({ success: false, error: 'Invalid webhook signature' }, { status: 401 });
+      }
+    }
+
     console.log('[Webhook] Received Resend webhook:', {
-      hasSignature: !!signature,
+      verified,
       bodyLength: body.length,
       timestamp: formatAPITimestamp(new Date()),
     });
-
-    // Verify webhook signature if secret is configured
-    if (webhookSecret && signature) {
-      const isValid = verifyWebhookSignature(body, signature, webhookSecret);
-      if (!isValid) {
-        console.error('[Webhook] Invalid webhook signature');
-        return NextResponse.json(
-          { success: false, error: 'Invalid webhook signature' },
-          { status: 401 }
-        );
-      }
-      console.log('[Webhook] Signature verified successfully');
-    } else if (webhookSecret) {
-      console.warn('[Webhook] Webhook secret configured but no signature provided');
-    }
 
     // Parse webhook payload
     let webhookPayload: WebhookPayload;
@@ -70,6 +76,18 @@ export async function POST(request: NextRequest) {
       emailId: webhookPayload.data?.email_id,
       eventCount: webhookPayload.data?.events?.length,
     });
+
+    // The payment-link email of an admin-entered order: remember delivered / bounced / opened on the order (verified requests only)
+    if (verified) {
+      const data = webhookPayload.data as unknown as { email_id?: string; bounce?: { message?: string } };
+      const when = new Date(webhookPayload.created_at ?? Date.now());
+      await applyPaymentLinkEmailEvent({
+        type: webhookPayload.type,
+        emailId: String(data.email_id ?? ''),
+        at: Number.isNaN(when.getTime()) ? new Date() : when,
+        bounceReason: data.bounce?.message,
+      });
+    }
 
     // Process webhook events through analytics service
     const result = await emailAnalytics.processWebhook(webhookPayload);
@@ -155,65 +173,5 @@ export async function GET() {
       },
       { status: 500 }
     );
-  }
-}
-
-/**
- * Verify webhook signature using HMAC-SHA256
- */
-function verifyWebhookSignature(payload: string, signature: string, secret: string): boolean {
-  try {
-    // Resend uses timestamp.signature format
-    const [timestamp, sig] = signature.split(',');
-
-    if (!timestamp || !sig) {
-      console.warn('[Webhook] Invalid signature format:', signature);
-      return false;
-    }
-
-    // Extract timestamp value
-    const timestampMatch = timestamp.match(/t=(\d+)/);
-    if (!timestampMatch) {
-      console.warn('[Webhook] Invalid timestamp format:', timestamp);
-      return false;
-    }
-
-    const webhookTime = parseInt(timestampMatch[1]);
-    const currentTime = Math.floor(Date.now() / 1000);
-
-    // Check if timestamp is recent (within 5 minutes)
-    if (Math.abs(currentTime - webhookTime) > 300) {
-      console.warn('[Webhook] Timestamp too old:', {
-        webhookTime,
-        currentTime,
-        difference: Math.abs(currentTime - webhookTime),
-      });
-      return false;
-    }
-
-    // Extract signature value
-    const signatureMatch = sig.match(/signature=([a-f0-9]+)/);
-    if (!signatureMatch) {
-      console.warn('[Webhook] Invalid signature value:', sig);
-      return false;
-    }
-
-    const expectedSignature = signatureMatch[1];
-
-    // Create expected signature
-    const signedPayload = `${timestampMatch[1]}.${payload}`;
-    const computedSignature = crypto
-      .createHmac('sha256', secret)
-      .update(signedPayload)
-      .digest('hex');
-
-    // Constant-time comparison to prevent timing attacks
-    return crypto.timingSafeEqual(
-      Buffer.from(expectedSignature, 'hex'),
-      Buffer.from(computedSignature, 'hex')
-    );
-  } catch (error) {
-    console.error('[Webhook] Error verifying signature:', error);
-    return false;
   }
 }
