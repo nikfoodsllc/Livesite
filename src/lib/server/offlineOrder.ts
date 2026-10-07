@@ -70,7 +70,8 @@ const money = (n: number) => Math.round(n * 100 + 1e-9) / 100;
 export function priceLine(
   line: OfflineLineInput,
   item: FoodItem,
-  index: number
+  index: number,
+  listingType?: 'flat' | 'day-wise'
 ): { item: CartItem } | { problem: string } {
   const name = item.name;
   if (!Number.isInteger(line.quantity) || line.quantity < 1 || line.quantity > MAX_LINE_QUANTITY) {
@@ -165,6 +166,7 @@ export function priceLine(
       ecoContainerCharge,
       comboSelections: Object.keys(comboSelections).length > 0 ? comboSelections : undefined,
       notes: line.notes?.trim() || undefined,
+      listingType,
       price: unitPrice,
       subtotal: totalPrice,
       totalPrice,

@@ -18,7 +18,7 @@ export function getCachedHomeMenu(): HomeMenuPayload | null {
  */
 export function setCachedHomeMenu(data: HomeMenuPayload): void {
   const lifetime = cacheLifetimeMs(
-    data.dates.map((date) => date.closesAt),
+    data.dates.flatMap((date) => [date.flatClosesAt ?? date.closesAt, date.dayWiseClosesAt ?? date.closesAt]),
     new Date(),
     CACHE_TTL_MS
   );

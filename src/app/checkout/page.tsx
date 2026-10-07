@@ -33,7 +33,7 @@ import { Cart } from '@/types/cart';
 import { IAddress } from '@/types/auth';
 import { ZipcodeConfig } from '@/types/zipcode';
 import * as localCart from '@/lib/localStorageCart';
-import { closedDaysNotice, parseClosedDates } from '@/lib/closedDaysNotice';
+import { closedItemsNotice, parseClosedItems } from '@/lib/closedDaysNotice';
 import { calculateDeliveryDates, type DayDeliveryInfo } from '@/lib/deliveryCalculator';
 import { DEFAULT_MIN_CART_VALUE } from '@/lib/cartLogic';
 import { reportPaymentError } from '@/lib/checkout/reportPaymentError';
@@ -848,16 +848,17 @@ export default function CheckoutPage() {
   }, [cart, paymentMethod]);
 
   /**
-   * The server refused the checkout because ordering has closed for some of the days in the cart. Stay on
-   * this page: remove those days from the cart, say so in a red banner at the top, and let the customer carry
-   * on with the rest. Returns true when the response was this kind of refusal (so nothing else should react).
+   * The server refused the checkout because ordering has closed for some of the items in the cart (flat items and
+   * day-wise items close at different times, so a day can be partly closed). Stay on this page: remove just the items
+   * that closed, say so in a red banner at the top, and let the customer carry on with the rest. Returns true when the
+   * response was this kind of refusal (so nothing else should react).
    */
   const handleClosedDays = useCallback(
-    async (status: number, data: { code?: string; closedDates?: unknown } | null): Promise<boolean> => {
+    async (status: number, data: { code?: string; error?: string; closedItems?: unknown } | null): Promise<boolean> => {
       if (status !== 409 || data?.code !== 'ORDER_CUTOFF_CLOSED') return false;
-      const closed = parseClosedDates(data.closedDates);
-      const { removed, cart: cartLeft } = localCart.removeDaysByDate(closed.map((c) => c.date));
-      setClosedNotice(closedDaysNotice(closed, removed.length, Object.keys(cartLeft.days).length));
+      const closed = parseClosedItems(data.closedItems);
+      const { removed, linesLeft } = localCart.removeClosedLines(closed);
+      setClosedNotice(closedItemsNotice(data.error ?? '', removed, linesLeft));
       setError('');
       await refreshCart();
       if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });

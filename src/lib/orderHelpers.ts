@@ -69,6 +69,7 @@ export function convertCartToOrderItems(
         ecoContainerCharge: item.ecoContainerCharge,
         comboSelections: item.comboSelections,
         notes: item.notes,
+        ...(item.listingType ? { listingType: item.listingType } : {}),
       })),
       dayTotal: cartDay.dayTotal,
     };

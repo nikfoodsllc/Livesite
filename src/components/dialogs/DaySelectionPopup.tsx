@@ -51,7 +51,8 @@ export default function DaySelectionPopup({
     if (open) {
       const fetchDays = async () => {
         const days = await generateAvailableDatesFromAPI(false); // Only show enabled days
-        setAvailableDays(days);
+        // this popup is for flat items: leave out days that are in the past or whose flat cutoff has passed
+        setAvailableDays(days.filter((day) => !day.isPast && !day.flatPastCutoff));
         setSelectedDays(new Map()); // Reset selections
       };
       fetchDays();

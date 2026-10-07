@@ -15,8 +15,8 @@ import {
 import { findMenuItem, loadMenu, orderableDates } from '@/lib/server/offlineMenu';
 import { ensureCustomer, EMAIL_RE, normalizeEmail, normalizePhone, CustomerInput } from '@/lib/server/offlineCustomer';
 import { buildPayLink, hashPaymentToken, newPaymentToken } from '@/lib/server/paymentLink';
-import { findClosedDeliveryDates } from '@/lib/server/availableDates';
-import { closedDatesMessage } from '@/lib/server/orderCutoff';
+import { findClosedLines } from '@/lib/server/availableDates';
+import { closedLinesMessage } from '@/lib/server/orderCutoff';
 import { buildOrderDescription, buildOrderPaymentMetadata } from '@/lib/server/stripePaymentInfo';
 import { validateZipcodeServiceabilityServer } from '@/utils/zipcodeValidation';
 import { calculateDeliveryDates } from '@/lib/deliveryCalculator';
@@ -42,7 +42,7 @@ export interface OfflineOrderInput {
   requestId: string;
 }
 
-export type ServiceFailure = { ok: false; status: number; error: string; problems?: string[]; code?: string; closedDates?: unknown };
+export type ServiceFailure = { ok: false; status: number; error: string; problems?: string[]; code?: string; closedItems?: unknown };
 
 interface Prepared {
   items: CartItem[];
@@ -69,12 +69,6 @@ async function prepare(
   const badDate = lines.find((l) => typeof l.date !== 'string' || !DATE_RE.test(l.date));
   if (badDate) return fail(400, 'Every item needs a delivery day');
 
-  // closed days: refused, same rule as the website
-  const closedDates = await findClosedDeliveryDates(lines.map((l) => l.date));
-  if (closedDates.length > 0) {
-    return fail(409, closedDatesMessage(closedDates), { code: 'ORDER_CUTOFF_CLOSED', closedDates });
-  }
-
   const menu = await loadMenu();
   const open = new Set(orderableDates(menu).map((d) => d.date));
   const notOpen = [...new Set(lines.map((l) => l.date))].find((d) => !open.has(d));
@@ -82,16 +76,26 @@ async function prepare(
 
   const problems: string[] = [];
   const items: CartItem[] = [];
+  const checks: Array<{ date: string; foodItemId: string; kind: 'flat' | 'day-wise'; name: string }> = [];
   lines.forEach((line, index) => {
-    const item = findMenuItem(menu, line.date, String(line.foodItemId));
-    if (!item) {
+    const found = findMenuItem(menu, line.date, String(line.foodItemId));
+    if (!found) {
       problems.push(`An item is not on the menu for ${weekdayOf(line.date)} (${line.date}). Remove it and add it again.`);
       return;
     }
-    const priced = priceLine(line, item, index);
+    const priced = priceLine(line, found.item, index, found.kind);
     if ('problem' in priced) problems.push(priced.problem);
-    else items.push(priced.item);
+    else {
+      items.push(priced.item);
+      checks.push({ date: line.date, foodItemId: String(line.foodItemId), kind: found.kind, name: found.item.name });
+    }
   });
+
+  // closed items: refused, same rule as the website (flat and day-wise items have their own cutoff)
+  const closedItems = await findClosedLines(checks);
+  if (closedItems.length > 0) {
+    return fail(409, closedLinesMessage(closedItems), { code: 'ORDER_CUTOFF_CLOSED', closedItems });
+  }
   if (problems.length > 0) return fail(400, problems[0], { problems });
 
   const zip = await validateZipcodeServiceabilityServer(address.postal_code.slice(0, 5), db);

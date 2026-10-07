@@ -407,22 +407,28 @@ export function clearCart(): void {
 }
 
 /**
- * Removes every day of the cart whose delivery date is one of `dates` ('YYYY-MM-DD'), items included.
- * Used when the server says ordering has closed for those days. Returns what was removed and the cart that is left.
+ * Removes the cart lines the server said can no longer be ordered: those of the given item on the given delivery
+ * date. A day left without items is removed as well. Returns how many lines were removed and the cart that is left.
  */
-export function removeDaysByDate(dates: string[]): { removed: Array<{ day: DayType; date: string }>; cart: LocalCart } {
-  const wanted = new Set(dates.map((d) => String(d).slice(0, 10)));
+export function removeClosedLines(closed: Array<{ date: string; foodItemId?: string }>): { removed: number; linesLeft: number; cart: LocalCart } {
   const cart = getCart();
-  const removed: Array<{ day: DayType; date: string }> = [];
+  let removed = 0;
   for (const dayKey of Object.keys(cart.days) as DayType[]) {
-    const date = String(cart.days[dayKey]?.date ?? '').slice(0, 10);
-    if (wanted.has(date)) {
-      removed.push({ day: dayKey, date });
-      delete cart.days[dayKey];
+    const day = cart.days[dayKey];
+    if (!day) continue;
+    const date = String(day.date ?? '').slice(0, 10);
+    for (const [lineId, line] of Object.entries(day.items)) {
+      const hit = closed.some((c) => c.date === date && (c.foodItemId === undefined || c.foodItemId === line.foodItemId));
+      if (hit) {
+        delete day.items[lineId];
+        removed += 1;
+      }
     }
+    if (Object.keys(day.items).length === 0) delete cart.days[dayKey];
   }
-  if (removed.length > 0) saveCart(cart);
-  return { removed, cart };
+  if (removed > 0) saveCart(cart);
+  const linesLeft = Object.values(cart.days).reduce((sum, d) => sum + Object.keys(d.items).length, 0);
+  return { removed, linesLeft, cart };
 }
 
 export function clearDay(day: DayType): LocalCart {

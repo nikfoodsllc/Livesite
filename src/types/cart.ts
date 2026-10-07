@@ -55,6 +55,8 @@ export interface CartItem {
   ecoContainerCharge?: number;
   comboSelections?: Record<string, string[]>; // { sectionId: itemId[] }
   notes?: string;
+  /** Flat or day-wise item, when known (admin-entered orders); otherwise the server works it out from the menu. */
+  listingType?: 'flat' | 'day-wise';
   price: number;
   subtotal: number;
   totalPrice: number;
