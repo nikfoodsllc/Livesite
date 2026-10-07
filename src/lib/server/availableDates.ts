@@ -454,9 +454,8 @@ export interface LineToCheck {
  * Of these lines (the items in a customer's cart or order, each for a delivery date), the ones ordering has
  * closed for. Flat items and day-wise items have their own cutoff, so one day can be open for one kind and closed
  * for the other. A line's kind is the one given, otherwise it comes from how the item is listed: an item listed
- * under a flat category is flat, one listed for that date in a day-wise category is day-wise, and an item listed as
- * both is closed only when both kinds are closed (it can still be ordered the other way). An item that is not
- * listed anywhere counts as day-wise (the earlier cutoff). A date in the past is closed for every kind.
+ * for that date in a day-wise category is day-wise (even if it is also a flat item), otherwise one under a flat
+ * category is flat. An item that is not listed anywhere counts as day-wise (the earlier cutoff). A date in the past is closed for every kind.
  * If the database cannot be read this returns nothing (never block a sale because of a lookup problem).
  */
 export async function findClosedLines(lines: LineToCheck[]): Promise<ClosedLine[]> {
@@ -517,10 +516,11 @@ export async function findClosedLines(lines: LineToCheck[]): Promise<ClosedLine[
     if (line.kind) {
       kinds = [line.kind];
     } else {
-      kinds = [];
-      if (line.foodItemId && flatItems.has(line.foodItemId)) kinds.push('flat');
-      if (line.foodItemId && dayWiseDates.get(line.foodItemId)?.has(line.date)) kinds.push('day-wise');
-      if (kinds.length === 0) kinds = ['day-wise'];
+      // not told how it was added: an item listed day-wise for that date follows the day-wise (earlier) cutoff, even
+      // when it is also a flat item, so Food Menu items cannot be ordered past their cutoff through the flat listing
+      if (line.foodItemId && dayWiseDates.get(line.foodItemId)?.has(line.date)) kinds = ['day-wise'];
+      else if (line.foodItemId && flatItems.has(line.foodItemId)) kinds = ['flat'];
+      else kinds = ['day-wise'];
     }
     const doc = docs.get(line.date);
     const isClosed = (kind: ItemKind) => isDateDisabled(line.date, overrideFor(doc, kind) as Date | string | null | undefined, kind);
