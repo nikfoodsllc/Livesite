@@ -9,6 +9,7 @@ import type { IUser } from '@/types/auth';
 import { buildDraftPaymentMetadata, siteFromHeaders } from '@/lib/server/stripePaymentInfo';
 import { findClosedLines } from '@/lib/server/availableDates';
 import { closedLinesMessage, legacyClosedDates } from '@/lib/server/orderCutoff';
+import { saveCheckoutDraft } from '@/lib/server/checkoutDrafts';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 if (!stripeSecretKey) {
@@ -42,12 +43,12 @@ function calculateCheckoutTotal(cart: Cart, tipPercentage: number): number {
 }
 
 /** Email/phone of the signed-in customer, so a draft payment can be traced to a person in Stripe. */
-async function lookupCustomer(userId: string): Promise<{ email?: string; phone?: string }> {
+async function lookupCustomer(userId: string): Promise<{ name?: string; email?: string; phone?: string }> {
   try {
     const result = await db.readOne<IUser>('users', {
       _id: new ObjectId(userId),
     } as unknown as Filter<IUser>);
-    return { email: result.data?.email, phone: result.data?.phone };
+    return { name: result.data?.name, email: result.data?.email, phone: result.data?.phone };
   } catch (error) {
     console.warn('[payment-intent] Could not look up the customer for Stripe metadata:', error);
     return {};
@@ -138,6 +139,9 @@ export async function POST(request: NextRequest) {
           metadata,
         });
 
+        // remember the cart so a customer who never finishes can be followed up (never blocks the payment)
+        await saveCheckoutDraft({ paymentIntentId: updated.id, userId, customer, cart, total: totalPaid });
+
         return NextResponse.json({
           success: true,
           data: {
@@ -162,6 +166,8 @@ export async function POST(request: NextRequest) {
       metadata,
       description: customer.email ? `NikFoods checkout (${customer.email})` : 'NikFoods checkout',
     });
+
+    await saveCheckoutDraft({ paymentIntentId: paymentIntent.id, userId, customer, cart, total: totalPaid });
 
     return NextResponse.json({
       success: true,
