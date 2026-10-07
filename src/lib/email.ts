@@ -96,7 +96,7 @@ if (emailProvider === 'mailtrap' && mailtrapApiToken) {
   console.warn(`${logPrefix} MAILTRAP_API_TOKEN not available, Mailtrap client not initialized`);
 }
 
-export async function sendTransactionalEmail(
+async function sendTransactionalEmail(
   params: TransactionalEmailParams
 ): Promise<{ messageId?: string }> {
   if (emailProvider === 'mailtrap') {
