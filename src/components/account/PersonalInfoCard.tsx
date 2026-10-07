@@ -207,7 +207,7 @@ export default function PersonalInfoCard() {
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             placeholder="Enter your 10-digit phone number"
-            inputProps={{ maxLength: 10 }}
+            inputProps={{ maxLength: 16 }}
             sx={{
               '& .MuiOutlinedInput-root': {
                 height: 48,

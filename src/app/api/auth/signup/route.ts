@@ -4,6 +4,7 @@ import { jwtHandler } from '@/lib/jwt';
 import { hashPassword } from '@/lib/password';
 import { signupStep1Schema } from '@/lib/validations/auth';
 import { IUser, AuthResponse, UserResponse } from '@/types/auth';
+import { normalizeUsPhone } from '@/lib/server/userPhone';
 
 export async function POST(request: NextRequest) {
   try {
@@ -41,7 +42,8 @@ export async function POST(request: NextRequest) {
       name: fullName,
       email: normalizedEmail,
       password: hashedPassword,
-      phone,
+      // stored as 10 digits like every other profile phone (a valid number typed with brackets or dashes is tidied up)
+      phone: normalizeUsPhone(phone) ?? phone,
       role: 'USER',
       isCompleted: false,
       provider: 'credentials',

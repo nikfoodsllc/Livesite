@@ -177,7 +177,7 @@ const ContactInfoSection = forwardRef<ContactInfoSectionRef, ContactInfoSectionP
           helperText={errors.phone}
           required
           inputRef={phoneRef}
-          inputProps={{ maxLength: 10 }}
+          inputProps={{ maxLength: 16 }}
           sx={{
             '& .MuiOutlinedInput-root': {
               '&.Mui-focused fieldset': {
