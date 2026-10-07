@@ -126,7 +126,7 @@ export async function buildHomeMenu(): Promise<HomeMenuPayload> {
   const enabledDates = await getOrderableDayWiseDateStrings();
   const enabledDateSet = new Set(enabledDates);
 
-  const dateDocuments = await getAvailableDatesFromDatabase();
+  const dateDocuments = await getAvailableDatesFromDatabase(undefined, undefined, true);
   // A date belongs on the menu when ANY kind of item is switched on for it. (Filtering on flat alone left a day with only
   // Food Menu items switched on without a date entry: its heading showed the raw date and Add said "not available".)
   const dates = generateAvailableDateOptions(dateDocuments, true).filter(

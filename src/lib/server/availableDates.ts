@@ -226,14 +226,18 @@ export async function getOrderableDayWiseDateStrings(
  */
 export async function getAvailableDatesFromDatabase(
   startDate?: string,
-  endDate?: string
+  endDate?: string,
+  /** true = also dates that only have day-wise (Food Menu) items switched on; false = dates with flat items on (the older rule) */
+  anyKindEnabled = false
 ): Promise<AvailableDateDocument[]> {
   try {
     const { startDate: start, endDate: end } = resolveDefaultDateRange(startDate, endDate);
 
     // Build query filter
     const filter: Record<string, unknown> = {
-      flatCategoryEnabled: true,
+      ...(anyKindEnabled
+        ? { $or: [{ flatCategoryEnabled: true }, { dayWiseCategoryEnabled: true }] }
+        : { flatCategoryEnabled: true }),
       date: {
         $gte: start,
         $lte: end,
