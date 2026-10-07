@@ -8,7 +8,7 @@ import { db } from '@/lib/server/db';
 import type { IUser } from '@/types/auth';
 import { buildDraftPaymentMetadata, siteFromHeaders } from '@/lib/server/stripePaymentInfo';
 import { findClosedLines } from '@/lib/server/availableDates';
-import { closedLinesMessage } from '@/lib/server/orderCutoff';
+import { closedLinesMessage, legacyClosedDates } from '@/lib/server/orderCutoff';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 if (!stripeSecretKey) {
@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
     );
     if (closedItems.length > 0) {
       return NextResponse.json(
-        { success: false, error: closedLinesMessage(closedItems), code: 'ORDER_CUTOFF_CLOSED', closedItems },
+        { success: false, error: closedLinesMessage(closedItems), code: 'ORDER_CUTOFF_CLOSED', closedItems, closedDates: legacyClosedDates(closedItems) },
         { status: 409 }
       );
     }
