@@ -15,8 +15,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   } catch {
     return NextResponse.json({ success: false, error: 'Invalid request' }, { status: 400 });
   }
-  if (body.method !== 'Cash on Delivery' && body.method !== 'Other') {
-    return NextResponse.json({ success: false, error: 'Choose how it was paid' }, { status: 400 });
+  if (typeof body.method !== 'string' || body.method.trim().length === 0) {
+    return NextResponse.json({ success: false, error: 'Choose how it was paid (Cash, Zelle, or type the method)' }, { status: 400 });
   }
   const result = await markOfflinePaid(decodeURIComponent(orderId), body.method, body.note);
   if (!result.ok) {

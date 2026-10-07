@@ -8,7 +8,10 @@ export type PaymentMethod =
   | 'Bank'
   | 'Link'
   | 'Klarna'
-  | 'Other';
+  | 'Zelle'
+  | 'Other'
+  // orders an admin enters as already paid can carry any method the admin typed (Check, Venmo, ...)
+  | (string & {});
 
 export type OrderStatus =
   | 'pending'

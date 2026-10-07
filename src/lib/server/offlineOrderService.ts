@@ -12,11 +12,9 @@ import {
   weekdayOf,
   DATE_RE,
 } from '@/lib/server/offlineOrder';
-import { findMenuItem, loadMenu, orderableDates } from '@/lib/server/offlineMenu';
+import { loadItemsForOrder } from '@/lib/server/offlineCatalog';
 import { ensureCustomer, EMAIL_RE, normalizeEmail, normalizePhone, CustomerInput } from '@/lib/server/offlineCustomer';
 import { buildPayLink, hashPaymentToken, newPaymentToken } from '@/lib/server/paymentLink';
-import { findClosedLines } from '@/lib/server/availableDates';
-import { closedLinesMessage } from '@/lib/server/orderCutoff';
 import { buildOrderDescription, buildOrderPaymentMetadata } from '@/lib/server/stripePaymentInfo';
 import { validateZipcodeServiceabilityServer } from '@/utils/zipcodeValidation';
 import { calculateDeliveryDates } from '@/lib/deliveryCalculator';
@@ -28,7 +26,7 @@ const MAX_LINES = 60;
 
 export type OfflinePayment =
   | { mode: 'link' }
-  | { mode: 'offline'; method: Extract<PaymentMethod, 'Cash on Delivery' | 'Other'>; note?: string };
+  | { mode: 'offline'; /** how it was paid: Cash, Zelle or any text the admin typed (stored as the order's payment method) */ method: string; note?: string };
 
 export interface OfflineOrderInput {
   customer: CustomerInput;
@@ -51,6 +49,21 @@ interface Prepared {
   warnings: string[];
 }
 
+/**
+ * What the admin picked or typed for an order that was paid outside the website. Cash is stored the way the dashboard
+ * already counts it ('Cash on Delivery'); Zelle and anything typed are stored as written (one line, 40 characters at
+ * most). Returns null when nothing usable was given.
+ */
+export function normalizePaymentMethod(input: unknown): PaymentMethod | null {
+  if (typeof input !== 'string') return null;
+  const text = input.replace(/\s+/g, ' ').trim().slice(0, 40);
+  if (text.length === 0) return null;
+  const lower = text.toLowerCase();
+  if (lower === 'cash' || lower === 'cash on delivery') return 'Cash on Delivery';
+  if (lower === 'zelle') return 'Zelle';
+  return text as PaymentMethod;
+}
+
 function fail(status: number, error: string, extra: Partial<ServiceFailure> = {}): ServiceFailure {
   return { ok: false, status, error, ...extra };
 }
@@ -69,37 +82,25 @@ async function prepare(
   const badDate = lines.find((l) => typeof l.date !== 'string' || !DATE_RE.test(l.date));
   if (badDate) return fail(400, 'Every item needs a delivery day');
 
-  const menu = await loadMenu();
-  const open = new Set(orderableDates(menu).map((d) => d.date));
-  const notOpen = [...new Set(lines.map((l) => l.date))].find((d) => !open.has(d));
-  if (notOpen) return fail(400, `${weekdayOf(notOpen)}, ${notOpen} is not open for ordering`);
-
+  // Create Order is the admin's master tool: no cutoff, no "day is open" and no "item is on that day's menu" rules.
+  // Any date can be picked and any item of the menu can go on it; only the item itself has to exist.
+  const loaded = await loadItemsForOrder(lines.map((l) => String(l.foodItemId)));
   const problems: string[] = [];
   const items: CartItem[] = [];
-  const checks: Array<{ date: string; foodItemId: string; kind: 'flat' | 'day-wise'; name: string }> = [];
   lines.forEach((line, index) => {
-    const found = findMenuItem(menu, line.date, String(line.foodItemId));
-    if (!found) {
-      problems.push(`An item is not on the menu for ${weekdayOf(line.date)} (${line.date}). Remove it and add it again.`);
+    const item = loaded.get(String(line.foodItemId));
+    if (!item) {
+      problems.push('An item on the order is no longer on the menu. Remove it and add it again.');
       return;
     }
-    const priced = priceLine(line, found.item, index, found.kind);
+    const priced = priceLine(line, item, index);
     if ('problem' in priced) problems.push(priced.problem);
-    else {
-      items.push(priced.item);
-      checks.push({ date: line.date, foodItemId: String(line.foodItemId), kind: found.kind, name: found.item.name });
-    }
+    else items.push(priced.item);
   });
-
-  // closed items: refused, same rule as the website (flat and day-wise items have their own cutoff)
-  const closedItems = await findClosedLines(checks);
-  if (closedItems.length > 0) {
-    return fail(409, closedLinesMessage(closedItems), { code: 'ORDER_CUTOFF_CLOSED', closedItems });
-  }
   if (problems.length > 0) return fail(400, problems[0], { problems });
 
+  // the delivery area is not enforced either: a zip outside it is allowed, with the standard minimum per day
   const zip = await validateZipcodeServiceabilityServer(address.postal_code.slice(0, 5), db);
-  if (!zip.isServiceable) return fail(400, zip.message || 'We do not deliver to this zip code');
 
   const built = buildOfflineCart({
     items,
@@ -109,7 +110,8 @@ async function prepare(
     waivePlatformFee: input.waivePlatformFee,
   });
 
-  const deliveryCalc = calculateDeliveryDates(built.cart.days, built.minOrderValue);
+  // no minimum per day for the delivery plan either: each day is delivered on its own date
+  const deliveryCalc = calculateDeliveryDates(built.cart.days, 0);
   const orderItems = convertCartToOrderItems(built.cart.days, deliveryCalc);
   return { ok: true, value: { items, built, orderItems, warnings: [] } };
 }
@@ -126,6 +128,8 @@ export interface OfflinePreview {
   totals: BuiltOfflineCart['totals'];
   minOrderValue: number;
   canCheckout: boolean;
+  /** Days under the area's minimum (a note only; they can still be ordered) */
+  belowMinimum: Array<{ date: string; total: number }>;
   deliveryMessages: string[];
 }
 
@@ -155,7 +159,8 @@ export async function previewOfflineOrder(
     })),
     totals: built.totals,
     minOrderValue: built.minOrderValue,
-    canCheckout: built.cart.canCheckout,
+    canCheckout: true,
+    belowMinimum: built.belowMinimum,
     deliveryMessages: built.deliveryMessages,
   };
   return { ok: true, preview };
@@ -230,7 +235,7 @@ export async function createOfflineOrder(
   if (!input.address?.street_address || input.address.street_address.trim().length < 5) return fail(400, 'Enter the street address');
   if (!input.address.city || input.address.city.trim().length < 2) return fail(400, 'Enter the city');
   if (payment?.mode !== 'link' && payment?.mode !== 'offline') return fail(400, 'Choose how the customer pays');
-  if (payment.mode === 'offline' && payment.method !== 'Cash on Delivery' && payment.method !== 'Other') return fail(400, 'Choose how it was paid');
+  if (payment.mode === 'offline' && !normalizePaymentMethod(payment.method)) return fail(400, 'Choose how it was paid (Cash, Zelle, or type the method)');
   if (payment.mode === 'offline' && (payment.note ?? '').length > 200) return fail(400, 'The payment note is too long');
 
   if (typeof input.requestId !== 'string' || !/^[A-Za-z0-9-]{16,64}$/.test(input.requestId)) return fail(400, 'Missing request id. Reload the page and try again.');
@@ -238,10 +243,6 @@ export async function createOfflineOrder(
   const prepared = await prepare(input);
   if (!prepared.ok) return prepared;
   const { built, orderItems } = prepared.value;
-
-  if (!built.cart.canCheckout && !input.allowBelowMinimum) {
-    return fail(400, `The order is below the minimum for this area ($${built.minOrderValue.toFixed(2)} per delivery day). Add items or tick “Allow below the minimum”.`);
-  }
 
   const stripe = payment.mode === 'link' ? stripeClient() : null;
   if (payment.mode === 'link' && !stripe) return fail(500, 'Stripe is not configured on the site');
@@ -289,7 +290,7 @@ export async function createOfflineOrder(
       ...base,
       status: 'confirmed',
       paymentStatus: 'paid',
-      paymentMethod: payment.method,
+      paymentMethod: normalizePaymentMethod(payment.method)!,
       offlinePaymentNote: payment.note?.trim() || undefined,
       paidAt: new Date(),
     } as Order;
@@ -436,9 +437,11 @@ export async function resendPaymentLink(orderId: string, options: { sendEmail?: 
 /** The customer paid outside the website after the link was sent: record it, close the Stripe payment, confirm by email. */
 export async function markOfflinePaid(
   orderId: string,
-  method: 'Cash on Delivery' | 'Other',
+  methodInput: string,
   note?: string
 ): Promise<{ ok: true; emailSent: boolean } | ServiceFailure> {
+  const method = normalizePaymentMethod(methodInput);
+  if (!method) return fail(400, 'Choose how it was paid (Cash, Zelle, or type the method)');
   const found = await db.readOne<Order>('orders', { orderId } as never);
   const order = found.success ? found.data : null;
   if (!order || order.source !== 'admin') return fail(404, 'No admin-entered order with that number');
