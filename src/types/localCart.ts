@@ -18,6 +18,8 @@ export interface LocalCartItem {
   ecoContainerCharge?: number;
   comboSelections?: Record<string, string[]>; // { sectionId: itemId[] }
   notes?: string;
+  /** 'flat' when added through the flat-item day popup; unset for Food Menu items (the server then works it out) */
+  listingType?: 'flat' | 'day-wise';
   unitPrice: number;
   totalPrice: number;
   addedAt: string;
@@ -56,4 +58,5 @@ export interface CartCustomizations {
   ecoContainerCharge?: number;
   comboSelections?: Record<string, string[]>;
   notes?: string;
+  listingType?: 'flat' | 'day-wise';
 }

@@ -262,6 +262,7 @@ export function addItem(
     ecoContainerCharge: customizations.ecoContainerCharge,
     comboSelections: customizations.comboSelections,
     notes: customizations.notes,
+    ...(customizations.listingType ? { listingType: customizations.listingType } : {}),
     unitPrice,
     totalPrice,
     addedAt: new Date().toISOString(),

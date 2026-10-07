@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
     // Refuse days ordering has closed for (same rule as the menu, including a custom cutoff set by an
     // admin), so an old page or a stale cart cannot order a closed day
     const closedItems = await findClosedLines(
-      cart.days.flatMap((day) => day.items.map((item) => ({ date: day.date, foodItemId: item.foodItem?._id, name: item.foodItem?.name })))
+      cart.days.flatMap((day) => day.items.map((item) => ({ date: day.date, foodItemId: item.foodItem?._id, name: item.foodItem?.name, kind: item.listingType })))
     );
     if (closedItems.length > 0) {
       return NextResponse.json(

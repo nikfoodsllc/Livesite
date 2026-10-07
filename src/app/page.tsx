@@ -1048,7 +1048,8 @@ export default function Home() {
         selection.date,
         selectedFoodItemForDayPopup,
         selection.quantity,
-        finalCustomizations
+        // this popup is only for flat items: they follow the flat cutoff
+        { ...finalCustomizations, listingType: 'flat' }
       );
     });
 

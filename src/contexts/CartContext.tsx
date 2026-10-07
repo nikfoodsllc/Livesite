@@ -95,6 +95,7 @@ async function convertLocalCartToCart(
         ecoContainerCharge: localItem.ecoContainerCharge,
         comboSelections: localItem.comboSelections,
         notes: localItem.notes,
+        listingType: localItem.listingType,
         price: localItem.unitPrice,
         subtotal: localItem.totalPrice,
         totalPrice: localItem.totalPrice,
