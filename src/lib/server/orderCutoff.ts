@@ -202,3 +202,17 @@ export function closedLinesMessage(closed: ClosedLine[]): string {
   }
   return sentences.join(' ');
 }
+
+/**
+ * The closed lines in the older answer format ({ date, closesAt } per day). Checkout pages that were opened before the
+ * cutoffs became per item only understand this, so the 409 carries it next to `closedItems`; without it such a page
+ * cannot take the closed day out of the cart and keeps retrying the payment.
+ */
+export function legacyClosedDates(closed: ClosedLine[]): ClosedDate[] {
+  const byDate = new Map<string, ClosedDate>();
+  for (const line of closed) {
+    const existing = byDate.get(line.date);
+    if (!existing || line.closesAt < existing.closesAt) byDate.set(line.date, { date: line.date, closesAt: line.closesAt });
+  }
+  return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
