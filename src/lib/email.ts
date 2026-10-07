@@ -858,7 +858,7 @@ function getPasswordResetEmailTemplate(otp: string): string {
       <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 40px 20px;">
         <tr>
           <td align="center">
-            <table width="600" cellpadding="0" cellspacing="0" bgcolor="#ffffff" style="background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1);">
+            <table width="600" cellpadding="0" cellspacing="0" bgcolor="#FFFBF5" style="background-color: #FFFBF5; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1);">
               <!-- Logo -->
               <tr>
                 <td height="5" bgcolor="#F89C35" style="height: 5px; line-height: 5px; font-size: 1px; background-color: #F89C35;">&nbsp;</td>
@@ -872,7 +872,7 @@ function getPasswordResetEmailTemplate(otp: string): string {
 
               <!-- Content -->
               <tr>
-                <td bgcolor="#ffffff" style="background-color: #ffffff; padding: 40px;">
+                <td bgcolor="#FFFBF5" style="background-color: #FFFBF5; padding: 40px;">
                   <h2 style="margin: 0 0 20px 0; color: #1A1106; font-size: 24px; font-weight: 700;">Reset Your Password</h2>
 
                   <p style="margin: 0 0 30px 0; color: #666666; font-size: 16px; line-height: 1.6;">
@@ -971,7 +971,7 @@ function getPasswordResetConfirmationTemplate(): string {
       <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 40px 20px;">
         <tr>
           <td align="center">
-            <table width="600" cellpadding="0" cellspacing="0" bgcolor="#ffffff" style="background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1);">
+            <table width="600" cellpadding="0" cellspacing="0" bgcolor="#FFFBF5" style="background-color: #FFFBF5; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1);">
               <!-- Logo -->
               <tr>
                 <td height="5" bgcolor="#F89C35" style="height: 5px; line-height: 5px; font-size: 1px; background-color: #F89C35;">&nbsp;</td>
@@ -991,7 +991,7 @@ function getPasswordResetConfirmationTemplate(): string {
 
               <!-- Content -->
               <tr>
-                <td bgcolor="#ffffff" style="background-color: #ffffff; padding: 40px;">
+                <td bgcolor="#FFFBF5" style="background-color: #FFFBF5; padding: 40px;">
                   <h2 style="margin: 0 0 20px 0; color: #1A1106; font-size: 24px; font-weight: 700;">Password Reset Successful</h2>
 
                   <p style="margin: 0 0 20px 0; color: #666666; font-size: 16px; line-height: 1.6;">
