@@ -2,7 +2,7 @@
 
 import { MailtrapClient } from 'mailtrap';
 import { Resend } from 'resend';
-import { getOrderConfirmationEmailTemplate } from '@/templates/orderConfirmation';
+import { getOrderConfirmationEmailTemplate, getOrderConfirmationEmailSubject } from '@/templates/orderConfirmation';
 import { getPaymentFailedEmailTemplate, getPaymentFailedEmailSubject } from '@/templates/paymentFailed';
 import { Order, EmailStatusInfo, CustomerInfo } from '@/types/order';
 import { EmailType } from '@/types/email';
@@ -17,6 +17,8 @@ import {
 
 // Initialize email analytics (this will be called when the module is imported)
 import '@/lib/emailAnalyticsInit';
+import { EMAIL_LOGO_CID, EMAIL_LOGO_FILENAME, EMAIL_LOGO_PNG_BASE64 } from '@/lib/emailLogo';
+import { markTestSubject } from '@/lib/emailSubject';
 
 // Enhanced logging configuration
 const logPrefix = '[Email Service]';
@@ -42,6 +44,8 @@ type TransactionalEmailParams = {
   html: string;
   bcc?: string[];
   category?: string;
+  /** Attach the NikFoods logo as an inline image (the HTML references it as src="cid:nikfoods-logo"). */
+  inlineLogo?: boolean;
 };
 
 // Validate environment configuration
@@ -107,9 +111,20 @@ async function sendTransactionalEmail(
       },
       to: params.to.map((email) => ({ email })),
       bcc: params.bcc?.map((email) => ({ email })),
-      subject: params.subject,
+      subject: markTestSubject(params.subject),
       html: params.html,
       category: params.category || 'Transactional',
+      attachments: params.inlineLogo
+        ? [
+            {
+              filename: EMAIL_LOGO_FILENAME,
+              type: 'image/png',
+              content: Buffer.from(EMAIL_LOGO_PNG_BASE64, 'base64'),
+              disposition: 'inline',
+              content_id: EMAIL_LOGO_CID,
+            },
+          ]
+        : undefined,
     });
 
     return { messageId: result.message_ids[0] };
@@ -123,8 +138,18 @@ async function sendTransactionalEmail(
     from: fromEmail,
     to: params.to,
     bcc: params.bcc,
-    subject: params.subject,
+    subject: markTestSubject(params.subject),
     html: params.html,
+    attachments: params.inlineLogo
+      ? [
+          {
+            filename: EMAIL_LOGO_FILENAME,
+            contentType: 'image/png',
+            content: Buffer.from(EMAIL_LOGO_PNG_BASE64, 'base64'),
+            contentId: EMAIL_LOGO_CID,
+          },
+        ]
+      : undefined,
   });
 
   return { messageId: result.data?.id };
@@ -348,7 +373,7 @@ export async function sendOrderConfirmationEmail(
     }
 
     const email = order.customerInfo.email;
-    const subject = 'NikFoods order confirmation';
+    const subject = getOrderConfirmationEmailSubject(order);
     const profileCustomerDetails = await resolveProfileCustomerDetails(order);
 
     // Validate email format
@@ -472,6 +497,7 @@ export async function sendOrderConfirmationEmail(
       html: emailHtml,
       bcc: bccEmails.length > 0 ? bccEmails : undefined,
       category: 'Order Confirmation',
+      inlineLogo: true,
     });
 
     const successStatus: EmailStatusInfo = {
@@ -678,6 +704,7 @@ export async function sendPaymentFailedEmail(
       subject,
       html: emailHtml,
       category: 'Payment Failed',
+      inlineLogo: true,
     });
 
     const successStatus: EmailStatusInfo = {

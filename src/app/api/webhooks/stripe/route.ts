@@ -318,6 +318,13 @@ export async function POST(request: NextRequest) {
           attempts: (order.paymentAttempts ?? 0) + 1,
         });
 
+        // An order an admin entered is paid from its own pay link, not from the website's checkout; the failure email
+        // sends the customer to /checkout with an empty cart, so it is not sent (the customer sees the error on the pay page)
+        if (order.source === 'admin') {
+          console.log(`[Webhook] Not sending the payment failed email for admin-entered order: ${order.orderId}`);
+          break;
+        }
+
         if (order.paymentFailedEmailStatus?.status === 'sent') {
           console.log(`[Webhook] Payment failed email already sent for order: ${order.orderId}`);
           break;
