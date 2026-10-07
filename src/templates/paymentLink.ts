@@ -245,7 +245,7 @@ export function getPaymentLinkEmailTemplate(order: Order, payUrl: string, accoun
   <tr><td class="px" align="center" bgcolor="${C.card}" style="padding:16px 32px 8px;background:${C.card};">
     <div style="font-size:12px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:${C.brandText};margin-bottom:4px;word-break:break-word;">Order # ${esc(order.orderId)}</div>
     <div class="hero-h" style="font-size:30px;line-height:36px;font-weight:800;color:${C.text};">${greeting} your order is ready to pay</div>
-    <div style="font-size:15px;line-height:22px;color:${C.body};margin:6px auto 0;max-width:460px;">We have put your order together. Tap the button to pay securely by card (Apple Pay and Google Pay work too), and we will start preparing it right away.</div>
+    <div style="font-size:15px;line-height:22px;color:${C.body};margin:6px auto 0;max-width:460px;">We have put your order together. Tap the button to pay securely by card or Apple Pay, and we will start preparing it right away.</div>
   </td></tr>
 
   <tr><td class="px" align="center" bgcolor="${C.card}" style="padding:12px 32px 4px;background:${C.card};">
