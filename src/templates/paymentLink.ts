@@ -15,7 +15,7 @@ const C = {
 const SUPPORT = 'support@nikfoods.com';
 
 export function getPaymentLinkEmailSubject(order: Order): string {
-  return `NikFoods Order #${order.orderId} - Payment Link`;
+  return `Payment Link - NikFoods Order #${order.orderId}`;
 }
 
 function formatDay(date: string): string {
@@ -235,7 +235,7 @@ export function getPaymentLinkEmailTemplate(order: Order, payUrl: string, accoun
 </style>
 </head>
 <body bgcolor="${C.page}" style="margin:0;padding:0;background:${C.page};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:${C.text};">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;font-size:1px;line-height:1px;">Your order is ready. Tap to pay ${esc(total)} securely and we will start preparing it.</div>
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;font-size:1px;line-height:1px;">Tap to pay ${esc(total)} securely by card or Apple Pay.</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="${C.page}" style="background:${C.page};">
 <tr><td class="outer" align="center" style="padding:16px 12px;">
 <table role="presentation" class="wrap" width="640" cellpadding="0" cellspacing="0" bgcolor="${C.card}" style="width:640px;max-width:640px;background:${C.card};border-radius:24px;overflow:hidden;border:1px solid ${C.line};border-collapse:separate;">
@@ -244,8 +244,8 @@ export function getPaymentLinkEmailTemplate(order: Order, payUrl: string, accoun
 
   <tr><td class="px" align="center" bgcolor="${C.card}" style="padding:16px 32px 8px;background:${C.card};">
     <div style="font-size:12px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:${C.brandText};margin-bottom:4px;word-break:break-word;">Order # ${esc(order.orderId)}</div>
-    <div class="hero-h" style="font-size:30px;line-height:36px;font-weight:800;color:${C.text};">${greeting} your order is ready to pay</div>
-    <div style="font-size:15px;line-height:22px;color:${C.body};margin:6px auto 0;max-width:460px;">We have put your order together. Tap the button to pay securely by card or Apple Pay, and we will start preparing it right away.</div>
+    <div class="hero-h" style="font-size:30px;line-height:36px;font-weight:800;color:${C.text};">${greeting} please pay for your order</div>
+    <div style="font-size:15px;line-height:22px;color:${C.body};margin:6px auto 0;max-width:460px;">Tap the button to pay securely by card or Apple Pay.</div>
   </td></tr>
 
   <tr><td class="px" align="center" bgcolor="${C.card}" style="padding:12px 32px 4px;background:${C.card};">
