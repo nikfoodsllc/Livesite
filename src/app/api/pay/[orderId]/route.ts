@@ -15,21 +15,21 @@ interface PayItem {
   portion?: string;
   spice?: string;
   eco?: boolean;
-  /** One line per chosen combo part: "Veg Curry of the Day: Kale Chane (12Oz)" */
-  combo: string[];
+  notes?: string;
+  /** One entry per combo section: { title: 'Veg Curry of the Day', choices: ['Kale Chane (12Oz)'] } */
+  combo: Array<{ title: string; choices: string[] }>;
 }
 
 function toPayItem(it: OrderDay['items'][number]): PayItem {
-  const combo: string[] = [];
-  for (const [sectionId, ids] of Object.entries(it.comboSelections ?? {})) {
-    const section = it.food.sections?.find((s) => s._id === sectionId);
-    if (!section) continue;
-    for (const id of ids) {
-      const chosen = section.selectedItems.find((o) => o._id === id);
-      if (chosen) combo.push(`${section.title}: ${chosen.item.name}${chosen.portion ? ` (${chosen.portion})` : ''}`);
-    }
+  const combo: PayItem['combo'] = [];
+  for (const section of it.food.sections ?? []) {
+    const choices = (it.comboSelections?.[section._id] ?? [])
+      .map((id) => section.selectedItems.find((o) => o._id === id))
+      .filter((o): o is NonNullable<typeof o> => !!o?.item?.name)
+      .map((o) => `${o.item.name}${o.portion ? ` (${o.portion})` : ''}`);
+    if (choices.length > 0) combo.push({ title: section.title, choices });
   }
-  return { name: it.food.name, quantity: it.quantity, price: it.price, portion: it.selectedPortion, spice: it.spiceLevel, eco: it.isEcoFriendlyContainer, combo };
+  return { name: it.food.name, quantity: it.quantity, price: it.price, portion: it.selectedPortion, spice: it.spiceLevel, eco: it.isEcoFriendlyContainer, notes: it.notes, combo };
 }
 
 /**
@@ -86,16 +86,29 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         discount: order.discount?.amount ?? 0,
         discountCode: order.discount?.code,
         total: order.totalPaid,
-        // grouped by the day it is delivered (an item picked for an earlier day but combined into a later delivery sits with it)
-        days: Object.entries(
-          order.items.reduce<Record<string, PayItem[]>>((acc, day) => {
-            const when = String(day.actualDeliveryDate ?? day.deliveryDate).slice(0, 10);
-            acc[when] = [...(acc[when] ?? []), ...day.items.map(toPayItem)];
-            return acc;
-          }, {})
-        )
-          .sort(([a], [b]) => a.localeCompare(b))
-          .map(([date, items]) => ({ date, items, dayTotal: Number(items.reduce((sum, it) => sum + it.price * it.quantity, 0).toFixed(2)) })),
+        // one entry per menu day (the day the items were picked for) with the date it is delivered on
+        days: [...order.items]
+          .sort((a, b) => String(a.deliveryDate).localeCompare(String(b.deliveryDate)))
+          .map((day) => {
+            const items = day.items.map(toPayItem);
+            return {
+              day: day.day,
+              date: String(day.deliveryDate).slice(0, 10),
+              deliverOn: String(day.actualDeliveryDate ?? day.deliveryDate).slice(0, 10),
+              items,
+              dayTotal: Number((day.dayTotal ?? items.reduce((sum, it) => sum + it.price * it.quantity, 0)).toFixed(2)),
+            };
+          }),
+        address: {
+          street: order.address.street,
+          apartment: order.address.apartment,
+          city: order.address.city,
+          state: order.address.state,
+          zip: order.address.zipCode,
+          entrance: order.address.entrance,
+          floor: order.address.floor,
+          landmark: order.address.landmark,
+        },
       },
     });
   } catch (error) {
