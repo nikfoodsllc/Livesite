@@ -1,4 +1,4 @@
-import { Order } from '@/types/order';
+import { Order, OrderDay } from '@/types/order';
 import { getSiteUrl } from '@/lib/siteUrl';
 import { EMAIL_LOGO_CID } from '@/lib/emailLogo';
 
@@ -23,11 +23,20 @@ function formatDay(date: string): string {
   return d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'UTC' });
 }
 
+/** The order's items grouped by the day they are delivered (an item picked for an earlier day but combined into a later delivery sits with it). */
+function itemsByDeliveryDay(order: Order) {
+  const byDate = new Map<string, OrderDay['items']>();
+  for (const day of order.items) {
+    const when = String(day.actualDeliveryDate ?? day.deliveryDate).slice(0, 10);
+    byDate.set(when, [...(byDate.get(when) ?? []), ...day.items]);
+  }
+  return [...byDate.entries()].sort(([a], [b]) => a.localeCompare(b));
+}
+
 function itemLines(order: Order): string {
-  return order.items
-    .map((day) => {
-      const when = day.actualDeliveryDate && day.actualDeliveryDate !== day.deliveryDate ? day.actualDeliveryDate : day.deliveryDate;
-      const rows = day.items
+  return itemsByDeliveryDay(order)
+    .map(([when, items]) => {
+      const rows = items
         .map((it) => {
           const tags = [it.selectedPortion, it.spiceLevel, it.isEcoFriendlyContainer ? 'Eco container' : ''].filter(Boolean).join(' · ');
           return `<tr>
@@ -36,7 +45,7 @@ function itemLines(order: Order): string {
           </tr>`;
         })
         .join('');
-      return `<tr><td style="padding:8px 0 2px;font-size:12px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:${C.brandText};border-top:1px solid ${C.line};" colspan="2">Delivery &middot; ${esc(formatDay(String(when)))}</td></tr>${rows}`;
+      return `<tr><td style="padding:8px 0 2px;font-size:12px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:${C.brandText};border-top:1px solid ${C.line};" colspan="2">Delivery &middot; ${esc(formatDay(when))}</td></tr>${rows}`;
     })
     .join('');
 }

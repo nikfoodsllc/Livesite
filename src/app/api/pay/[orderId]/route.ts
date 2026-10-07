@@ -51,10 +51,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         tip: order.tip,
         discount: order.discount?.amount ?? 0,
         total: order.totalPaid,
-        days: order.items.map((day) => ({
-          date: String(day.actualDeliveryDate ?? day.deliveryDate).slice(0, 10),
-          items: day.items.map((it) => ({ name: it.food.name, quantity: it.quantity, price: it.price, portion: it.selectedPortion, spice: it.spiceLevel, eco: it.isEcoFriendlyContainer })),
-        })),
+        // grouped by the day it is delivered (an item picked for an earlier day but combined into a later delivery sits with it)
+        days: Object.entries(
+          order.items.reduce<Record<string, Array<{ name: string; quantity: number; price: number; portion?: string; spice?: string; eco?: boolean }>>>((acc, day) => {
+            const when = String(day.actualDeliveryDate ?? day.deliveryDate).slice(0, 10);
+            acc[when] = [
+              ...(acc[when] ?? []),
+              ...day.items.map((it) => ({ name: it.food.name, quantity: it.quantity, price: it.price, portion: it.selectedPortion, spice: it.spiceLevel, eco: it.isEcoFriendlyContainer })),
+            ];
+            return acc;
+          }, {})
+        )
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([date, items]) => ({ date, items })),
       },
     });
   } catch (error) {

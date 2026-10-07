@@ -38,6 +38,8 @@ export interface OfflineOrderInput {
   waivePlatformFee?: boolean;
   allowBelowMinimum?: boolean;
   payment: OfflinePayment;
+  /** One id per press of Create: a second request with the same id is refused, so a double tap or a retry cannot make the order twice */
+  requestId: string;
 }
 
 export type ServiceFailure = { ok: false; status: number; error: string; problems?: string[]; code?: string; closedDates?: unknown };
@@ -155,6 +157,39 @@ export async function previewOfflineOrder(
   return { ok: true, preview };
 }
 
+const REQUESTS = 'offlineOrderRequests';
+
+/** Reserves a request id. 'duplicate' when it was already used; a database problem is treated as "go on" (never block a sale). */
+async function claimRequest(requestId: string, adminId: string): Promise<'claimed' | 'duplicate'> {
+  try {
+    const collection = await db.getCollectionForOperations(REQUESTS);
+    await collection.insertOne({ _id: requestId as never, adminId, createdAt: new Date() });
+    return 'claimed';
+  } catch (error) {
+    if ((error as { code?: number })?.code === 11000) return 'duplicate';
+    console.error('[offline-order] Could not reserve the request id', error instanceof Error ? error.message : error);
+    return 'claimed';
+  }
+}
+
+async function releaseRequest(requestId: string): Promise<void> {
+  try {
+    const collection = await db.getCollectionForOperations(REQUESTS);
+    await collection.deleteOne({ _id: requestId as never });
+  } catch {
+    // the id stays used; the admin reloads the page for a new one
+  }
+}
+
+async function completeRequest(requestId: string, orderId: string): Promise<void> {
+  try {
+    const collection = await db.getCollectionForOperations(REQUESTS);
+    await collection.updateOne({ _id: requestId as never }, { $set: { orderId } });
+  } catch {
+    // only a note for support; the order itself is saved
+  }
+}
+
 function stripeClient(): Stripe | null {
   const key = process.env.STRIPE_SECRET_KEY;
   if (!key) return null;
@@ -194,6 +229,8 @@ export async function createOfflineOrder(
   if (payment.mode === 'offline' && payment.method !== 'Cash on Delivery' && payment.method !== 'Other') return fail(400, 'Choose how it was paid');
   if (payment.mode === 'offline' && (payment.note ?? '').length > 200) return fail(400, 'The payment note is too long');
 
+  if (typeof input.requestId !== 'string' || !/^[A-Za-z0-9-]{16,64}$/.test(input.requestId)) return fail(400, 'Missing request id. Reload the page and try again.');
+
   const prepared = await prepare(input);
   if (!prepared.ok) return prepared;
   const { built, orderItems } = prepared.value;
@@ -205,8 +242,18 @@ export async function createOfflineOrder(
   const stripe = payment.mode === 'link' ? stripeClient() : null;
   if (payment.mode === 'link' && !stripe) return fail(500, 'Stripe is not configured on the site');
 
+  // claim the request id: only the first request with it goes on (atomic: the id is the document's _id)
+  const claim = await claimRequest(input.requestId, context.adminId);
+  if (claim === 'duplicate') {
+    return fail(409, 'This order was already submitted. Check the Orders list before creating it again.', { code: 'DUPLICATE_REQUEST' });
+  }
+  const released = () => releaseRequest(input.requestId);
+
   const ensured = await ensureCustomer({ name, email, phone }, input.address);
-  if ('error' in ensured) return fail(400, ensured.error);
+  if ('error' in ensured) {
+    await released();
+    return fail(400, ensured.error);
+  }
 
   const orderId = generateOrderId();
   const { totals } = built;
@@ -243,7 +290,11 @@ export async function createOfflineOrder(
       paidAt: new Date(),
     } as Order;
     const saved = await db.create('orders', formatOrderForDatabase(paidOrder));
-    if (!saved.success) return fail(500, 'Failed to save the order');
+    if (!saved.success) {
+      await released();
+      return fail(500, 'Failed to save the order');
+    }
+    await completeRequest(input.requestId, orderId);
     let emailSent = false;
     let emailError: string | undefined;
     try {
@@ -271,6 +322,7 @@ export async function createOfflineOrder(
     });
   } catch (error) {
     console.error('[offline-order] Stripe error while opening the payment', { orderId, message: error instanceof Error ? error.message : String(error) });
+    await released();
     return fail(500, 'Could not open the payment with Stripe. Nothing was saved.');
   }
 
@@ -282,8 +334,10 @@ export async function createOfflineOrder(
   const saved = await db.create('orders', formatOrderForDatabase(pendingOrder));
   if (!saved.success) {
     await stripe!.paymentIntents.cancel(paymentIntent.id).catch(() => undefined);
+    await released();
     return fail(500, 'Failed to save the order');
   }
+  await completeRequest(input.requestId, orderId);
 
   const payLink = buildPayLink(orderId, token);
   const emailResult = await sendPaymentLinkEmail(pendingOrder, payLink, ensured.accountCreated);
