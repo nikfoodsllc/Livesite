@@ -358,8 +358,63 @@ export async function createOfflineOrder(
   };
 }
 
-/** Gives an unpaid link order a fresh pay link (the old one stops working) and emails it again. */
-export async function resendPaymentLink(orderId: string): Promise<{ ok: true; payLink: string; emailSent: boolean; emailError?: string } | ServiceFailure> {
+export interface OfflineOrderRow {
+  orderId: string;
+  createdAt: string;
+  customerName: string;
+  customerEmail: string;
+  total: number;
+  status: string;
+  paymentStatus: string;
+  paymentMethod: string;
+  /** Paid by a payment link (as opposed to recorded as paid offline) */
+  linkOrder: boolean;
+  /** Still waiting for the customer to pay the link */
+  awaitingPayment: boolean;
+  linkSentAt?: string;
+  deliveryDates: string[];
+  offlinePaymentNote?: string;
+}
+
+/**
+ * The orders admins entered, newest first: the 40 most recent, plus EVERY link order still waiting for payment (however
+ * old), so an unpaid order can never fall off the list.
+ */
+export async function listOfflineOrders(limit = 40): Promise<OfflineOrderRow[]> {
+  const take = Math.min(Math.max(limit, 1), 100);
+  const [recent, waiting] = await Promise.all([
+    db.read<Order>('orders', { source: 'admin' } as never, { sort: { createdAt: -1 }, limit: take }),
+    db.read<Order>(
+      'orders',
+      { source: 'admin', stripePaymentIntentId: { $exists: true }, paymentStatus: { $ne: 'paid' }, status: { $ne: 'cancelled' } } as never,
+      { sort: { createdAt: -1 }, limit: 200 }
+    ),
+  ]);
+  const byId = new Map<string, Order>();
+  for (const o of [...(recent.success && recent.data ? recent.data : []), ...(waiting.success && waiting.data ? waiting.data : [])]) byId.set(o.orderId, o);
+  const rows = [...byId.values()].sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')) || (new Date(b.createdAt as never).getTime() - new Date(a.createdAt as never).getTime()));
+  return rows.map((o) => ({
+    orderId: o.orderId,
+    createdAt: o.createdAt instanceof Date ? o.createdAt.toISOString() : String(o.createdAt ?? ''),
+    customerName: o.customerInfo?.name ?? '',
+    customerEmail: o.customerInfo?.email ?? '',
+    total: o.totalPaid,
+    status: o.status,
+    paymentStatus: o.paymentStatus,
+    paymentMethod: o.paymentMethod,
+    linkOrder: Boolean(o.stripePaymentIntentId),
+    awaitingPayment: Boolean(o.stripePaymentIntentId) && o.paymentStatus !== 'paid' && o.status !== 'cancelled',
+    linkSentAt: o.paymentLinkSentAt ? (o.paymentLinkSentAt instanceof Date ? o.paymentLinkSentAt.toISOString() : String(o.paymentLinkSentAt)) : undefined,
+    deliveryDates: Array.from(new Set((o.items ?? []).map((d) => String(d.actualDeliveryDate ?? d.deliveryDate).slice(0, 10)))).sort(),
+    offlinePaymentNote: o.offlinePaymentNote,
+  }));
+}
+
+/**
+ * Gives an unpaid link order a fresh pay link (the old one stops working). By default the new link is emailed to the
+ * customer; with `sendEmail: false` it is only returned, so the admin can send it some other way.
+ */
+export async function resendPaymentLink(orderId: string, options: { sendEmail?: boolean } = {}): Promise<{ ok: true; payLink: string; emailSent: boolean; emailError?: string } | ServiceFailure> {
   const found = await db.readOne<Order>('orders', { orderId } as never);
   const order = found.success ? found.data : null;
   if (!order || order.source !== 'admin' || !order.stripePaymentIntentId) return fail(404, 'No pay-by-link order with that number');
@@ -368,6 +423,7 @@ export async function resendPaymentLink(orderId: string): Promise<{ ok: true; pa
   const token = newPaymentToken();
   await db.updateOne('orders', { orderId } as never, { $set: { paymentLinkTokenHash: hashPaymentToken(token), updatedAt: new Date() } } as never);
   const payLink = buildPayLink(orderId, token);
+  if (options.sendEmail === false) return { ok: true, payLink, emailSent: false };
   const sent = await sendPaymentLinkEmail(order, payLink, false);
   if (sent.success) await db.updateOne('orders', { orderId } as never, { $set: { paymentLinkSentAt: new Date() } } as never);
   return { ok: true, payLink, emailSent: sent.success, emailError: sent.error };

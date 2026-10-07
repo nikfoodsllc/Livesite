@@ -9,7 +9,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const denied = requireAdmin(request);
   if (denied) return denied;
   const { orderId } = await params;
-  const result = await resendPaymentLink(decodeURIComponent(orderId));
+  let body: { sendEmail?: boolean } = {};
+  try {
+    body = await request.json();
+  } catch {
+    // no body: email the new link
+  }
+  const result = await resendPaymentLink(decodeURIComponent(orderId), { sendEmail: body.sendEmail !== false });
   if (!result.ok) {
     const { status, ...rest } = result;
     return NextResponse.json({ success: false, ...rest }, { status });

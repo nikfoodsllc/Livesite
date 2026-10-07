@@ -3,7 +3,7 @@
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { Alert, Box, Button, CircularProgress, Container, Divider, Paper, Typography } from '@mui/material';
-import { IconLock } from '@tabler/icons-react';
+import { IconLock, IconMail, IconMapPin, IconPhone, IconUser } from '@tabler/icons-react';
 import { loadStripe, StripeElementsOptions } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
 
@@ -30,7 +30,8 @@ interface PayItem {
   portion?: string;
   spice?: string;
   eco?: boolean;
-  combo: string[];
+  notes?: string;
+  combo: Array<{ title: string; choices: string[] }>;
 }
 
 interface PayData {
@@ -40,6 +41,7 @@ interface PayData {
   firstName?: string;
   clientSecret?: string;
   customer?: { name: string; email: string; phone: string };
+  address?: { street?: string; apartment?: string; city?: string; state?: string; zip?: string; entrance?: string; floor?: string; landmark?: string };
   subtotal?: number;
   platformFee?: number;
   deliveryFee?: number;
@@ -48,13 +50,10 @@ interface PayData {
   discount?: number;
   discountCode?: string;
   total?: number;
-  days?: Array<{ date: string; dayTotal: number; items: PayItem[] }>;
+  days?: Array<{ day: string; date: string; deliverOn: string; dayTotal: number; items: PayItem[] }>;
 }
 
 const money = (n: number | undefined) => `$${(n ?? 0).toFixed(2)}`;
-const dayLabel = (date: string) =>
-  new Date(`${date}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
-
 function Page({ children }: { children: React.ReactNode }) {
   return (
     <Box sx={{ bgcolor: '#FAFAFA', minHeight: '70vh', py: 4 }}>
@@ -76,66 +75,198 @@ function Header({ orderId }: { orderId?: string }) {
   );
 }
 
-// colours of the "Your order" card in the NikFoods emails
-const C = { card: '#FFFBF5', line: '#EADBC3', text: '#2B1D0E', body: '#54442F', muted: '#76664F', brandText: '#A85A00', tile: '#FFE7C2' };
+// colours of the NikFoods emails (the order details below are laid out like the order confirmation email)
+const C = {
+  card: '#FFFBF5', surface: '#FBF1E1', line: '#EADBC3', text: '#2B1D0E', body: '#54442F', muted: '#76664F',
+  brand: '#F89C35', brandText: '#A85A00', onBrand: '#1A1106', tile: '#FFE7C2', tileLine: '#F2B35E', green: '#14803C',
+};
 
-function SummaryRow({ label, value, note }: { label: string; value: string; note?: string }) {
+const pickedParts = (date: string) => {
+  const d = new Date(`${date}T12:00:00Z`);
+  return {
+    month: d.toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' }).toUpperCase(),
+    dom: d.toLocaleDateString('en-US', { day: 'numeric', timeZone: 'UTC' }),
+  };
+};
+const weekdayOf = (date: string) => new Date(`${date}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
+const fullDate = (date: string) => new Date(`${date}T12:00:00Z`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+
+function Tag({ text, bg, line, color }: { text: string; bg: string; line: string; color: string }) {
   return (
-    <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.25 }}>
-      <Typography sx={{ fontSize: 15, color: C.body }}>
-        {label}
-        {note ? <Typography component="span" sx={{ fontSize: 15, color: C.muted }}> {note}</Typography> : null}
-      </Typography>
-      <Typography sx={{ fontSize: 15, color: C.body }}>{value}</Typography>
+    <Box component="span" sx={{ display: 'inline-block', mr: 0.75, mt: 0.4, px: 1.1, py: '1px', border: `1px solid ${line}`, borderRadius: '999px', bgcolor: bg, color, fontSize: 11, fontWeight: 700, lineHeight: '16px' }}>
+      {text}
     </Box>
   );
 }
 
-/** The order, laid out like the "Your order" card of the confirmation and payment-link emails. */
+function ItemTags({ item }: { item: PayItem }) {
+  return (
+    <Box>
+      {item.portion && <Tag text={item.portion} bg={C.tile} line={C.tileLine} color={C.brandText} />}
+      {item.spice && <Tag text={`\u{1F336}\uFE0F ${item.spice}`} bg="#FDE7E2" line="#EFA397" color="#A12A14" />}
+      {item.eco && <Tag text={'\u267B\uFE0F Eco'} bg="#E2F4E7" line="#8CCB9B" color="#126B2C" />}
+    </Box>
+  );
+}
+
+function DayCard({ day }: { day: NonNullable<PayData['days']>[number] }) {
+  const { month, dom } = pickedParts(day.date);
+  const n = day.items.reduce((sum, i) => sum + i.quantity, 0);
+  return (
+    <Box sx={{ mt: 1.25, border: `1px solid ${C.line}`, borderRadius: '16px', bgcolor: C.card, overflow: 'hidden' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: { xs: 1.75, sm: 2.25 }, py: 1, bgcolor: C.surface, borderBottom: `1px solid ${C.line}` }}>
+        <Box sx={{ width: 50, height: 50, flexShrink: 0, border: `2px solid ${C.brand}`, bgcolor: C.tile, borderRadius: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <Typography sx={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', color: C.brandText, lineHeight: '12px' }}>{month}</Typography>
+          <Typography sx={{ fontSize: 21, fontWeight: 800, color: C.text, lineHeight: '23px' }}>{dom}</Typography>
+        </Box>
+        <Box sx={{ minWidth: 0, flex: 1 }}>
+          <Typography sx={{ fontSize: 17, fontWeight: 800, color: C.text, lineHeight: '24px' }}>{day.day}</Typography>
+          <Typography sx={{ fontSize: 13, color: C.muted, lineHeight: '18px' }}>
+            Deliver on <strong style={{ color: C.text }}>{weekdayOf(day.deliverOn)}</strong>, {fullDate(day.deliverOn)}
+          </Typography>
+        </Box>
+        <Box sx={{ flexShrink: 0, border: `2px solid ${C.brand}`, bgcolor: C.tile, borderRadius: '16px', px: 1.25, py: '2px' }}>
+          <Typography sx={{ fontSize: 12, fontWeight: 800, color: C.brandText, whiteSpace: 'nowrap' }}>{n} item{n === 1 ? '' : 's'}</Typography>
+        </Box>
+      </Box>
+      <Box sx={{ px: { xs: 1.75, sm: 2.25 }, pb: 0.25 }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 26px 70px', sm: '1fr 64px 90px' }, pt: 0.75 }}>
+          {['Item', 'Qty', 'Price'].map((h, i) => (
+            <Typography key={h} sx={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.muted, textAlign: i === 0 ? 'left' : i === 1 ? 'center' : 'right' }}>{h}</Typography>
+          ))}
+        </Box>
+        {day.items.map((item, i) => (
+          <Box key={i} sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 26px 70px', sm: '1fr 64px 90px' }, py: 0.9, borderBottom: i === day.items.length - 1 ? 'none' : `1px solid ${C.line}` }}>
+            <Box sx={{ pr: 1, minWidth: 0 }}>
+              <Typography sx={{ fontSize: 15, fontWeight: 700, color: C.text, lineHeight: '21px', wordBreak: 'break-word' }}>{item.name}</Typography>
+              <ItemTags item={item} />
+              {item.combo.length > 0 && (
+                <Box sx={{ mt: 0.4 }}>
+                  {item.combo.map((c) => (
+                    <Typography key={c.title} sx={{ fontSize: 12, lineHeight: '17px', color: C.muted }}>
+                      <span style={{ fontWeight: 400 }}>{c.title}:</span> <strong style={{ color: C.body }}>{c.choices.join(', ')}</strong>
+                    </Typography>
+                  ))}
+                </Box>
+              )}
+              {item.notes && <Typography sx={{ mt: 0.75, fontSize: 12, fontStyle: 'italic', color: C.green }}>“{item.notes}”</Typography>}
+            </Box>
+            <Typography sx={{ fontSize: 15, fontWeight: 600, color: C.text, textAlign: 'center' }}>{item.quantity}</Typography>
+            <Typography sx={{ fontSize: { xs: 14, sm: 15 }, fontWeight: 800, color: C.text, textAlign: 'right', whiteSpace: 'nowrap' }}>{money(item.price * item.quantity)}</Typography>
+          </Box>
+        ))}
+      </Box>
+      <Box sx={{ px: { xs: 1.75, sm: 2.25 }, py: 0.9, bgcolor: C.surface, borderTop: `1px solid ${C.line}`, textAlign: 'right' }}>
+        <Typography component="span" sx={{ fontSize: 13, fontWeight: 700, color: C.body }}>{day.day} total&nbsp;&nbsp;</Typography>
+        <Typography component="span" sx={{ fontSize: 15, fontWeight: 800, color: C.text }}>{money(day.dayTotal)}</Typography>
+      </Box>
+    </Box>
+  );
+}
+
+function SumRow({ label, value, note }: { label: string; value: string; note?: string }) {
+  return (
+    <Box sx={{ display: 'flex', justifyContent: 'space-between', py: '3px' }}>
+      <Typography sx={{ fontSize: 14, color: C.body }}>
+        {label}
+        {note ? <span style={{ color: C.muted, fontSize: 12 }}> {note}</span> : null}
+      </Typography>
+      <Typography sx={{ fontSize: 14, fontWeight: 700, color: C.text }}>{value}</Typography>
+    </Box>
+  );
+}
+
+/** The order, laid out like the Order Details and Payment summary of the order confirmation email. */
 function OrderSummary({ data }: { data: PayData }) {
   const taxesAndFees = (data.platformFee ?? 0) + (data.tax ?? 0) + (data.deliveryFee ?? 0);
   return (
     <Box sx={{ position: { md: 'sticky' }, top: 20 }}>
-      <Typography sx={{ fontSize: 22, fontWeight: 800, color: C.text, mb: 1 }}>Your order</Typography>
-      <Paper elevation={0} sx={{ p: 2, bgcolor: C.card, border: `1px solid ${C.line}`, borderRadius: '14px' }}>
-        {data.days?.map((day) => (
-          <Box key={day.date} sx={{ mb: 0.5 }}>
-            <Box sx={{ borderTop: `1px solid ${C.line}`, pt: 1, pb: 0.5 }}>
-              <Typography sx={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.brandText }}>
-                Delivery · {dayLabel(day.date).replace(/,\s*\d{4}$/, '')}
-              </Typography>
-            </Box>
-            {day.items.map((item, i) => {
-              const tags = [item.portion, item.spice ?? '', item.eco ? 'Eco container' : ''].filter(Boolean).join(' · ');
-              return (
-                <Box key={i} sx={{ py: 0.6 }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
-                    <Typography sx={{ fontSize: 16, color: C.text, wordBreak: 'break-word' }}>
-                      {item.quantity} × {item.name}
-                    </Typography>
-                    <Typography sx={{ fontSize: 16, fontWeight: 800, color: C.text, whiteSpace: 'nowrap' }}>{money(item.price * item.quantity)}</Typography>
-                  </Box>
-                  {item.combo.map((line) => (
-                    <Typography key={line} sx={{ fontSize: 13, color: C.muted }}>{line}</Typography>
-                  ))}
-                  {tags && <Typography sx={{ fontSize: 13, color: C.muted }}>{tags}</Typography>}
-                </Box>
-              );
-            })}
-          </Box>
-        ))}
-        <Box sx={{ borderTop: `1px solid ${C.line}`, mt: 1, pt: 1 }}>
-          <SummaryRow label="Subtotal" value={money(data.subtotal)} />
-          <SummaryRow label="Taxes & Fees" value={money(taxesAndFees)} />
-          {(data.tip ?? 0) > 0 && <SummaryRow label="Tip" note="— thank you!" value={money(data.tip)} />}
-          {(data.discount ?? 0) > 0 && <SummaryRow label={data.discountCode ? `Discount (${data.discountCode})` : 'Discount'} value={`-${money(data.discount)}`} />}
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: C.tile, borderRadius: '12px', px: 2, py: 1.25, mt: 1 }}>
-            <Typography sx={{ fontSize: 17, fontWeight: 800, color: C.text }}>Total to pay</Typography>
-            <Typography sx={{ fontSize: 22, fontWeight: 800, color: C.text }}>{money(data.total)}</Typography>
+      <Typography sx={{ fontSize: 20, fontWeight: 800, color: C.text, lineHeight: '26px' }}>Order Details</Typography>
+      {data.days?.map((day) => <DayCard key={`${day.date}-${day.day}`} day={day} />)}
+      <Typography sx={{ fontSize: 20, fontWeight: 800, color: C.text, lineHeight: '26px', mt: 2, mb: 1.5 }}>Payment summary</Typography>
+      <Box sx={{ border: `1px solid ${C.line}`, borderRadius: '16px', bgcolor: C.card, overflow: 'hidden' }}>
+        <Box sx={{ px: 2.25, py: 1 }}>
+          <SumRow label="Subtotal" value={money(data.subtotal)} />
+          {(data.discount ?? 0) > 0 && <SumRow label={data.discountCode ? `Discount (${data.discountCode})` : 'Discount'} value={`-${money(data.discount)}`} />}
+          <SumRow label="Taxes & Fees" value={money(taxesAndFees)} />
+          {(data.tip ?? 0) > 0 && <SumRow label="Tip" note="— thank you!" value={money(data.tip)} />}
+        </Box>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: C.brand, px: 2.25, py: 1.4 }}>
+          <Typography sx={{ fontSize: 15, fontWeight: 800, color: C.onBrand }}>Total to pay</Typography>
+          <Typography sx={{ fontSize: 22, fontWeight: 800, color: C.onBrand }}>{money(data.total)}</Typography>
+        </Box>
+      </Box>
+    </Box>
+  );
+}
+
+/** A small orange icon tile like the one the checkout page puts next to the address. */
+function IconTile({ children }: { children: React.ReactNode }) {
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: '8px', bgcolor: '#FFF5E6', color: '#FF9F0D', flexShrink: 0 }}>
+      {children}
+    </Box>
+  );
+}
+
+/** Contact Information and Delivery Address, in the same cards as the checkout page. */
+function DeliveryDetails({ data }: { data: PayData }) {
+  const a = data.address ?? {};
+  const street = (a.street ?? '').trim();
+  const cityLine = [a.city, a.state].filter(Boolean).join(', ') + (a.zip ? ` ${a.zip}` : '');
+  const streetHasCity = street && a.city ? street.toLowerCase().includes(a.city.trim().toLowerCase()) : false;
+  const cardSx = { p: 3, mb: 3, border: '1px solid #EDEDED' } as const;
+  return (
+    <>
+      <Paper elevation={0} sx={cardSx}>
+        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+          Contact Information
+        </Typography>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+          {[
+            { icon: <IconUser size={20} />, value: data.customer?.name },
+            { icon: <IconMail size={20} />, value: data.customer?.email },
+            { icon: <IconPhone size={20} />, value: data.customer?.phone },
+          ]
+            .filter((row) => row.value)
+            .map((row, i) => (
+              <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <IconTile>{row.icon}</IconTile>
+                <Typography variant="body1" sx={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{row.value}</Typography>
+              </Box>
+            ))}
+        </Box>
+      </Paper>
+
+      <Paper elevation={0} sx={cardSx}>
+        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+          Delivery Address
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          <IconTile>
+            <IconMapPin size={24} />
+          </IconTile>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography variant="body1" sx={{ mb: 0.5, wordBreak: 'break-word' }}>{street}</Typography>
+            {a.apartment && (
+              <Typography variant="body2" sx={{ color: '#666', mb: 0.5 }}>{a.apartment}</Typography>
+            )}
+            {!streetHasCity && cityLine.trim() && (
+              <Typography variant="body2" sx={{ color: '#666' }}>{cityLine}</Typography>
+            )}
+            {a.entrance && (
+              <Typography variant="body2" sx={{ color: '#666', mt: 0.5 }}>Gate code: {a.entrance}</Typography>
+            )}
+            {a.floor && (
+              <Typography variant="body2" sx={{ color: '#666', mt: 0.5 }}>Delivery instructions: {a.floor}</Typography>
+            )}
+            {a.landmark && (
+              <Typography variant="body2" sx={{ color: '#666', mt: 0.5 }}>Landmark: {a.landmark}</Typography>
+            )}
           </Box>
         </Box>
       </Paper>
-    </Box>
+    </>
   );
 }
 
@@ -359,6 +490,7 @@ function PayInner() {
       <Header orderId={data.orderId} />
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 400px' }, gap: 3, alignItems: 'start' }}>
         <Box>
+          <DeliveryDetails data={data} />
           {elementsOptions ? (
             <Elements stripe={stripePromise} key={data.clientSecret} options={elementsOptions}>
               <PayForm data={data} token={token} onPaid={() => setJustPaid(true)} onClosed={() => void load()} />
