@@ -553,7 +553,7 @@ export default function SignupDialog({
               onChange={(e) => setPhone(e.target.value)}
               onFocus={() => setPhoneFocused(true)}
               onBlur={() => setPhoneFocused(false)}
-              inputProps={{ maxLength: 10 }}
+              inputProps={{ maxLength: 16 }}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">

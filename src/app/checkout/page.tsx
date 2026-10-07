@@ -442,7 +442,12 @@ function CheckoutFormContent({
 export default function CheckoutPage() {
   const router = useRouter();
   const { cart, isLoading: cartLoading, refreshCart, updateAddress, zipcodeConfig, selectedAddressId } = useCart();
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, isLoading: authLoading, refreshUser } = useAuth();
+  // the profile saved in this browser can be older than the server's (a phone saved by the last order, say): get the current one
+  const checkoutUserId = user?.id;
+  useEffect(() => {
+    if (checkoutUserId) void refreshUser();
+  }, [checkoutUserId, refreshUser]);
   const { openLoginDialog, closeLoginDialog, openSignupDialog, closeSignupDialog, openForgotPasswordDialog, closeForgotPasswordDialog } = useHeader();
   const { authenticatedFetch } = useApiClient();
 

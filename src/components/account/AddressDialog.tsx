@@ -577,7 +577,7 @@ export default function AddressDialog({
                 onChange={handleChange('phone')}
                 error={!!phoneError}
                 helperText={phoneError}
-                inputProps={{ maxLength: 10 }}
+                inputProps={{ maxLength: 16 }}
                 sx={{ mb: 2 }}
               />
 
