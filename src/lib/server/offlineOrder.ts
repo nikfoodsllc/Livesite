@@ -191,6 +191,8 @@ export interface BuiltOfflineCart {
   totals: OfflineTotals;
   minOrderValue: number;
   deliveryMessages: string[];
+  /** Delivery days whose total is under the area's minimum: only a note for the admin, nothing is blocked or combined */
+  belowMinimum: Array<{ date: string; total: number }>;
 }
 
 /**
@@ -222,7 +224,10 @@ export function buildOfflineCart(params: {
       meetsMinimum: false,
     }));
 
-  const clubbing = calculateCartClubbing(cartDays, minOrderValue);
+  // Create Order is the admin's master tool: every delivery day is delivered on the date the admin chose. The website's
+  // rule that combines a day under the minimum into the next one is not applied (minimum 0 = every day stands alone).
+  const clubbing = calculateCartClubbing(cartDays, 0);
+  const belowMinimum = cartDays.filter((d) => d.dayTotal < minOrderValue).map((d) => ({ date: d.date, total: d.dayTotal }));
   const days = cartDays.map((day, index) => ({
     ...day,
     deliveryMessage: clubbing.deliveryMessages[index] || undefined,
@@ -264,6 +269,7 @@ export function buildOfflineCart(params: {
     cart,
     totals: { subtotal, platformFee, deliveryFee: 0, tax, tip, total },
     minOrderValue,
+    belowMinimum,
     deliveryMessages: days.filter((d) => d.deliveryMessage).map((d) => d.deliveryMessage!.message),
   };
 }
