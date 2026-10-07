@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     .limit(limit)
     .toArray();
 
-  const result = { dryRun, days, looked: candidates.length, saved: 0, stillSent: 0, notFound: 0, errors: 0, byStatus: {} as Record<string, number>, rateLimited: false };
+  const result = { dryRun, days, looked: candidates.length, saved: 0, stillSent: 0, notFound: 0, errors: 0, byStatus: {} as Record<string, number>, rateLimited: false, errorSamples: [] as string[] };
   for (const order of candidates) {
     const messageId = String((order as { emailStatus?: { messageId?: string } }).emailStatus?.messageId ?? '');
     if (!messageId) continue;
@@ -54,7 +54,12 @@ export async function POST(request: NextRequest) {
           break;
         }
         if (status === 404) result.notFound += 1;
-        else result.errors += 1;
+        else {
+          result.errors += 1;
+          // what went wrong, without any order or customer detail (a few different messages at most)
+          const message = `${status ?? ''} ${(response.error as { name?: string }).name ?? ''}: ${String((response.error as { message?: string }).message ?? '').slice(0, 140)}`.trim();
+          if (result.errorSamples.length < 3 && !result.errorSamples.includes(message)) result.errorSamples.push(message);
+        }
       } else {
         const delivery = deliveryFromLastEvent((response.data as { last_event?: string } | null)?.last_event);
         if (!delivery) result.stillSent += 1;
@@ -67,8 +72,10 @@ export async function POST(request: NextRequest) {
           }
         }
       }
-    } catch {
+    } catch (error) {
       result.errors += 1;
+      const message = `thrown: ${error instanceof Error ? error.message.slice(0, 140) : 'unknown'}`;
+      if (result.errorSamples.length < 3 && !result.errorSamples.includes(message)) result.errorSamples.push(message);
     }
     await new Promise((resolve) => setTimeout(resolve, PAUSE_MS));
   }
