@@ -430,6 +430,91 @@ export interface OfflineOrderRow {
   linkViews?: { firstAt: string; lastAt: string; count: number };
   deliveryDates: string[];
   offlinePaymentNote?: string;
+  /** What was ordered, for the expanded view of the admin list */
+  details: OrderDetails;
+}
+
+export interface OrderDetailItem {
+  name: string;
+  quantity: number;
+  /** Price of the line (price of one times quantity, eco container included) */
+  lineTotal: number;
+  /** Size, spice level and eco container */
+  tags: string[];
+  /** Combo picks, one line per section: 'Veg Curry of the Day: Kale Chane (12Oz)' */
+  choices: string[];
+  notes?: string;
+}
+
+export interface OrderDetailDay {
+  /** The menu day the items were picked for, 'YYYY-MM-DD' */
+  menuDay: string;
+  /** The day they are delivered (differs when a day was combined into another) */
+  deliveryDay: string;
+  items: OrderDetailItem[];
+  dayTotal: number;
+}
+
+export interface OrderDetails {
+  days: OrderDetailDay[];
+  totals: { subtotal: number; platformFee: number; deliveryFee: number; tax: number; tip: number; discount: number; total: number };
+  /** The delivery address on one line, with the gate code and the delivery instruction when there are any */
+  address: { line: string; gateCode?: string; instruction?: string };
+}
+
+const dayString = (value: unknown): string => String(value instanceof Date ? value.toISOString() : value ?? '').slice(0, 10);
+
+/** The combo picks of an order item, one line per section ('Title: Name (size), Name (size)'). */
+function comboChoiceLines(item: OrderDay['items'][number]): string[] {
+  const picks = item.comboSelections ?? {};
+  const sections = ((item.food as unknown as { sections?: Array<{ _id?: string; title?: string; selectedItems?: Array<{ _id?: string; portion?: string; item?: { name?: string } }> }> }).sections ?? []);
+  const lines: string[] = [];
+  for (const section of sections) {
+    const names = ((section._id && picks[section._id]) || [])
+      .map((id) => section.selectedItems?.find((s) => s._id === id))
+      .filter((s): s is NonNullable<typeof s> => Boolean(s))
+      .map((s) => `${s.item?.name ?? 'Item'}${s.portion ? ` (${s.portion})` : ''}`);
+    if (names.length > 0) lines.push(`${section.title ?? 'Choice'}: ${names.join(', ')}`);
+  }
+  return lines;
+}
+
+/** Everything an admin wants to see when they open an order in the list: the items by day, the totals and where it goes. */
+export function describeOrder(o: Order): OrderDetails {
+  const days: OrderDetailDay[] = (o.items ?? []).map((day) => ({
+    menuDay: dayString(day.deliveryDate),
+    deliveryDay: dayString(day.actualDeliveryDate ?? day.deliveryDate),
+    items: (day.items ?? []).map((item) => {
+      const tags: string[] = [];
+      if (item.selectedPortion) tags.push(item.selectedPortion);
+      if (item.spiceLevel) tags.push(item.spiceLevel);
+      if (item.isEcoFriendlyContainer) tags.push('Eco');
+      return {
+        name: item.food?.name ?? 'Item',
+        quantity: item.quantity,
+        lineTotal: Math.round(item.price * item.quantity * 100) / 100,
+        tags,
+        choices: comboChoiceLines(item),
+        ...(item.notes ? { notes: item.notes } : {}),
+      };
+    }),
+    dayTotal: day.dayTotal,
+  }));
+  const a = o.address;
+  const line = a ? [a.street, a.apartment, [a.city, a.zipCode].filter(Boolean).join(' ')].filter(Boolean).join(', ') : '';
+  return {
+    days,
+    totals: {
+      subtotal: o.subtotal ?? 0,
+      platformFee: o.platformFee ?? 0,
+      deliveryFee: o.deliveryFee ?? 0,
+      tax: o.taxes ?? 0,
+      tip: o.tip ?? 0,
+      discount: o.discount?.amount ?? 0,
+      total: o.totalPaid ?? 0,
+    },
+    address: { line, ...(a?.entrance ? { gateCode: a.entrance } : {}), ...(a?.floor ? { instruction: a.floor } : {}) },
+  };
 }
 
 /**
@@ -466,6 +551,7 @@ export async function listOfflineOrders(limit = 40): Promise<OfflineOrderRow[]> 
     ...(latestEmail(o) ? { linkEmail: latestEmail(o) } : {}),
     ...(viewsOf(o) ? { linkViews: viewsOf(o) } : {}),
     offlinePaymentNote: o.offlinePaymentNote,
+    details: describeOrder(o),
   }));
 }
 
