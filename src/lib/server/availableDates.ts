@@ -226,14 +226,18 @@ export async function getOrderableDayWiseDateStrings(
  */
 export async function getAvailableDatesFromDatabase(
   startDate?: string,
-  endDate?: string
+  endDate?: string,
+  /** true = also dates that only have day-wise (Food Menu) items switched on; false = dates with flat items on (the older rule) */
+  anyKindEnabled = false
 ): Promise<AvailableDateDocument[]> {
   try {
     const { startDate: start, endDate: end } = resolveDefaultDateRange(startDate, endDate);
 
     // Build query filter
     const filter: Record<string, unknown> = {
-      flatCategoryEnabled: true,
+      ...(anyKindEnabled
+        ? { $or: [{ flatCategoryEnabled: true }, { dayWiseCategoryEnabled: true }] }
+        : { flatCategoryEnabled: true }),
       date: {
         $gte: start,
         $lte: end,
@@ -523,9 +527,15 @@ export async function findClosedLines(lines: LineToCheck[]): Promise<ClosedLine[
       else kinds = ['day-wise'];
     }
     const doc = docs.get(line.date);
-    const isClosed = (kind: ItemKind) => isDateDisabled(line.date, overrideFor(doc, kind) as Date | string | null | undefined, kind);
-    if (!kinds.every(isClosed)) continue;
     const kind = kinds[0];
+    // a kind an admin switched off for the date cannot be ordered at all (only judged when the date's settings exist)
+    const switchedOff = (k: ItemKind) => !!doc && !(k === 'flat' ? doc.flatCategoryEnabled : doc.dayWiseCategoryEnabled);
+    if (kinds.every(switchedOff)) {
+      closed.push({ date: line.date, foodItemId: line.foodItemId, kind, closesAt: new Date().toISOString(), name: line.name, reason: 'disabled' });
+      continue;
+    }
+    const isClosed = (k: ItemKind) => switchedOff(k) || isDateDisabled(line.date, overrideFor(doc, k) as Date | string | null | undefined, k);
+    if (!kinds.every(isClosed)) continue;
     closed.push({
       date: line.date,
       foodItemId: line.foodItemId,

@@ -153,6 +153,8 @@ export interface ClosedLine {
   closesAt: string;
   /** The item's name, when the caller has it (used in the message) */
   name?: string;
+  /** 'disabled' = that kind of item is switched off for the date by an admin (no cutoff involved); default is a passed cutoff */
+  reason?: 'cutoff' | 'disabled';
 }
 
 /** The plain sentence naming the days that are no longer open (the checkout page adds what it did about it). */
@@ -168,18 +170,35 @@ export function closedDatesMessage(closed: ClosedDate[]): string {
  * "Ordering has closed for Dosa Batter and Mithai Box on Friday, Oct 9 (closed Thursday, Oct 8 at 5:00 PM Pacific time)."
  */
 export function closedLinesMessage(closed: ClosedLine[]): string {
+  const joinList = (parts: string[]) => (parts.length === 1 ? parts[0] : parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1]);
+  const joinNames = (names: string[]) => (names.length === 0 ? 'some items' : joinList(names));
+  const sentences: string[] = [];
+
+  // items an admin switched off for the day
+  const off = new Map<string, string[]>();
+  for (const line of closed.filter((l) => l.reason === 'disabled')) {
+    const names = off.get(line.date) ?? [];
+    if (line.name && !names.includes(line.name)) names.push(line.name);
+    off.set(line.date, names);
+  }
+  if (off.size > 0) {
+    const parts = [...off.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, names]) => `${joinNames(names)} on ${formatDeliveryDate(date)}`);
+    sentences.push(`${joinList(parts)} ${parts.length === 1 && !/ and /.test(parts[0].split(' on ')[0]) ? 'is' : 'are'} no longer available for ordering.`);
+  }
+
+  // items whose cutoff has passed, grouped by day and closing time
   const groups = new Map<string, { date: string; closesAt: string; names: string[] }>();
-  for (const line of [...closed].sort((a, b) => a.date.localeCompare(b.date) || a.closesAt.localeCompare(b.closesAt))) {
+  for (const line of [...closed].filter((l) => l.reason !== 'disabled').sort((a, b) => a.date.localeCompare(b.date) || a.closesAt.localeCompare(b.closesAt))) {
     const key = `${line.date}|${line.closesAt}`;
     const group = groups.get(key) ?? { date: line.date, closesAt: line.closesAt, names: [] };
     if (line.name && !group.names.includes(line.name)) group.names.push(line.name);
     groups.set(key, group);
   }
-  const joinNames = (names: string[]) =>
-    names.length === 0 ? 'some items' : names.length === 1 ? names[0] : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
-  const parts = [...groups.values()].map(
-    (g) => `${joinNames(g.names)} on ${formatDeliveryDate(g.date)} (closed ${formatPacificMoment(new Date(g.closesAt))} Pacific time)`
-  );
-  const list = parts.length === 1 ? parts[0] : parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1];
-  return `Ordering has closed for ${list}.`;
+  if (groups.size > 0) {
+    const parts = [...groups.values()].map(
+      (g) => `${joinNames(g.names)} on ${formatDeliveryDate(g.date)} (closed ${formatPacificMoment(new Date(g.closesAt))} Pacific time)`
+    );
+    sentences.push(`Ordering has closed for ${joinList(parts)}.`);
+  }
+  return sentences.join(' ');
 }
