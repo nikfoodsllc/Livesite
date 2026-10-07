@@ -376,10 +376,23 @@ export interface OfflineOrderRow {
   offlinePaymentNote?: string;
 }
 
-/** The orders admins entered, newest first, so one can be found again (resend its link, mark it paid). */
+/**
+ * The orders admins entered, newest first: the 40 most recent, plus EVERY link order still waiting for payment (however
+ * old), so an unpaid order can never fall off the list.
+ */
 export async function listOfflineOrders(limit = 40): Promise<OfflineOrderRow[]> {
-  const result = await db.read<Order>('orders', { source: 'admin' } as never, { sort: { createdAt: -1 }, limit: Math.min(Math.max(limit, 1), 100) });
-  const rows = result.success && result.data ? result.data : [];
+  const take = Math.min(Math.max(limit, 1), 100);
+  const [recent, waiting] = await Promise.all([
+    db.read<Order>('orders', { source: 'admin' } as never, { sort: { createdAt: -1 }, limit: take }),
+    db.read<Order>(
+      'orders',
+      { source: 'admin', stripePaymentIntentId: { $exists: true }, paymentStatus: { $ne: 'paid' }, status: { $ne: 'cancelled' } } as never,
+      { sort: { createdAt: -1 }, limit: 200 }
+    ),
+  ]);
+  const byId = new Map<string, Order>();
+  for (const o of [...(recent.success && recent.data ? recent.data : []), ...(waiting.success && waiting.data ? waiting.data : [])]) byId.set(o.orderId, o);
+  const rows = [...byId.values()].sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')) || (new Date(b.createdAt as never).getTime() - new Date(a.createdAt as never).getTime()));
   return rows.map((o) => ({
     orderId: o.orderId,
     createdAt: o.createdAt instanceof Date ? o.createdAt.toISOString() : String(o.createdAt ?? ''),
