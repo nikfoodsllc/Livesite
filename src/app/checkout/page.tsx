@@ -1267,9 +1267,6 @@ export default function CheckoutPage() {
           <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
             Checkout
           </Typography>
-          <Typography variant="body1" sx={{ color: '#666' }}>
-            Complete your order and get your delicious food delivered
-          </Typography>
         </Box>
 
         {/* Ordering closed for days in the cart: they were removed, say so at the top */}

@@ -20,12 +20,9 @@ interface DeliveryInstructionsSectionProps {
 export default function DeliveryInstructionsSection({ value, onChange, saved }: DeliveryInstructionsSectionProps) {
   return (
     <Paper elevation={0} sx={{ p: 3, mb: 3, border: '1px solid #EDEDED' }}>
-      <Typography variant="h6" sx={{ mb: 0.5, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
         <IconNotes size={20} style={{ color: '#FF9F0D' }} />
         Delivery Instructions <Typography component="span" variant="body2" sx={{ color: '#666', fontWeight: 400 }}>(optional)</Typography>
-      </Typography>
-      <Typography variant="body2" sx={{ color: '#666', mb: 2 }}>
-        Anything our delivery team should know, like where to leave the order or how to reach you.
       </Typography>
       <TextField
         fullWidth
@@ -34,7 +31,7 @@ export default function DeliveryInstructionsSection({ value, onChange, saved }: 
         maxRows={4}
         value={value}
         onChange={(e) => onChange(e.target.value.replace(/\n/g, ' ').slice(0, DELIVERY_INSTRUCTIONS_MAX))}
-        placeholder="For example: Leave with the front desk, call when you arrive"
+        placeholder="For example: Leave with the front desk"
         inputProps={{ maxLength: DELIVERY_INSTRUCTIONS_MAX, 'aria-label': 'Delivery instructions (optional)' }}
         helperText={`${value.length}/${DELIVERY_INSTRUCTIONS_MAX}${saved ? ' · Saved with this address for your next order' : ''}`}
       />
