@@ -4,7 +4,7 @@ import React from 'react';
 import { Paper, TextField, Typography } from '@mui/material';
 import { IconNotes } from '@tabler/icons-react';
 
-export const DELIVERY_INSTRUCTIONS_MAX = 100;
+export const DELIVERY_INSTRUCTIONS_MAX = 30;
 
 interface DeliveryInstructionsSectionProps {
   value: string;

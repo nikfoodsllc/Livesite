@@ -68,7 +68,7 @@ const stripeAppearance: StripeElementsOptions['appearance'] = {
 
 /** The instructions the way the server stores them: one line, trimmed, at most 100 characters. */
 function cleanInstructionsText(value: string): string {
-  return value.replace(/\s+/g, ' ').trim().slice(0, 100);
+  return value.replace(/\s+/g, ' ').trim().slice(0, 30);
 }
 
 /**
@@ -910,7 +910,7 @@ export default function CheckoutPage() {
       if (status !== 409 || data?.code !== 'ORDER_CUTOFF_CLOSED') return false;
       const closed = parseClosedItems(data.closedItems);
       const { removed, linesLeft } = localCart.removeClosedLines(closed);
-      setClosedNotice(closedItemsNotice(data.error ?? '', removed, linesLeft));
+      setClosedNotice(closedItemsNotice(data.error ?? '', removed, linesLeft, closed));
       setError('');
       await refreshCart();
       if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1218,7 +1218,7 @@ export default function CheckoutPage() {
     return (
       <Box sx={{ bgcolor: '#FAFAFA', minHeight: '60vh', py: 4 }}>
         <Container maxWidth="sm">
-          <Alert severity="error" sx={{ mb: 3 }} onClose={() => setClosedNotice(null)} role="alert">
+          <Alert severity="error" sx={{ mb: 3, whiteSpace: 'pre-line' }} onClose={() => setClosedNotice(null)} role="alert">
             {closedNotice}
           </Alert>
           <Button variant="contained" onClick={() => router.push('/')} sx={{ bgcolor: '#FF9F0D', '&:hover': { bgcolor: '#E68A00' }, textTransform: 'none' }}>
@@ -1271,7 +1271,7 @@ export default function CheckoutPage() {
 
         {/* Ordering closed for days in the cart: they were removed, say so at the top */}
         {closedNotice && (
-          <Alert severity="error" sx={{ mb: 3 }} onClose={() => setClosedNotice(null)} role="alert">
+          <Alert severity="error" sx={{ mb: 3, whiteSpace: 'pre-line' }} onClose={() => setClosedNotice(null)} role="alert">
             {closedNotice}
           </Alert>
         )}
