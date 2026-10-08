@@ -77,3 +77,59 @@ export async function deleteStop(ref: { id?: string; orderNo?: string }): Promis
   if (result.ok && first && first.success === false) return { ok: false, code: first.code, message: first.message };
   return { ok: result.ok, code: result.code ?? first?.code, message: result.message ?? first?.message };
 }
+
+async function getCall<T>(path: string, query: Record<string, string | number>): Promise<OptimoResult<T>> {
+  const key = optimoApiKey();
+  if (!key) return { ok: false, code: 'NO_KEY', message: 'OPTIMOROUTE_API_KEY is not set' };
+  const params = new URLSearchParams({ key, ...Object.fromEntries(Object.entries(query).map(([k, v]) => [k, String(v)])) });
+  try {
+    const response = await fetch(`${BASE}${path}?${params.toString()}`, { signal: AbortSignal.timeout(TIMEOUT_MS), cache: 'no-store' });
+    const json = (await response.json().catch(() => ({}))) as { success?: boolean; code?: string; message?: string };
+    return { ok: json.success === true, code: json.code, message: json.message, data: json as T };
+  } catch (error) {
+    return { ok: false, code: 'NETWORK', message: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+/**
+ * Plans the routes of one day. `startWith: CURRENT` + `lockType: RESOURCES` keeps every stop with the driver it is already
+ * assigned to (by hand or by an earlier run) and places the stops that have no driver yet. (`lockType: ROUTES` was tested
+ * against the real account and freezes the routes completely, so a late stop is left unscheduled.) The order of the stops
+ * inside a route may be re-optimised. Orders are spread evenly over the drivers (balance by number of stops). The drivers are given explicitly: left to
+ * itself OptimoRoute uses every driver of the account, which can be more than the plan allows (ERR_OPT_RESOURCES_EXCEEDED).
+ */
+export async function startPlanning(date: string, driverSerials: string[]): Promise<OptimoResult<{ planningId?: number }>> {
+  const result = await call<{ planningId?: number }>('start_planning', {
+    date,
+    startWith: 'CURRENT',
+    lockType: 'RESOURCES',
+    balancing: 'ON',
+    balanceBy: 'NUM',
+    useDrivers: driverSerials.map((driverSerial) => ({ driverSerial })),
+  });
+  return { ok: result.ok, code: result.code, message: result.message, data: result.data };
+}
+
+/** N new, R running, C cancelled, F finished, E error. */
+export async function planningStatus(planningId: number): Promise<OptimoResult<{ status?: string; percentageComplete?: number }>> {
+  const result = await getCall<{ status?: string; percentageComplete?: number }>('get_planning_status', { planningId });
+  return { ok: result.ok, code: result.code, message: result.message, data: result.data };
+}
+
+/** The drivers that have a route on one day (empty when nothing is planned that day). */
+export async function driversWithRoutes(date: string): Promise<OptimoResult<string[]>> {
+  const result = await getCall<{ routes?: Array<{ driverSerial?: string; stops?: unknown[] }> }>('get_routes', { date });
+  if (!result.ok) return { ok: false, code: result.code, message: result.message };
+  const serials = new Set<string>();
+  for (const route of result.data?.routes ?? []) if (route.driverSerial && (route.stops?.length ?? 0) > 0) serials.add(String(route.driverSerial));
+  return { ok: true, data: [...serials] };
+}
+
+/** How many stops are on a driver's route on one day. */
+export async function plannedStopCount(date: string): Promise<OptimoResult<number>> {
+  const result = await getCall<{ routes?: Array<{ stops?: Array<{ orderNo?: string }> }> }>('get_routes', { date });
+  if (!result.ok) return { ok: false, code: result.code, message: result.message };
+  let count = 0;
+  for (const route of result.data?.routes ?? []) count += (route.stops ?? []).filter((s) => s.orderNo).length;
+  return { ok: true, data: count };
+}
