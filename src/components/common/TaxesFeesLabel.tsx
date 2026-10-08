@@ -18,7 +18,7 @@ export default function TaxesFeesLabel() {
           tabIndex={0}
           role="img"
           aria-label={`${TAXES_FEES_TEXT}: ${TAXES_FEES_TOOLTIP}`}
-          sx={{ display: 'inline-flex', cursor: 'help', color: '#9CA3AF', '&:hover, &:focus-visible': { color: '#6B7280' }, '&:focus-visible': { outline: '2px solid #F5C77E', borderRadius: '50%' } }}
+          sx={{ display: 'inline-flex', cursor: 'help', p: '6px', m: '-6px', color: '#9CA3AF', '&:hover, &:focus-visible': { color: '#6B7280' }, '&:focus-visible': { outline: '2px solid #F5C77E', borderRadius: '50%' } }}
         >
           <IconInfoCircle size={14} />
         </Box>
