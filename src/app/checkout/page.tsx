@@ -26,6 +26,7 @@ import CheckoutPaymentDetails, {
 } from '@/components/checkout/CheckoutPaymentDetails';
 import TipSection from '@/components/checkout/TipSection';
 import DeliveryAddressDisplay from '@/components/checkout/DeliveryAddressDisplay';
+import DeliveryInstructionsSection from '@/components/checkout/DeliveryInstructionsSection';
 import AddressSelectionDialog from '@/components/checkout/AddressSelectionDialog';
 import CheckoutOrderSummary from '@/components/checkout/CheckoutOrderSummary';
 import { PaymentMethod } from '@/types/order';
@@ -65,6 +66,11 @@ const stripeAppearance: StripeElementsOptions['appearance'] = {
   },
 };
 
+/** The instructions the way the server stores them: one line, trimmed, at most 100 characters. */
+function cleanInstructionsText(value: string): string {
+  return value.replace(/\s+/g, ' ').trim().slice(0, 100);
+}
+
 /**
  * Checkout details (address, contact, tip) before Stripe Payment Element step
  */
@@ -73,6 +79,8 @@ interface CheckoutFormContentProps {
   name: string;
   email: string;
   phone: string;
+  deliveryInstructions: string;
+  onDeliveryInstructionsChange: (value: string) => void;
   paymentMethod: PaymentMethod;
   tipPercentage: number;
   errors: {
@@ -115,6 +123,8 @@ function CheckoutFormContent({
   name,
   email,
   phone,
+  deliveryInstructions,
+  onDeliveryInstructionsChange,
   paymentMethod,
   tipPercentage,
   errors,
@@ -219,6 +229,15 @@ function CheckoutFormContent({
           onLoginClick={onLoginClick}
           onSignupClick={onSignupClick}
         />
+
+        {/* Delivery instructions: on this order, and kept on the selected address */}
+        {cart.selectedAddress && !cart.selectedAddress._id?.startsWith('zipcode-') && (
+          <DeliveryInstructionsSection
+            value={deliveryInstructions}
+            onChange={onDeliveryInstructionsChange}
+            saved={Boolean(cart.selectedAddress._id)}
+          />
+        )}
 
         {/* Contact Information */}
         <ContactInfoSection
@@ -455,6 +474,11 @@ export default function CheckoutPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  // delivery instructions of this order (start from the ones saved on the selected address)
+  const [deliveryInstructions, setDeliveryInstructions] = useState('');
+  const instructionsAddressIdRef = useRef<string | null>(null);
+  // what the pending order was created with, so a change before a payment retry can be sent along
+  const sentInstructionsRef = useRef<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Credit Card');
   const [tipPercentage, setTipPercentage] = useState(5);
   const [orderCompleted, setOrderCompleted] = useState(false);
@@ -737,6 +761,26 @@ export default function CheckoutPage() {
     }
   };
 
+  // A saved address was changed in the selection dialog: if it is the one on this checkout, show the new details
+  // (contact fields, delivery instructions and the address card) without leaving the page
+  const handleAddressEdited = async (address: IAddress) => {
+    const id = address._id?.toString();
+    if (!id) return;
+    const current = selectedAddressId || cart?.selectedAddress?._id;
+    if (current !== id) return;
+    setName(address.name || user?.name || '');
+    setEmail(address.email || user?.email || '');
+    setPhone(address.phone || user?.phone || '');
+    instructionsAddressIdRef.current = id;
+    setDeliveryInstructions(address.floor ?? '');
+    try {
+      await updateAddress(id);
+      await refreshCart();
+    } catch (error) {
+      console.error('Error refreshing the edited address on the cart:', error);
+    }
+  };
+
   // Fetch user addresses to refresh after adding new address
   const handleAddressRefresh = async () => {
     if (!user) return;
@@ -958,7 +1002,9 @@ export default function CheckoutPage() {
         paymentMethod,
         currency: 'usd',
         paymentIntentId: paymentIntentId ?? undefined,
+        deliveryInstructions: cleanInstructionsText(deliveryInstructions),
       };
+      sentInstructionsRef.current = cleanInstructionsText(deliveryInstructions);
 
       const response = await authenticatedFetch('/api/orders/create', {
         method: 'POST',
@@ -1008,6 +1054,7 @@ export default function CheckoutPage() {
   }, [
     authenticatedFetch,
     cart,
+    deliveryInstructions,
     email,
     handleClosedDays,
     name,
@@ -1017,6 +1064,14 @@ export default function CheckoutPage() {
     router,
     tipPercentage,
   ]);
+
+  // Delivery instructions start from the ones saved on the selected address, once per address (what the customer types is kept)
+  useEffect(() => {
+    const id = cart?.selectedAddress?._id ?? null;
+    if (!id || instructionsAddressIdRef.current === id) return;
+    instructionsAddressIdRef.current = id;
+    setDeliveryInstructions(cart?.selectedAddress?.floor ?? '');
+  }, [cart?.selectedAddress?._id, cart?.selectedAddress?.floor]);
 
   // Load Stripe payment options as soon as the cart is checkout-ready
   useEffect(() => {
@@ -1141,6 +1196,21 @@ export default function CheckoutPage() {
       throw new Error('Payment form not ready');
     }
 
+    // a payment retry reuses the same order: send instructions that were edited after it was created
+    const instructionsNow = cleanInstructionsText(deliveryInstructions);
+    if (sentInstructionsRef.current !== null && instructionsNow !== sentInstructionsRef.current) {
+      try {
+        const patched = await authenticatedFetch(`/api/orders/${orderIdForPayment}/delivery-instructions`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ deliveryInstructions: instructionsNow, addressId: cart?.selectedAddress?._id }),
+        });
+        if (patched.ok) sentInstructionsRef.current = instructionsNow;
+      } catch (patchError) {
+        console.warn('Could not update the delivery instructions of the order', patchError);
+      }
+    }
+
     await paymentFormRef.current.confirmPayment(orderIdForPayment);
   };
 
@@ -1251,6 +1321,8 @@ export default function CheckoutPage() {
             name={name}
             email={email}
             phone={phone}
+            deliveryInstructions={deliveryInstructions}
+            onDeliveryInstructionsChange={setDeliveryInstructions}
             paymentMethod={paymentMethod}
             tipPercentage={tipPercentage}
             errors={errors}
@@ -1301,6 +1373,7 @@ export default function CheckoutPage() {
           phone: user.phone,
         } : undefined}
         onAddressRefresh={handleAddressRefresh}
+        onAddressEdited={handleAddressEdited}
       />
     </Box>
   );

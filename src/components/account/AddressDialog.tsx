@@ -380,7 +380,8 @@ export default function AddressDialog({
         </IconButton>
       </DialogTitle>
 
-      <DialogContent ref={dialogContentRef} sx={{ pt: 1 }}>
+      {/* MUI removes the top padding of a content that follows the title, which cut off the floating label of the first field */}
+      <DialogContent ref={dialogContentRef} sx={{ '.MuiDialogTitle-root + &': { pt: 1.5 } }}>
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
             {error}
@@ -526,8 +527,8 @@ export default function AddressDialog({
     label="Delivery Instruction"
     value={formData.floor}
     onChange={handleChange('floor')}
-    inputProps={{ maxLength: 30 }}
-    error={(formData.floor?.length || 0) === 30}
+    inputProps={{ maxLength: 100 }}
+    error={(formData.floor?.length || 0) === 100}
   />
 
   <TextField
@@ -614,7 +615,8 @@ export default function AddressDialog({
         )}
       </DialogContent>
 
-      <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
+      {/* on a phone the dialog is full screen and the chat bubble sits bottom right: keep the buttons above it */}
+      <DialogActions sx={{ px: 3, pb: isMobile ? 12 : 3, gap: 1 }}>
         <Button
           onClick={onClose}
           disabled={isLoading}

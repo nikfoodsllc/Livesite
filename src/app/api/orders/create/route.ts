@@ -19,6 +19,7 @@ import { findClosedLines } from '@/lib/server/availableDates';
 import { closedLinesMessage, legacyClosedDates } from '@/lib/server/orderCutoff';
 import { attachOrderToDraft } from '@/lib/server/checkoutDrafts';
 import { rememberUserPhone } from '@/lib/server/userPhone';
+import { cleanInstructions, saveInstructionsOnAddress } from '@/lib/server/deliveryInstructions';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 if (!stripeSecretKey) {
@@ -41,6 +42,8 @@ interface CreateOrderRequest {
   currency: string;
   /** Reuse PaymentIntent created at checkout load (inline payment form) */
   paymentIntentId?: string;
+  /** Delivery instructions typed at checkout: go on this order and are saved on the selected address */
+  deliveryInstructions?: string;
 }
 
 /**
@@ -168,6 +171,9 @@ export async function POST(request: NextRequest) {
 
     // Create address snapshot
     const addressSnapshot = createAddressSnapshot(cart.selectedAddress);
+    // instructions typed at checkout win over the ones saved on the address (an empty text clears them)
+    const instructions = cleanInstructions(body.deliveryInstructions);
+    if (instructions !== undefined) addressSnapshot.floor = instructions || undefined;
 
     // Create customer info
     const customer = createCustomerInfo(
@@ -297,6 +303,9 @@ export async function POST(request: NextRequest) {
 
         // the phone given at checkout is also saved on the profile when the profile has none (best effort)
         await rememberUserPhone(userId, customerInfo.phone);
+
+        // the instructions typed at checkout are also saved on the selected address for next time (best effort)
+        if (instructions !== undefined) await saveInstructionsOnAddress(userId, cart.selectedAddress._id, instructions);
 
         // Email will be sent via Stripe webhook when payment succeeds
         // This ensures emails are only sent for successful payments
