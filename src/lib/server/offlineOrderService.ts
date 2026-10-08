@@ -17,6 +17,7 @@ import { ensureCustomer, EMAIL_RE, normalizeEmail, normalizePhone, CustomerInput
 import { buildPayLink, hashPaymentToken, newPaymentToken } from '@/lib/server/paymentLink';
 import { buildOrderDescription, buildOrderPaymentMetadata } from '@/lib/server/stripePaymentInfo';
 import { validateZipcodeServiceabilityServer } from '@/utils/zipcodeValidation';
+import { syncOrderSafely } from '@/lib/server/optimoRoute/sync';
 import { calculateDeliveryDates } from '@/lib/deliveryCalculator';
 import { convertCartToOrderItems, createAddressSnapshot, formatOrderForDatabase, generateOrderId } from '@/lib/orderHelpers';
 import { sendPaymentLinkEmail } from '@/lib/offlineOrderEmail';
@@ -332,6 +333,8 @@ async function createNewOfflineOrder(
     } catch (error) {
       emailError = error instanceof Error ? error.message : 'Email failed';
     }
+    // cash / paid-another-way orders are confirmed right now: put the delivery stop on the OptimoRoute plan
+    await syncOrderSafely(orderId);
     return { ok: true, order: { orderId, totalPaid: totals.total, mode: 'offline', accountCreated: ensured.accountCreated, emailSent, emailError } };
   }
 
@@ -759,5 +762,6 @@ export async function markOfflinePaid(
   } catch (error) {
     console.error('[offline-order] Confirmation email failed', { orderId, message: String(error) });
   }
+  await syncOrderSafely(orderId);
   return { ok: true, emailSent };
 }
