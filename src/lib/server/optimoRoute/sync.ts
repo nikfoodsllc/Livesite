@@ -8,7 +8,7 @@ import { buildOptimoOrder, deliveryDaysOf, findExistingStop, isRouteOrder, stopK
  * Keeps OptimoRoute in step with confirmed orders.
  *
  * - A stop is sent when an order is paid (the Stripe webhook, an admin cash order, "paid another way") and by the
- *   10-minute reconcile job for anything that was missed.
+ *   30-minute reconcile job for anything that was missed.
  * - Our own record of every stop is the `optimoStops` collection (one document per customer per day, with the orders
  *   behind it), so two events for one payment, or two orders for one customer and day, never create a second stop.
  * - Before creating, OptimoRoute is asked what it already has for that day: a stop with the same phone and street (for
@@ -235,7 +235,7 @@ export interface ReconcileSummary {
 }
 
 /**
- * The safety net, run every 10 minutes: sends any paid order whose upcoming stops are missing or failed, and removes
+ * The safety net, run every 30 minutes: sends any paid order whose upcoming stops are missing or failed, and removes
  * stops whose orders have since been cancelled or fully refunded (also done by an admin in the admin panel, which does
  * not call this site).
  */

@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 /**
- * Run by Vercel Cron every 10 minutes (vercel.json): sends any paid order whose delivery stop is missing and removes the
+ * Run by Vercel Cron every 30 minutes (vercel.json): sends any paid order whose delivery stop is missing and removes the
  * stops of cancelled or refunded orders. Vercel sends "Authorization: Bearer <CRON_SECRET>"; without the secret set
  * here, only a logged-in admin can call it. Does nothing unless OPTIMOROUTE_SYNC is on or dry.
  */

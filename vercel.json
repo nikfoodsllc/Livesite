@@ -17,7 +17,7 @@
   "crons": [
     {
       "path": "/api/cron/optimoroute",
-      "schedule": "*/10 * * * *"
+      "schedule": "*/30 * * * *"
     }
   ]
 }

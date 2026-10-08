@@ -77,13 +77,12 @@ export interface OptimoOrderPayload {
   type: 'D';
   date: string;
   duration: number;
-  location: { address: string; locationName: string };
+  location: { address: string; locationName: string; storeInvalid: boolean };
   phone?: string;
   email?: string;
   customField2?: string;
   customField3?: string;
   customFields?: { delivery_instruction: string };
-  storeInvalid: boolean;
 }
 
 /** What is sent to OptimoRoute for one stop (empty values are left out, like the blanks in the sheet). */
@@ -99,14 +98,13 @@ export function buildOptimoOrder(order: Order, date: string): OptimoOrderPayload
     type: 'D',
     date,
     duration: STOP_DURATION_MINUTES,
-    location: { address: addressLine(order), locationName: clean(order.customerInfo?.name) },
+    // storeInvalid: keep a stop whose address could not be placed on the map (OptimoRoute flags it) instead of losing it
+    location: { address: addressLine(order), locationName: clean(order.customerInfo?.name), storeInvalid: true },
     ...(phone ? { phone } : {}),
     ...(email ? { email } : {}),
     ...(apartment ? { customField2: apartment } : {}),
     ...(gate ? { customField3: gate } : {}),
     ...(instruction ? { customFields: { delivery_instruction: instruction } } : {}),
-    // keep a stop whose address could not be placed on the map (OptimoRoute flags it) instead of losing it
-    storeInvalid: true,
   };
 }
 
