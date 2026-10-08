@@ -76,6 +76,8 @@ export interface OrderDayItem {
   ecoContainerCharge?: number;
   comboSelections?: Record<string, string[]>; // { sectionId: itemId[] }
   notes?: string;
+  /** Set when an admin moved this item to another delivery date: the date it started with (business only, hidden from customers) */
+  originalDeliveryDate?: string;
   /** Flat or day-wise item (decides which order cutoff applies). Set for admin-entered orders; otherwise worked out from the menu. */
   listingType?: 'flat' | 'day-wise';
 }
@@ -169,6 +171,8 @@ export interface Order {
   paidAt?: Date | string; // When payment was recorded (offline orders)
   emailStatus?: EmailStatusInfo; // Track order confirmation email status
   paymentFailedEmailStatus?: EmailStatusInfo; // Track payment failed email status
+  reschedules?: Array<{ at: Date | string; by: { id: string; name?: string }; newDate?: string; changes: Array<{ line: number; item: number; name: string; foodId?: string; quantity: number; menuDate: string; fromDeliveryDate: string; toDate: string }> }>; // An admin moved item delivery dates (business only)
+  rescheduleEmail?: { sentAt: Date | string; by: { id: string; name?: string }; messageId?: string; count: number }; // The customer was told about it (business only)
   createdAt?: Date | string;
   updatedAt?: Date | string;
 }

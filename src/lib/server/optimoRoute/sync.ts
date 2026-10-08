@@ -167,13 +167,15 @@ async function recordOnOrder(orderId: string, outcomes: StopOutcome[], now: Date
 }
 
 /** Takes an order (cancelled, refunded) off its stops; a stop with no live order left is removed from OptimoRoute. */
-export async function releaseOrder(orderId: string, options: { now?: Date } = {}): Promise<{ mode: string; outcomes: StopOutcome[] }> {
+export async function releaseOrder(orderId: string, options: { now?: Date; onlyDates?: string[] } = {}): Promise<{ mode: string; outcomes: StopOutcome[] }> {
   const mode = optimoMode();
   if (mode === 'off') return { mode, outcomes: [] };
   const now = options.now ?? new Date();
   const today = pacificToday(now);
   const stops = await stopsCollection();
-  const docs = await stops.find({ orderIds: orderId, date: { $gte: today }, state: { $in: ['sent', 'adopted', 'failed', 'new', 'remove_failed'] } }).toArray();
+  // onlyDates: take the order off just those days (a delivery date moved), not off every stop it has
+  const dateFilter = options.onlyDates ? { $gte: today, $in: options.onlyDates } : { $gte: today };
+  const docs = await stops.find({ orderIds: orderId, date: dateFilter, state: { $in: ['sent', 'adopted', 'failed', 'new', 'remove_failed'] } }).toArray();
   const outcomes: StopOutcome[] = [];
   for (const doc of docs) {
     const others = doc.orderIds.filter((id) => id !== orderId);
@@ -208,6 +210,20 @@ export async function releaseOrder(orderId: string, options: { now?: Date } = {}
   }
   if (mode === 'on' && outcomes.length > 0) await recordOnOrder(orderId, outcomes, now);
   return { mode, outcomes };
+}
+
+/**
+ * An order's delivery date was moved: take it off the stops of the dates it left (a stop with no other live order
+ * is removed from OptimoRoute), then send the stops of its current dates. The removal goes first so the order's
+ * summary ends on the result of the new stops.
+ */
+export async function moveOrderStops(orderId: string, leftDates: string[], options: { now?: Date } = {}): Promise<{ mode: string; removed: StopOutcome[]; added: StopOutcome[] }> {
+  const mode = optimoMode();
+  if (mode === 'off') return { mode, removed: [], added: [] };
+  const now = options.now ?? new Date();
+  const removed = leftDates.length > 0 ? (await releaseOrder(orderId, { now, onlyDates: leftDates })).outcomes : [];
+  const added = (await syncOrder(orderId, { now })).outcomes;
+  return { mode, removed, added };
 }
 
 /** For payment handlers: never throws, and gives up waiting after a few seconds (the reconcile job finishes the rest). */
@@ -285,7 +301,8 @@ export async function reconcile(options: { now?: Date; budgetMs?: number } = {})
   const ids = [...new Set(live.flatMap((s) => s.orderIds))];
   if (ids.length > 0) {
     const all = await db.read<Order>('orders', { orderId: { $in: ids } } as never, { limit: 1000 } as never);
-    const eligible = new Set(((all.success ? all.data ?? [] : []) as Order[]).filter((o) => isRouteOrder(o)).map((o) => o.orderId));
+    const orderList = (all.success ? all.data ?? [] : []) as Order[];
+    const eligible = new Set(orderList.filter((o) => isRouteOrder(o)).map((o) => o.orderId));
     const gone = ids.filter((id) => !eligible.has(id));
     for (const orderId of gone) {
       if (Date.now() - started > budget) {
@@ -293,6 +310,20 @@ export async function reconcile(options: { now?: Date; budgetMs?: number } = {})
         break;
       }
       tally((await releaseOrder(orderId, { now })).outcomes);
+    }
+
+    // 3. stops on a date the order no longer has (an admin moved its delivery date and the removal did not go through)
+    for (const order of orderList) {
+      if (!isRouteOrder(order)) continue;
+      const current = deliveryDaysOf(order).map((d) => d.date);
+      if (current.length === 0) continue;
+      const left = [...new Set(live.filter((s) => s.orderIds.includes(order.orderId) && !current.includes(s.date)).map((s) => s.date))];
+      if (left.length === 0) continue;
+      if (Date.now() - started > budget) {
+        summary.stoppedEarly = true;
+        break;
+      }
+      tally((await releaseOrder(order.orderId, { now, onlyDates: left })).outcomes);
     }
   }
   return summary;

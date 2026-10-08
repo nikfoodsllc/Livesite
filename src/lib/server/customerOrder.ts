@@ -20,10 +20,31 @@ export const INTERNAL_ORDER_FIELDS = [
   'createdByAdmin',
   'offlinePaymentNote',
   'platformFeeWaived',
+  'reschedules',
+  'rescheduleEmail',
+  'rescheduleEmailLock',
 ] as const;
 
 export function toCustomerOrder<T extends object>(order: T): Omit<T, (typeof INTERNAL_ORDER_FIELDS)[number]> {
   const copy: Record<string, unknown> = { ...(order as Record<string, unknown>) };
   for (const field of INTERNAL_ORDER_FIELDS) delete copy[field];
+  // items an admin moved to another delivery date carry the date they started with: business only
+  if (Array.isArray(copy.items)) {
+    copy.items = (copy.items as Array<Record<string, unknown>>).map((line) =>
+      line && Array.isArray(line.items)
+        ? {
+            ...line,
+            items: (line.items as Array<Record<string, unknown>>).map((item) => {
+              if (item && 'originalDeliveryDate' in item) {
+                const { originalDeliveryDate: _original, ...rest } = item;
+                void _original;
+                return rest;
+              }
+              return item;
+            }),
+          }
+        : line
+    );
+  }
   return copy as Omit<T, (typeof INTERNAL_ORDER_FIELDS)[number]>;
 }
