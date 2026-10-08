@@ -20,6 +20,9 @@ export const INTERNAL_ORDER_FIELDS = [
   'createdByAdmin',
   'offlinePaymentNote',
   'platformFeeWaived',
+  'reschedules',
+  'rescheduleEmail',
+  'rescheduleEmailLock',
 ] as const;
 
 export function toCustomerOrder<T extends object>(order: T): Omit<T, (typeof INTERNAL_ORDER_FIELDS)[number]> {
