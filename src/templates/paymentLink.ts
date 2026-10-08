@@ -16,7 +16,7 @@ const C = {
 const SUPPORT = 'support@nikfoods.com';
 
 export function getPaymentLinkEmailSubject(order: Order): string {
-  return `Payment Link - NikFoods Order #${order.orderId}`;
+  return `Payment Link - Offline NikFoods Order #${order.orderId}`;
 }
 
 function formatDay(date: string): string {
