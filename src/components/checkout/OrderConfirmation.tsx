@@ -15,7 +15,8 @@ import { useRouter } from 'next/navigation';
 import { Order } from '@/types/order';
 import { ComboSection, SelectedComboItem } from '@/types/food';
 import { formatDeliveryDate } from '@/lib/orderHelpers';
-import { TAXES_FEES_FOOTNOTE, TAXES_FEES_LABEL, hasAmount, taxesAndFeesOf } from '@/lib/orderTotalsDisplay';
+import { hasAmount, taxesAndFeesOf } from '@/lib/orderTotalsDisplay';
+import TaxesFeesLabel from '@/components/common/TaxesFeesLabel';
 
 interface OrderConfirmationProps {
   order: Order;
@@ -181,7 +182,7 @@ export default function OrderConfirmation({ order }: OrderConfirmationProps) {
           </Box>
           {hasAmount(taxesAndFeesOf(order)) && (
             <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-              <Typography variant="body2">{TAXES_FEES_LABEL}</Typography>
+              <Typography variant="body2"><TaxesFeesLabel /></Typography>
               <Typography variant="body2" sx={{ fontWeight: 500 }}>
                 ${taxesAndFeesOf(order).toFixed(2)}
               </Typography>
@@ -209,12 +210,6 @@ export default function OrderConfirmation({ order }: OrderConfirmationProps) {
             </Box>
           )}
         </Box>
-
-        {hasAmount(taxesAndFeesOf(order)) && (
-          <Typography variant="caption" sx={{ display: 'block', mt: 1, color: '#6B7280' }}>
-            {TAXES_FEES_FOOTNOTE}
-          </Typography>
-        )}
 
         <Divider sx={{ my: 2 }} />
 

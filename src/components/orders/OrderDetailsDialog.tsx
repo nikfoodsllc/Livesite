@@ -15,7 +15,8 @@ import { formatOrderDate, formatDeliveryDate, formatCurrency } from '@/lib/order
 import StatusBadge from './StatusBadge';
 import RefundNotice from './RefundNotice';
 import { getNetTotal, getRefundedAmount } from '@/lib/orderRefunds';
-import { TAXES_FEES_FOOTNOTE, TAXES_FEES_LABEL, hasAmount, taxesAndFeesOf } from '@/lib/orderTotalsDisplay';
+import { hasAmount, taxesAndFeesOf } from '@/lib/orderTotalsDisplay';
+import TaxesFeesLabel from '@/components/common/TaxesFeesLabel';
 
 interface OrderDetailsDialogProps {
   open: boolean;
@@ -281,7 +282,7 @@ export default function OrderDetailsDialog({ open, order, onClose }: OrderDetail
 
             {hasAmount(taxesAndFeesOf(order)) && (
               <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Typography sx={{ fontSize: '14px', color: '#374151' }}>{TAXES_FEES_LABEL}</Typography>
+                <Typography sx={{ fontSize: '14px', color: '#374151' }}><TaxesFeesLabel /></Typography>
                 <Typography sx={{ fontSize: '14px', color: '#374151' }}>
                   {formatCurrency(taxesAndFeesOf(order), order.currency)}
                 </Typography>
@@ -308,10 +309,6 @@ export default function OrderDetailsDialog({ open, order, onClose }: OrderDetail
               </Box>
             )}
           </Box>
-
-          {hasAmount(taxesAndFeesOf(order)) && (
-            <Typography sx={{ fontSize: '12px', color: '#6B7280', mb: 1 }}>{TAXES_FEES_FOOTNOTE}</Typography>
-          )}
 
           <Divider sx={{ my: 2 }} />
 

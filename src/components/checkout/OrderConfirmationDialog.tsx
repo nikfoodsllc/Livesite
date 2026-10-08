@@ -28,7 +28,8 @@ import { Order } from '@/types/order';
 import { ComboSection, SelectedComboItem } from '@/types/food';
 import { formatCurrency } from '@/lib/orderHelpers';
 import { formatDeliveryDate } from '@/lib/orderHelpers';
-import { TAXES_FEES_FOOTNOTE, TAXES_FEES_LABEL, hasAmount, taxesAndFeesOf } from '@/lib/orderTotalsDisplay';
+import { hasAmount, taxesAndFeesOf } from '@/lib/orderTotalsDisplay';
+import TaxesFeesLabel from '@/components/common/TaxesFeesLabel';
 
 interface OrderConfirmationDialogProps {
   open: boolean;
@@ -306,7 +307,7 @@ export default function OrderConfirmationDialog({
               {hasAmount(taxesAndFeesOf(order)) && (
                 <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                   <Typography sx={{ fontSize: '14px', color: '#6B7280' }}>
-                    {TAXES_FEES_LABEL}
+                    <TaxesFeesLabel />
                   </Typography>
                   <Typography sx={{ fontSize: '14px', fontWeight: 500, color: '#111827' }}>
                     {formatCurrency(taxesAndFeesOf(order), order.currency)}
@@ -334,10 +335,6 @@ export default function OrderConfirmationDialog({
                 </Box>
               )}
             </Box>
-
-            {hasAmount(taxesAndFeesOf(order)) && (
-              <Typography sx={{ mt: 1, fontSize: '12px', color: '#6B7280' }}>{TAXES_FEES_FOOTNOTE}</Typography>
-            )}
 
             <Divider sx={{ my: 2 }} />
 
