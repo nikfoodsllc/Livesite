@@ -6,7 +6,8 @@ import { Alert, Box, Button, CircularProgress, Container, Divider, Paper, Typogr
 import { IconLock, IconMail, IconMapPin, IconPhone, IconUser } from '@tabler/icons-react';
 import { loadStripe, StripeElementsOptions } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
-import { TAXES_FEES_FOOTNOTE, TAXES_FEES_LABEL, hasAmount, taxesAndFeesOf } from '@/lib/orderTotalsDisplay';
+import { hasAmount, taxesAndFeesOf } from '@/lib/orderTotalsDisplay';
+import TaxesFeesLabel from '@/components/common/TaxesFeesLabel';
 
 /**
  * The page behind the pay link an admin emails for an order they entered. It is laid out like the website's
@@ -165,7 +166,7 @@ function DayCard({ day }: { day: NonNullable<PayData['days']>[number] }) {
   );
 }
 
-function SumRow({ label, value, note }: { label: string; value: string; note?: string }) {
+function SumRow({ label, value, note }: { label: React.ReactNode; value: string; note?: string }) {
   return (
     <Box sx={{ display: 'flex', justifyContent: 'space-between', py: '3px' }}>
       <Typography sx={{ fontSize: 14, color: C.body }}>
@@ -189,9 +190,8 @@ function OrderSummary({ data }: { data: PayData }) {
         <Box sx={{ px: 2.25, py: 1 }}>
           <SumRow label="Subtotal" value={money(data.subtotal)} />
           {(data.discount ?? 0) > 0 && <SumRow label={data.discountCode ? `Discount (${data.discountCode})` : 'Discount'} value={`-${money(data.discount)}`} />}
-          {hasAmount(taxesAndFees) && <SumRow label={TAXES_FEES_LABEL} value={money(taxesAndFees)} />}
+          {hasAmount(taxesAndFees) && <SumRow label={<TaxesFeesLabel />} value={money(taxesAndFees)} />}
           {(data.tip ?? 0) > 0 && <SumRow label="Tip" note="— thank you!" value={money(data.tip)} />}
-          {hasAmount(taxesAndFees) && <Typography sx={{ fontSize: 12, color: C.muted, pb: 0.5 }}>{TAXES_FEES_FOOTNOTE}</Typography>}
         </Box>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: C.brand, px: 2.25, py: 1.4 }}>
           <Typography sx={{ fontSize: 15, fontWeight: 800, color: C.onBrand }}>Total to pay</Typography>

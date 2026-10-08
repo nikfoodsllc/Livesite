@@ -6,7 +6,8 @@ import { CartDay } from '@/types/cart';
 import { formatSpiceLevel } from '@/utils/formatters';
 import { type DayDeliveryInfo } from '@/lib/deliveryCalculator';
 import DeliveryDateBadge from './DeliveryDateBadge';
-import { TAXES_FEES_FOOTNOTE, TAXES_FEES_LABEL, hasAmount, taxesAndFeesOf } from '@/lib/orderTotalsDisplay';
+import { hasAmount, taxesAndFeesOf } from '@/lib/orderTotalsDisplay';
+import TaxesFeesLabel from '@/components/common/TaxesFeesLabel';
 
 interface CheckoutOrderSummaryProps {
   cartDays: CartDay[];
@@ -196,7 +197,7 @@ export default function CheckoutOrderSummary({
 
           {hasAmount(taxesAndFees) && (
             <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-              <Typography variant="body2">{TAXES_FEES_LABEL}</Typography>
+              <Typography variant="body2"><TaxesFeesLabel /></Typography>
               <Typography variant="body2" sx={{ fontWeight: 500 }}>
                 ${taxesAndFees.toFixed(2)}
               </Typography>
@@ -226,12 +227,6 @@ export default function CheckoutOrderSummary({
             </Box>
           )}
         </Box>
-
-        {hasAmount(taxesAndFees) && (
-          <Typography variant="caption" sx={{ display: 'block', mt: 1, color: '#6B7280' }}>
-            {TAXES_FEES_FOOTNOTE}
-          </Typography>
-        )}
 
         <Divider sx={{ my: 2 }} />
 
