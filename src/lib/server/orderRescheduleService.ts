@@ -59,7 +59,7 @@ export interface OptimoSummary {
 }
 
 /**
- * Moves day lines of a paid order to other delivery dates. The order is saved first; the route planner is updated
+ * Moves day lines of a paid order to other delivery dates (the kitchen day stays). The order is saved first; the route planner is updated
  * after it and never blocks the move: if OptimoRoute cannot be reached, the 30-minute check finishes the job.
  */
 export async function rescheduleOrder(
