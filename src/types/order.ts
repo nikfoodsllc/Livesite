@@ -169,6 +169,8 @@ export interface Order {
   paidAt?: Date | string; // When payment was recorded (offline orders)
   emailStatus?: EmailStatusInfo; // Track order confirmation email status
   paymentFailedEmailStatus?: EmailStatusInfo; // Track payment failed email status
+  reschedules?: Array<{ at: Date | string; by: { id: string; name?: string }; changes: Array<{ index: number; fromDay: string; toDay: string; fromMenuDate: string; fromDeliveryDate: string; toDate: string }> }>; // An admin moved delivery dates (business only)
+  rescheduleEmail?: { sentAt: Date | string; by: { id: string; name?: string }; messageId?: string; count: number }; // The customer was told about it (business only)
   createdAt?: Date | string;
   updatedAt?: Date | string;
 }
