@@ -15,6 +15,7 @@ import { useRouter } from 'next/navigation';
 import { Order } from '@/types/order';
 import { ComboSection, SelectedComboItem } from '@/types/food';
 import { formatDeliveryDate } from '@/lib/orderHelpers';
+import { TAXES_FEES_FOOTNOTE, TAXES_FEES_LABEL, hasAmount, taxesAndFeesOf } from '@/lib/orderTotalsDisplay';
 
 interface OrderConfirmationProps {
   order: Order;
@@ -178,24 +179,14 @@ export default function OrderConfirmation({ order }: OrderConfirmationProps) {
               ${order.subtotal.toFixed(2)}
             </Typography>
           </Box>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-            <Typography variant="body2">Platform Fee</Typography>
-            <Typography variant="body2" sx={{ fontWeight: 500 }}>
-              ${order.platformFee.toFixed(2)}
-            </Typography>
-          </Box>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-            <Typography variant="body2">Delivery Fee</Typography>
-            <Typography variant="body2" sx={{ fontWeight: 500, color: '#28a745' }}>
-              Free
-            </Typography>
-          </Box>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-            <Typography variant="body2">Tax</Typography>
-            <Typography variant="body2" sx={{ fontWeight: 500 }}>
-              ${order.taxes.toFixed(2)}
-            </Typography>
-          </Box>
+          {hasAmount(taxesAndFeesOf(order)) && (
+            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+              <Typography variant="body2">{TAXES_FEES_LABEL}</Typography>
+              <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                ${taxesAndFeesOf(order).toFixed(2)}
+              </Typography>
+            </Box>
+          )}
           {order.tip > 0 && (
             <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
               <Typography variant="body2">Tip</Typography>
@@ -218,6 +209,12 @@ export default function OrderConfirmation({ order }: OrderConfirmationProps) {
             </Box>
           )}
         </Box>
+
+        {hasAmount(taxesAndFeesOf(order)) && (
+          <Typography variant="caption" sx={{ display: 'block', mt: 1, color: '#6B7280' }}>
+            {TAXES_FEES_FOOTNOTE}
+          </Typography>
+        )}
 
         <Divider sx={{ my: 2 }} />
 

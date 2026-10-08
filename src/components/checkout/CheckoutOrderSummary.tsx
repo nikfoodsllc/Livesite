@@ -6,6 +6,7 @@ import { CartDay } from '@/types/cart';
 import { formatSpiceLevel } from '@/utils/formatters';
 import { type DayDeliveryInfo } from '@/lib/deliveryCalculator';
 import DeliveryDateBadge from './DeliveryDateBadge';
+import { TAXES_FEES_FOOTNOTE, TAXES_FEES_LABEL, hasAmount, taxesAndFeesOf } from '@/lib/orderTotalsDisplay';
 
 interface CheckoutOrderSummaryProps {
   cartDays: CartDay[];
@@ -32,6 +33,9 @@ export default function CheckoutOrderSummary({
   deliveryCalculations = [],
   discountCode,
 }: CheckoutOrderSummaryProps) {
+  // tax, Platform Fee and delivery fee are shown as one line
+  const taxesAndFees = taxesAndFeesOf({ taxes: tax, platformFee, deliveryFee });
+
   // Create a map for quick lookup of delivery calculations by date
   const deliveryCalcMap = new Map<string, DayDeliveryInfo>();
   deliveryCalculations.forEach((calc) => {
@@ -190,26 +194,14 @@ export default function CheckoutOrderSummary({
             </Typography>
           </Box>
 
-          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-            <Typography variant="body2">Platform Fee</Typography>
-            <Typography variant="body2" sx={{ fontWeight: 500 }}>
-              ${platformFee.toFixed(2)}
-            </Typography>
-          </Box>
-
-          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-            <Typography variant="body2">Delivery Fee</Typography>
-            <Typography variant="body2" sx={{ fontWeight: 500, color: '#28a745' }}>
-              Free
-            </Typography>
-          </Box>
-
-          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-            <Typography variant="body2">Tax (10.3%)</Typography>
-            <Typography variant="body2" sx={{ fontWeight: 500 }}>
-              ${tax.toFixed(2)}
-            </Typography>
-          </Box>
+          {hasAmount(taxesAndFees) && (
+            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+              <Typography variant="body2">{TAXES_FEES_LABEL}</Typography>
+              <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                ${taxesAndFees.toFixed(2)}
+              </Typography>
+            </Box>
+          )}
 
           {tip > 0 && (
             <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -234,6 +226,12 @@ export default function CheckoutOrderSummary({
             </Box>
           )}
         </Box>
+
+        {hasAmount(taxesAndFees) && (
+          <Typography variant="caption" sx={{ display: 'block', mt: 1, color: '#6B7280' }}>
+            {TAXES_FEES_FOOTNOTE}
+          </Typography>
+        )}
 
         <Divider sx={{ my: 2 }} />
 
