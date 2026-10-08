@@ -80,30 +80,6 @@ export default function CartSummary({
         </Typography>
       </Box>
 
-      {/* Discount */}
-      {summary.discount > 0 && (
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1.5 }}>
-          <Typography
-            variant="body1"
-            sx={{
-              fontSize: isMobile ? '0.95rem' : '1rem',
-              color: theme.palette.text.primary,
-            }}
-          >
-            Discount
-          </Typography>
-          <Typography
-            variant="body1"
-            sx={{
-              fontWeight: 600,
-              fontSize: isMobile ? '0.95rem' : '1rem',
-              color: theme.palette.success.main,
-            }}
-          >
-            -${summary.discount.toFixed(2)}
-          </Typography>
-        </Box>
-      )}
 
       {/* Item Count */}
       <Typography

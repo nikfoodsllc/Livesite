@@ -28,6 +28,8 @@ import { Order } from '@/types/order';
 import { ComboSection, SelectedComboItem } from '@/types/food';
 import { formatCurrency } from '@/lib/orderHelpers';
 import { formatDeliveryDate } from '@/lib/orderHelpers';
+import { hasAmount, taxesAndFeesOf } from '@/lib/orderTotalsDisplay';
+import TaxesFeesLabel from '@/components/common/TaxesFeesLabel';
 
 interface OrderConfirmationDialogProps {
   open: boolean;
@@ -302,30 +304,16 @@ export default function OrderConfirmationDialog({
                   {formatCurrency(order.subtotal, order.currency)}
                 </Typography>
               </Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Typography sx={{ fontSize: '14px', color: '#6B7280' }}>
-                  Platform Fee
-                </Typography>
-                <Typography sx={{ fontSize: '14px', fontWeight: 500, color: '#111827' }}>
-                  {formatCurrency(order.platformFee, order.currency)}
-                </Typography>
-              </Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Typography sx={{ fontSize: '14px', color: '#6B7280' }}>
-                  Delivery Fee
-                </Typography>
-                <Typography sx={{ fontSize: '14px', fontWeight: 500, color: '#28a745' }}>
-                  Free
-                </Typography>
-              </Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Typography sx={{ fontSize: '14px', color: '#6B7280' }}>
-                  Tax
-                </Typography>
-                <Typography sx={{ fontSize: '14px', fontWeight: 500, color: '#111827' }}>
-                  {formatCurrency(order.taxes, order.currency)}
-                </Typography>
-              </Box>
+              {hasAmount(taxesAndFeesOf(order)) && (
+                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Typography sx={{ fontSize: '14px', color: '#6B7280' }}>
+                    <TaxesFeesLabel />
+                  </Typography>
+                  <Typography sx={{ fontSize: '14px', fontWeight: 500, color: '#111827' }}>
+                    {formatCurrency(taxesAndFeesOf(order), order.currency)}
+                  </Typography>
+                </Box>
+              )}
               {order.tip > 0 && (
                 <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                   <Typography sx={{ fontSize: '14px', color: '#6B7280' }}>
@@ -333,16 +321,6 @@ export default function OrderConfirmationDialog({
                   </Typography>
                   <Typography sx={{ fontSize: '14px', fontWeight: 500, color: '#111827' }}>
                     {formatCurrency(order.tip, order.currency)}
-                  </Typography>
-                </Box>
-              )}
-              {order.discount && order.discount.amount > 0 && (
-                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Typography sx={{ fontSize: '14px', color: '#28a745' }}>
-                    Discount ({order.discount.code})
-                  </Typography>
-                  <Typography sx={{ fontSize: '14px', fontWeight: 500, color: '#28a745' }}>
-                    -{formatCurrency(order.discount.amount, order.currency)}
                   </Typography>
                 </Box>
               )}

@@ -1,6 +1,7 @@
 import { Order, OrderDay } from '@/types/order';
 import { getSiteUrl } from '@/lib/siteUrl';
 import { EMAIL_LOGO_CID } from '@/lib/emailLogo';
+import { hasAmount } from '@/lib/orderTotalsDisplay';
 
 function esc(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -15,7 +16,7 @@ const C = {
 const SUPPORT = 'support@nikfoods.com';
 
 export function getPaymentLinkEmailSubject(order: Order): string {
-  return `Payment Link - NikFoods Order #${order.orderId}`;
+  return `Payment Link - Offline NikFoods Order #${order.orderId}`;
 }
 
 function formatDay(date: string): string {
@@ -272,8 +273,7 @@ export function getPaymentLinkEmailTemplate(order: Order, payUrl: string, accoun
       <tr><td style="padding:8px 18px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
           ${sumRow('Subtotal', money(order.subtotal, order.currency))}
-          ${order.discount?.amount ? sumRow('Discount', `-${money(order.discount.amount, order.currency)}`) : ''}
-          ${sumRow('Taxes &amp; Fees', money(taxesAndFees, order.currency))}
+          ${hasAmount(taxesAndFees) ? sumRow('Taxes &amp; Fees', money(taxesAndFees, order.currency)) : ''}
           ${order.tip > 0 ? sumRow('Tip', money(order.tip, order.currency), '&mdash; thank you!') : ''}
         </table>
       </td></tr>

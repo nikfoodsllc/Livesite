@@ -15,6 +15,8 @@ import { useRouter } from 'next/navigation';
 import { Order } from '@/types/order';
 import { ComboSection, SelectedComboItem } from '@/types/food';
 import { formatDeliveryDate } from '@/lib/orderHelpers';
+import { hasAmount, taxesAndFeesOf } from '@/lib/orderTotalsDisplay';
+import TaxesFeesLabel from '@/components/common/TaxesFeesLabel';
 
 interface OrderConfirmationProps {
   order: Order;
@@ -178,42 +180,19 @@ export default function OrderConfirmation({ order }: OrderConfirmationProps) {
               ${order.subtotal.toFixed(2)}
             </Typography>
           </Box>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-            <Typography variant="body2">Platform Fee</Typography>
-            <Typography variant="body2" sx={{ fontWeight: 500 }}>
-              ${order.platformFee.toFixed(2)}
-            </Typography>
-          </Box>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-            <Typography variant="body2">Delivery Fee</Typography>
-            <Typography variant="body2" sx={{ fontWeight: 500, color: '#28a745' }}>
-              Free
-            </Typography>
-          </Box>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-            <Typography variant="body2">Tax</Typography>
-            <Typography variant="body2" sx={{ fontWeight: 500 }}>
-              ${order.taxes.toFixed(2)}
-            </Typography>
-          </Box>
+          {hasAmount(taxesAndFeesOf(order)) && (
+            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+              <Typography variant="body2"><TaxesFeesLabel /></Typography>
+              <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                ${taxesAndFeesOf(order).toFixed(2)}
+              </Typography>
+            </Box>
+          )}
           {order.tip > 0 && (
             <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
               <Typography variant="body2">Tip</Typography>
               <Typography variant="body2" sx={{ fontWeight: 500 }}>
                 ${order.tip.toFixed(2)}
-              </Typography>
-            </Box>
-          )}
-          {order.discount && order.discount.amount > 0 && (
-            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-              <Typography variant="body2" sx={{ color: '#28a745' }}>
-                Discount ({order.discount.code})
-              </Typography>
-              <Typography
-                variant="body2"
-                sx={{ fontWeight: 500, color: '#28a745' }}
-              >
-                -${order.discount.amount.toFixed(2)}
               </Typography>
             </Box>
           )}

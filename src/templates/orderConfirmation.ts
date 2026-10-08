@@ -9,6 +9,7 @@ import type { Order, OrderDay, OrderDayItem, CustomerInfo } from '@/types/order'
 const PST = 'America/Los_Angeles';
 import { getSiteUrl } from '@/lib/siteUrl';
 import { EMAIL_LOGO_CID } from '@/lib/emailLogo';
+import { hasAmount } from '@/lib/orderTotalsDisplay';
 const SUPPORT = 'support@nikfoods.com';
 
 const C = {
@@ -172,10 +173,13 @@ function logoStrip(logoUrl: string, w: number, pad: string): string {
   </td></tr>`;
 }
 
-/** Subject line: "NikFoods Order Confirmation #<order number> - <order date>". */
-export function getOrderConfirmationEmailSubject(order: Pick<Order, 'orderId' | 'createdAt'>): string {
+/**
+ * Subject line: "NikFoods Order Confirmation #<order number> - <order date>". An order an admin entered for the customer
+ * (payment link, cash, Zelle...) starts with "Offline": "Offline NikFoods Order Confirmation #...".
+ */
+export function getOrderConfirmationEmailSubject(order: Pick<Order, 'orderId' | 'createdAt' | 'source'>): string {
   const placed = fmt(toDate(order.createdAt || new Date()), { month: 'short', day: 'numeric', year: 'numeric' });
-  return `NikFoods Order Confirmation #${order.orderId} - ${placed}`;
+  return `${order.source === 'admin' ? 'Offline ' : ''}NikFoods Order Confirmation #${order.orderId} - ${placed}`;
 }
 
 export function getOrderConfirmationEmailTemplate(order: Order, profileCustomerDetails?: CustomerInfo): string {
@@ -277,6 +281,7 @@ export function getOrderConfirmationEmailTemplate(order: Order, profileCustomerD
       'Delivery happens once the minimum order value for the selected day is met.',
       'If not, your order is combined with the next delivery day.',
       'For offices, condos, or apartments orders are delivered to the concierge, front desk, or mailroom.',
+      'Your satisfaction matters to us! Please check your order when it arrives and report any issues the same day. After that, our ability to help may be limited.',
     ],
   });
   return `<!DOCTYPE html>
@@ -354,8 +359,7 @@ export function getOrderConfirmationEmailTemplate(order: Order, profileCustomerD
       <tr><td style="padding:8px 18px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
           ${sumRow('Subtotal', money(order.subtotal, currency))}
-          ${order.discount && order.discount.amount > 0 ? sumRow(`Discount${has(order.discount.code) ? ` (${esc(order.discount.code.trim())})` : ''}`, `-${money(order.discount.amount, currency)}`) : ''}
-          ${sumRow('Taxes &amp; Fees', money(feesAndTaxes, currency))}
+          ${hasAmount(feesAndTaxes) ? sumRow('Taxes &amp; Fees', money(feesAndTaxes, currency)) : ''}
           ${order.tip > 0 ? sumRow('Tip', money(order.tip, currency), '&mdash; thank you!') : ''}
         </table>
       </td></tr>
