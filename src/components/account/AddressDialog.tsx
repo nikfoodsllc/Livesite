@@ -615,7 +615,8 @@ export default function AddressDialog({
         )}
       </DialogContent>
 
-      <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
+      {/* on a phone the dialog is full screen and the chat bubble sits bottom right: keep the buttons above it */}
+      <DialogActions sx={{ px: 3, pb: isMobile ? 12 : 3, gap: 1 }}>
         <Button
           onClick={onClose}
           disabled={isLoading}
