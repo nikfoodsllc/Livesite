@@ -9,7 +9,7 @@ import type { Order, OrderDay, OrderDayItem, CustomerInfo } from '@/types/order'
 const PST = 'America/Los_Angeles';
 import { getSiteUrl } from '@/lib/siteUrl';
 import { EMAIL_LOGO_CID } from '@/lib/emailLogo';
-import { TAXES_FEES_TOOLTIP, hasAmount, infoIconHtml } from '@/lib/orderTotalsDisplay';
+import { hasAmount } from '@/lib/orderTotalsDisplay';
 const SUPPORT = 'support@nikfoods.com';
 
 const C = {
@@ -278,6 +278,7 @@ export function getOrderConfirmationEmailTemplate(order: Order, profileCustomerD
       'Delivery happens once the minimum order value for the selected day is met.',
       'If not, your order is combined with the next delivery day.',
       'For offices, condos, or apartments orders are delivered to the concierge, front desk, or mailroom.',
+      'Your satisfaction matters to us! Please check your order when it arrives and report any issues the same day. After that, our ability to help may be limited.',
     ],
   });
   return `<!DOCTYPE html>
@@ -355,10 +356,9 @@ export function getOrderConfirmationEmailTemplate(order: Order, profileCustomerD
       <tr><td style="padding:8px 18px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
           ${sumRow('Subtotal', money(order.subtotal, currency))}
-          ${hasAmount(feesAndTaxes) ? sumRow(`Taxes &amp; Fees${infoIconHtml(C.muted)}`, money(feesAndTaxes, currency)) : ''}
+          ${hasAmount(feesAndTaxes) ? sumRow('Taxes &amp; Fees', money(feesAndTaxes, currency)) : ''}
           ${order.tip > 0 ? sumRow('Tip', money(order.tip, currency), '&mdash; thank you!') : ''}
         </table>
-        ${hasAmount(feesAndTaxes) ? `<div style="padding:2px 0 4px;font-size:12px;line-height:17px;color:${C.muted};">${infoIconHtml(C.muted)} ${esc(TAXES_FEES_TOOLTIP)}</div>` : ''}
       </td></tr>
       <tr><td bgcolor="${C.brand}" style="padding:11px 18px;background:${C.brand};border-radius:0 0 15px 15px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>

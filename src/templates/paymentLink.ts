@@ -1,7 +1,7 @@
 import { Order, OrderDay } from '@/types/order';
 import { getSiteUrl } from '@/lib/siteUrl';
 import { EMAIL_LOGO_CID } from '@/lib/emailLogo';
-import { TAXES_FEES_TOOLTIP, hasAmount, infoIconHtml } from '@/lib/orderTotalsDisplay';
+import { hasAmount } from '@/lib/orderTotalsDisplay';
 
 function esc(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -273,10 +273,9 @@ export function getPaymentLinkEmailTemplate(order: Order, payUrl: string, accoun
       <tr><td style="padding:8px 18px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
           ${sumRow('Subtotal', money(order.subtotal, order.currency))}
-          ${hasAmount(taxesAndFees) ? sumRow(`Taxes &amp; Fees${infoIconHtml(C.muted)}`, money(taxesAndFees, order.currency)) : ''}
+          ${hasAmount(taxesAndFees) ? sumRow('Taxes &amp; Fees', money(taxesAndFees, order.currency)) : ''}
           ${order.tip > 0 ? sumRow('Tip', money(order.tip, order.currency), '&mdash; thank you!') : ''}
         </table>
-        ${hasAmount(taxesAndFees) ? `<div style="padding:2px 0 4px;font-size:12px;line-height:17px;color:${C.muted};">${infoIconHtml(C.muted)} ${esc(TAXES_FEES_TOOLTIP)}</div>` : ''}
       </td></tr>
       <tr><td bgcolor="${C.brand}" style="padding:11px 18px;background:${C.brand};border-radius:0 0 15px 15px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
