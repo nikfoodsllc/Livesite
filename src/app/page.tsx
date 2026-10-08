@@ -958,7 +958,9 @@ export default function Home() {
         // Note: If the item exists on other dates, we keep those quantities unchanged
         // and only add/increment in the designated date for consistency
 
-        // Refresh cart context is handled by simulateLoading
+        // Refresh the cart panel and header badge AFTER the update. The refresh that simulateLoading schedules
+        // runs first (same 500 ms, scheduled earlier) and would read the old quantity, so the panel stayed one behind.
+        refreshCart();
       }, 500);
     } catch (error) {
       console.error('Error incrementing item in cart:', error);
