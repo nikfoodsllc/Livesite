@@ -312,6 +312,8 @@ export default function AddressSelectionDialog({
         sx: {
           borderRadius: isMobile ? 0 : '16px',
           maxHeight: isMobile ? '100%' : '80vh',
+          // while the Add / Edit form is open it is shown alone, not on top of this list peeking out behind it
+          visibility: showAddAddressDialog || editingAddress ? 'hidden' : 'visible',
         },
       }}
     >
