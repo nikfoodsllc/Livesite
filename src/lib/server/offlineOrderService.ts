@@ -14,7 +14,7 @@ import {
 } from '@/lib/server/offlineOrder';
 import { loadItemsForOrder } from '@/lib/server/offlineCatalog';
 import { ensureCustomer, EMAIL_RE, normalizeEmail, normalizePhone, CustomerInput } from '@/lib/server/offlineCustomer';
-import { buildPayLink, hashPaymentToken, newPaymentToken } from '@/lib/server/paymentLink';
+import { buildPayLink, hashPaymentToken, newPaymentToken, paymentTokenMatches } from '@/lib/server/paymentLink';
 import { buildOrderDescription, buildOrderPaymentMetadata } from '@/lib/server/stripePaymentInfo';
 import { validateZipcodeServiceabilityServer } from '@/utils/zipcodeValidation';
 import { syncOrderSafely } from '@/lib/server/optimoRoute/sync';
@@ -361,6 +361,7 @@ async function createNewOfflineOrder(
     ...base,
     stripePaymentIntentId: paymentIntent.id,
     paymentLinkTokenHash: hashPaymentToken(token),
+    paymentLinkToken: token,
   } as Order;
   const saved = await db.create('orders', formatOrderForDatabase(pendingOrder));
   if (!saved.success) {
@@ -599,7 +600,7 @@ export async function cancelOfflineOrder(orderId: string, adminId?: string): Pro
     { orderId, paymentStatus: { $ne: 'paid' } } as never,
     {
       $set: { status: 'cancelled', cancelledAt: new Date(), ...(adminId ? { cancelledByAdmin: adminId } : {}), updatedAt: new Date() },
-      $unset: { paymentLinkTokenHash: '' },
+      $unset: { paymentLinkTokenHash: '', paymentLinkToken: '' },
     } as never
   );
   if (!update.success) return fail(500, 'The payment was closed but the order could not be updated. Try again.');
@@ -685,26 +686,50 @@ export async function getOrderForEdit(orderId: string): Promise<{ ok: true; orde
   };
 }
 
+/** A reminder or a second copy of the same link may not be sent more than once in this time (stops double clicks). */
+export const REMINDER_COOLDOWN_MS = 30_000;
+
 /**
- * Gives an unpaid link order a fresh pay link (the old one stops working). By default the new link is emailed to the
- * customer; with `sendEmail: false` it is only returned, so the admin can send it some other way.
+ * Gives an unpaid link order a pay link and (by default) emails it.
+ * `keepCurrent: false` (default): a fresh link, the old one stops working.
+ * `keepCurrent: true`: the SAME link as before (used for reminders and for copying the current link). Orders made before the
+ * link itself was saved have no copy to give back: they are refused (409, code LINK_NOT_SAVED) unless `allowRefresh` is true,
+ * which makes a fresh link (the one the customer already has stops working) and says so with `refreshed: true`.
  */
-export async function resendPaymentLink(orderId: string, options: { sendEmail?: boolean } = {}): Promise<{ ok: true; payLink: string; emailSent: boolean; emailError?: string } | ServiceFailure> {
+export async function resendPaymentLink(
+  orderId: string,
+  options: { sendEmail?: boolean; keepCurrent?: boolean; allowRefresh?: boolean; now?: Date } = {}
+): Promise<{ ok: true; payLink: string; emailSent: boolean; emailError?: string; refreshed: boolean } | ServiceFailure> {
+  const now = options.now ?? new Date();
   const found = await db.readOne<Order>('orders', { orderId } as never);
   const order = found.success ? found.data : null;
   if (!order || order.source !== 'admin' || !order.stripePaymentIntentId) return fail(404, 'No pay-by-link order with that number');
   if (order.paymentStatus === 'paid') return fail(409, 'This order is already paid');
   if (order.status === 'cancelled') return fail(409, 'This order was cancelled');
-  const token = newPaymentToken();
-  await db.updateOne('orders', { orderId } as never, { $set: { paymentLinkTokenHash: hashPaymentToken(token), updatedAt: new Date() } } as never);
+
+  const sending = options.sendEmail !== false;
+  if (sending && options.keepCurrent && order.paymentLinkSentAt) {
+    const last = new Date(order.paymentLinkSentAt as unknown as string | Date).getTime();
+    if (Number.isFinite(last) && now.getTime() - last < REMINDER_COOLDOWN_MS) return fail(409, 'The link was just emailed. Wait a few seconds before sending it again.');
+  }
+
+  let token = options.keepCurrent && order.paymentLinkToken && paymentTokenMatches(order.paymentLinkToken, order.paymentLinkTokenHash) ? order.paymentLinkToken : '';
+  const refreshed = !token;
+  if (!token && options.keepCurrent && !options.allowRefresh) {
+    return fail(409, 'The current link was not saved for this order, so it cannot be copied or re-sent. A fresh link can be made, but the link the customer already has will stop working.', { code: 'LINK_NOT_SAVED' });
+  }
+  if (!token) {
+    token = newPaymentToken();
+    await db.updateOne('orders', { orderId } as never, { $set: { paymentLinkTokenHash: hashPaymentToken(token), paymentLinkToken: token, updatedAt: now } } as never);
+  }
   const payLink = buildPayLink(orderId, token);
-  if (options.sendEmail === false) return { ok: true, payLink, emailSent: false };
+  if (!sending) return { ok: true, payLink, emailSent: false, refreshed };
   const sent = await sendPaymentLinkEmail(order, payLink, false);
   if (sent.success) {
-    await db.updateOne('orders', { orderId } as never, { $set: { paymentLinkSentAt: new Date() } } as never);
+    await db.updateOne('orders', { orderId } as never, { $set: { paymentLinkSentAt: now } } as never);
     await recordPaymentLinkEmailSent(orderId, sent);
   }
-  return { ok: true, payLink, emailSent: sent.success, emailError: sent.error };
+  return { ok: true, payLink, emailSent: sent.success, emailError: sent.error, refreshed };
 }
 
 /** The customer paid outside the website after the link was sent: record it, close the Stripe payment, confirm by email. */
@@ -745,7 +770,7 @@ export async function markOfflinePaid(
         paidAt: new Date(),
         updatedAt: new Date(),
       },
-      $unset: { paymentLinkTokenHash: '' },
+      $unset: { paymentLinkTokenHash: '', paymentLinkToken: '' },
     } as never
   );
   if (!update.success) return fail(500, 'Failed to record the payment');

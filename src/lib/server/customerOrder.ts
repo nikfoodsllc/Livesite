@@ -17,6 +17,7 @@ export const INTERNAL_ORDER_FIELDS = [
   'paymentFailedEmailStatus',
   'emailLock',
   'paymentLinkTokenHash',
+  'paymentLinkToken',
   'createdByAdmin',
   'offlinePaymentNote',
   'platformFeeWaived',
