@@ -26,6 +26,7 @@ import {
 } from '@/lib/timezone';
 import {
   cutoffInfo,
+  defaultCutoffInstant,
   DEFAULT_CUTOFF_HOUR_BY_KIND,
   isPastCustomCutoff,
   ITEM_KINDS,
@@ -115,8 +116,8 @@ interface AvailableDateDocument {
  * CUTOFF RULE: A 'day' is considered available until 1 PM PST the DAY BEFORE.
  * Example: Friday orders close at 1 PM PST on Thursday.
  *
- * This function determines if the cutoff time has passed for a given target date.
- * The cutoff only applies to tomorrow's date - not today or any future dates beyond tomorrow.
+ * This function determines if the cutoff time has passed for a given target date: from the cutoff moment on (the day
+ * before) the date is closed, tomorrow after the cutoff hour and the delivery day itself all day; dates further away are open.
  *
  * @param targetDate - The date to check (as Date object)
  * @returns true if the date is past cutoff and should be disabled, false otherwise
@@ -138,24 +139,12 @@ function isPastCutoffTime(targetDate: Date, customCutoff?: Date | string | null,
   // moment and, if it is later than the standard cutoff, keeps the date open until then.
   if (parseCutoffOverride(customCutoff)) return isPastCustomCutoff(customCutoff);
 
-  const now = getPSTNow();
-
-  // Get midnight for today and the target date in PST timezone
-  const todayMidnight = getPSTMidnight(now);
-  const targetMidnight = getPSTMidnight(targetDate);
-
-  // Calculate tomorrow's midnight by adding 1 day to today's midnight
-  const tomorrowMidnight = addPSTDays(todayMidnight, 1);
-
-  // The cutoff only applies to tomorrow's date
-  // If the target date is NOT tomorrow, it's not affected by cutoff
-  if (targetMidnight.getTime() !== tomorrowMidnight.getTime()) {
-    return false;
-  }
-
-  // For tomorrow's date, check if the current time is past the standard hour of this kind of item
-  // (5 PM PST for flat items, 1 PM PST for day-wise items); from then on tomorrow is past cutoff
-  return isAfterOrEqualPSTHour(DEFAULT_CUTOFF_HOUR_BY_KIND[kind], now);
+  // The standard cutoff is one fixed moment: 1 PM (day-wise) or 5 PM (flat) Pacific on the day BEFORE the delivery date.
+  // From that moment on the date is closed: tomorrow after the cutoff hour, and also the delivery day itself. (This
+  // used to be checked for "tomorrow" only, so the delivery day counted as open again from midnight and customers could
+  // still see and order its menu all day.) A date further away has not reached its cutoff yet, so it is simply not closed.
+  const deliveryDate = getPSTDateString(targetDate);
+  return new Date().getTime() >= defaultCutoffInstant(deliveryDate, kind).getTime();
 }
 
 /**
