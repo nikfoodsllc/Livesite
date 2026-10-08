@@ -324,16 +324,6 @@ export default function OrderConfirmationDialog({
                   </Typography>
                 </Box>
               )}
-              {order.discount && order.discount.amount > 0 && (
-                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Typography sx={{ fontSize: '14px', color: '#28a745' }}>
-                    Discount ({order.discount.code})
-                  </Typography>
-                  <Typography sx={{ fontSize: '14px', fontWeight: 500, color: '#28a745' }}>
-                    -{formatCurrency(order.discount.amount, order.currency)}
-                  </Typography>
-                </Box>
-              )}
             </Box>
 
             <Divider sx={{ my: 2 }} />

@@ -196,19 +196,6 @@ export default function OrderConfirmation({ order }: OrderConfirmationProps) {
               </Typography>
             </Box>
           )}
-          {order.discount && order.discount.amount > 0 && (
-            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-              <Typography variant="body2" sx={{ color: '#28a745' }}>
-                Discount ({order.discount.code})
-              </Typography>
-              <Typography
-                variant="body2"
-                sx={{ fontWeight: 500, color: '#28a745' }}
-              >
-                -${order.discount.amount.toFixed(2)}
-              </Typography>
-            </Box>
-          )}
         </Box>
 
         <Divider sx={{ my: 2 }} />

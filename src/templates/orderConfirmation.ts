@@ -355,7 +355,6 @@ export function getOrderConfirmationEmailTemplate(order: Order, profileCustomerD
       <tr><td style="padding:8px 18px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
           ${sumRow('Subtotal', money(order.subtotal, currency))}
-          ${order.discount && order.discount.amount > 0 ? sumRow(`Discount${has(order.discount.code) ? ` (${esc(order.discount.code.trim())})` : ''}`, `-${money(order.discount.amount, currency)}`) : ''}
           ${hasAmount(feesAndTaxes) ? sumRow(`Taxes &amp; Fees${infoIconHtml(C.muted)}`, money(feesAndTaxes, currency)) : ''}
           ${order.tip > 0 ? sumRow('Tip', money(order.tip, currency), '&mdash; thank you!') : ''}
         </table>

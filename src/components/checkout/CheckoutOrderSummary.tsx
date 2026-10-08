@@ -16,7 +16,7 @@ interface CheckoutOrderSummaryProps {
   deliveryFee: number;
   tax: number;
   tip: number;
-  discount: number;
+  discount?: number;
   total: number;
   deliveryCalculations?: DayDeliveryInfo[];
   discountCode?: string;
@@ -29,10 +29,8 @@ export default function CheckoutOrderSummary({
   deliveryFee,
   tax,
   tip,
-  discount,
   total,
   deliveryCalculations = [],
-  discountCode,
 }: CheckoutOrderSummaryProps) {
   // tax, Platform Fee and delivery fee are shown as one line
   const taxesAndFees = taxesAndFeesOf({ taxes: tax, platformFee, deliveryFee });
@@ -213,19 +211,6 @@ export default function CheckoutOrderSummary({
             </Box>
           )}
 
-          {discount > 0 && (
-            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-              <Typography variant="body2" sx={{ color: '#28a745' }}>
-                {discountCode ? `Discount (${discountCode})` : 'Discount'}
-              </Typography>
-              <Typography
-                variant="body2"
-                sx={{ fontWeight: 500, color: '#28a745' }}
-              >
-                -${discount.toFixed(2)}
-              </Typography>
-            </Box>
-          )}
         </Box>
 
         <Divider sx={{ my: 2 }} />

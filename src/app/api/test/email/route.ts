@@ -87,10 +87,6 @@ export async function POST(request: NextRequest) {
           deliveryFee: 4.99,
           taxes: 3.50,
           tip: 5.00,
-          discount: {
-            code: 'TEST10',
-            amount: 2.50,
-          },
           totalPaid: 37.97,
           currency: 'usd',
           status: 'confirmed',

@@ -189,7 +189,6 @@ function OrderSummary({ data }: { data: PayData }) {
       <Box sx={{ border: `1px solid ${C.line}`, borderRadius: '16px', bgcolor: C.card, overflow: 'hidden' }}>
         <Box sx={{ px: 2.25, py: 1 }}>
           <SumRow label="Subtotal" value={money(data.subtotal)} />
-          {(data.discount ?? 0) > 0 && <SumRow label={data.discountCode ? `Discount (${data.discountCode})` : 'Discount'} value={`-${money(data.discount)}`} />}
           {hasAmount(taxesAndFees) && <SumRow label={<TaxesFeesLabel />} value={money(taxesAndFees)} />}
           {(data.tip ?? 0) > 0 && <SumRow label="Tip" note="— thank you!" value={money(data.tip)} />}
         </Box>
