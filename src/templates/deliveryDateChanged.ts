@@ -7,6 +7,8 @@ import { dateText } from '@/lib/orderReschedule';
 export interface MovedDelivery {
   fromDate: string;
   toDate: string;
+  /** What moved, e.g. '2 \u00d7 Dosa Batter' (shown under the dates) */
+  items?: string[];
 }
 
 function escapeHtml(value: string): string {
@@ -61,15 +63,15 @@ function logoStrip(logoUrl: string, w: number, pad: string): string {
 
 /** The moved deliveries as one line each, with duplicates (several lines that moved the same way) merged. */
 export function uniqueMoves(moves: MovedDelivery[]): MovedDelivery[] {
-  const seen = new Set<string>();
-  const out: MovedDelivery[] = [];
+  const byKey = new Map<string, MovedDelivery>();
   for (const m of moves) {
     if (!m.fromDate || !m.toDate || m.fromDate === m.toDate) continue;
     const key = `${m.fromDate}>${m.toDate}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(m);
+    const existing = byKey.get(key);
+    if (existing) existing.items = [...(existing.items ?? []), ...(m.items ?? [])];
+    else byKey.set(key, { ...m, items: [...(m.items ?? [])] });
   }
+  const out = [...byKey.values()];
   return out.sort((a, b) => a.toDate.localeCompare(b.toDate) || a.fromDate.localeCompare(b.fromDate));
 }
 
@@ -107,6 +109,7 @@ export function getDeliveryDateChangedEmailTemplate(order: Order, movedDeliverie
       (m) => `<tr><td style="padding:6px 0;">
         <div style="font-size:13px;color:${C.muted};text-decoration:line-through;line-height:18px;">${escapeHtml(longDate(m.fromDate))}</div>
         <div style="font-size:17px;font-weight:800;color:${C.text};line-height:24px;">&rarr; ${escapeHtml(longDate(m.toDate))}</div>
+        ${(m.items ?? []).map((name) => `<div style="font-size:13px;color:${C.body};line-height:19px;">${escapeHtml(name)}</div>`).join('')}
       </td></tr>`
     )
     .join('');
