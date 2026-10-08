@@ -526,8 +526,8 @@ export default function AddressDialog({
     label="Delivery Instruction"
     value={formData.floor}
     onChange={handleChange('floor')}
-    inputProps={{ maxLength: 30 }}
-    error={(formData.floor?.length || 0) === 30}
+    inputProps={{ maxLength: 100 }}
+    error={(formData.floor?.length || 0) === 100}
   />
 
   <TextField
