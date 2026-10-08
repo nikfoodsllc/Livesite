@@ -165,6 +165,7 @@ export interface Order {
   source?: 'admin'; // Entered by an admin for the customer (a phone or in-person order); absent for website orders
   createdByAdmin?: string; // Admin user id (business only)
   paymentLinkTokenHash?: string; // SHA-256 of the secret in the customer's pay link (business only)
+  paymentLinkToken?: string; // the secret itself, so an admin can copy or re-send the SAME link (business only; removed when the order is paid or cancelled)
   paymentLinkSentAt?: Date | string; // When the pay link was last emailed
   offlinePaymentNote?: string; // How an order was paid outside the website (cash, Zelle, ...)
   platformFeeWaived?: boolean; // The admin dropped the Platform Fee on this order
