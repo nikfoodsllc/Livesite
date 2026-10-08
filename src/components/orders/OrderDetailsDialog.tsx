@@ -298,16 +298,6 @@ export default function OrderDetailsDialog({ open, order, onClose }: OrderDetail
               </Box>
             )}
 
-            {order.discount && hasAmount(order.discount.amount) && (
-              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Typography sx={{ fontSize: '14px', color: '#0A9750' }}>
-                  Discount ({order.discount.code})
-                </Typography>
-                <Typography sx={{ fontSize: '14px', color: '#0A9750' }}>
-                  -{formatCurrency(order.discount.amount, order.currency)}
-                </Typography>
-              </Box>
-            )}
           </Box>
 
           <Divider sx={{ my: 2 }} />
