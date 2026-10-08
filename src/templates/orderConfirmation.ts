@@ -173,10 +173,13 @@ function logoStrip(logoUrl: string, w: number, pad: string): string {
   </td></tr>`;
 }
 
-/** Subject line: "NikFoods Order Confirmation #<order number> - <order date>". */
-export function getOrderConfirmationEmailSubject(order: Pick<Order, 'orderId' | 'createdAt'>): string {
+/**
+ * Subject line: "NikFoods Order Confirmation #<order number> - <order date>". An order an admin entered for the customer
+ * (payment link, cash, Zelle...) starts with "Offline": "Offline NikFoods Order Confirmation #...".
+ */
+export function getOrderConfirmationEmailSubject(order: Pick<Order, 'orderId' | 'createdAt' | 'source'>): string {
   const placed = fmt(toDate(order.createdAt || new Date()), { month: 'short', day: 'numeric', year: 'numeric' });
-  return `NikFoods Order Confirmation #${order.orderId} - ${placed}`;
+  return `${order.source === 'admin' ? 'Offline ' : ''}NikFoods Order Confirmation #${order.orderId} - ${placed}`;
 }
 
 export function getOrderConfirmationEmailTemplate(order: Order, profileCustomerDetails?: CustomerInfo): string {
