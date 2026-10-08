@@ -3,6 +3,8 @@ import Stripe from 'stripe';
 import { db } from '@/lib/server/db';
 import { Order, OrderDay } from '@/types/order';
 import { paymentTokenMatches } from '@/lib/server/paymentLink';
+import { cleanInstructions } from '@/lib/server/deliveryInstructions';
+import { validateZipcodeServiceabilityServer } from '@/utils/zipcodeValidation';
 
 export const dynamic = 'force-dynamic';
 
@@ -109,4 +111,56 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     console.error('[pay] could not open the payment', { orderId: order.orderId, message: error instanceof Error ? error.message : String(error) });
     return NextResponse.json({ success: false, error: 'Could not load the payment. Please try again.' }, { status: 502 });
   }
+}
+
+/**
+ * PATCH /api/pay/{orderId}?t=<secret>
+ * Body: { street, apartment?, city, zip, entrance?, floor? } (floor = delivery instructions)
+ * The customer corrects the delivery address of the order they are about to pay for. Same secret as the page. Only an order
+ * that is not paid, cancelled or closed. A changed zip code must be one we deliver to (the admin's own entry is not
+ * restricted, but a customer picking a new zip is). Nothing else on the order is touched.
+ */
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ orderId: string }> }) {
+  const { orderId } = await params;
+  const token = new URL(request.url).searchParams.get('t');
+  const notFound = () => NextResponse.json({ success: false, error: 'This payment link is not valid.' }, { status: 404 });
+
+  const found = await db.readOne<Order>('orders', { orderId: decodeURIComponent(orderId), source: 'admin' } as never);
+  const order = found.success ? found.data : null;
+  if (!order || !paymentTokenMatches(token, order.paymentLinkTokenHash)) return notFound();
+  if (order.paymentStatus === 'paid' || order.status === 'cancelled' || order.paymentStatus === 'refunded') {
+    return NextResponse.json({ success: false, error: 'This order can no longer be changed.' }, { status: 409 });
+  }
+
+  const body = await request.json().catch(() => null);
+  const text = (key: string) => (typeof body?.[key] === 'string' ? (body[key] as string).replace(/\s+/g, ' ').trim() : '');
+  const street = text('street');
+  const apartment = text('apartment');
+  const city = text('city');
+  const zip = text('zip');
+  const entrance = text('entrance');
+  const floor = cleanInstructions(body?.floor) ?? '';
+
+  const bad = (error: string) => NextResponse.json({ success: false, error }, { status: 400 });
+  if (street.length < 5 || street.length > 150) return bad('Enter the street address.');
+  if (city.length < 2 || city.length > 60) return bad('Enter the city.');
+  if (!/^\d{5}(-\d{4})?$/.test(zip)) return bad('Enter a 5 digit zip code.');
+  if (apartment.length > 10) return bad('The apartment can be at most 10 characters.');
+  if (entrance.length > 20) return bad('The gate code can be at most 20 characters.');
+
+  const oldZip = String(order.address?.zipCode ?? '').slice(0, 5);
+  if (zip.slice(0, 5) !== oldZip) {
+    const area = await validateZipcodeServiceabilityServer(zip.slice(0, 5), db);
+    if (!area.isServiceable) return bad(area.message || "We don't deliver to that zip code yet.");
+  }
+
+  const set: Record<string, unknown> = { 'address.street': street, 'address.city': city, 'address.zipCode': zip, updatedAt: new Date() };
+  const unset: Record<string, ''> = {};
+  for (const [field, value] of [['apartment', apartment], ['entrance', entrance], ['floor', floor]] as const) {
+    if (value) set[`address.${field}`] = value;
+    else unset[`address.${field}`] = '';
+  }
+  const saved = await db.updateOne('orders', { orderId: order.orderId, source: 'admin' } as never, (Object.keys(unset).length ? { $set: set, $unset: unset } : { $set: set }) as never);
+  if (!saved.success) return NextResponse.json({ success: false, error: 'Could not save. Please try again.' }, { status: 500 });
+  return NextResponse.json({ success: true });
 }

@@ -2,8 +2,8 @@
 
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { Alert, Box, Button, CircularProgress, Container, Divider, Paper, Typography } from '@mui/material';
-import { IconCalendar, IconLock, IconMail, IconMapPin, IconPhone, IconUser } from '@tabler/icons-react';
+import { Alert, Box, Button, CircularProgress, Container, Divider, Paper, TextField, Typography } from '@mui/material';
+import { IconCalendar, IconEdit, IconLock, IconMail, IconMapPin, IconPhone, IconUser } from '@tabler/icons-react';
 import { loadStripe, StripeElementsOptions } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
 import { hasAmount, taxesAndFeesOf } from '@/lib/orderTotalsDisplay';
@@ -185,7 +185,69 @@ function IconTile({ children }: { children: React.ReactNode }) {
 }
 
 /** Contact Information and Delivery Address, in the same cards as the checkout page. */
-function DeliveryDetails({ data }: { data: PayData }) {
+/** The address form: the customer corrects where the order goes (saved on this order only) before paying. */
+function AddressEditor({ data, token, onSaved, onCancel }: { data: PayData; token: string; onSaved: () => void; onCancel: () => void }) {
+  const a = data.address ?? {};
+  const [f, setF] = useState({ street: a.street ?? '', apartment: a.apartment ?? '', city: a.city ?? '', zip: a.zip ?? '', entrance: a.entrance ?? '', floor: a.floor ?? '' });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const set = (key: keyof typeof f, max: number) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF((cur) => ({ ...cur, [key]: e.target.value.replace(/\n/g, ' ').slice(0, max) }));
+
+  const save = async () => {
+    setSaving(true);
+    setError('');
+    try {
+      const res = await fetch(`/api/pay/${encodeURIComponent(data.orderId)}?t=${encodeURIComponent(token)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(f),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || !body.success) {
+        setError(body.error || 'Could not save. Please try again.');
+        return;
+      }
+      onSaved();
+    } catch {
+      setError('Could not reach the server. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+      <Box sx={{ gridColumn: { sm: '1 / -1' } }}>
+        <TextField fullWidth label="Street address" value={f.street} onChange={set('street', 150)} />
+      </Box>
+      <TextField fullWidth label="Apartment / unit" value={f.apartment} onChange={set('apartment', 10)} />
+      <TextField fullWidth label="City" value={f.city} onChange={set('city', 60)} />
+      <TextField fullWidth label="Zip code" value={f.zip} onChange={set('zip', 10)} inputProps={{ inputMode: 'numeric' }} />
+      <TextField fullWidth label="Gate code" value={f.entrance} onChange={set('entrance', 20)} />
+      <Box sx={{ gridColumn: { sm: '1 / -1' } }}>
+        <TextField
+          fullWidth
+          multiline
+          minRows={2}
+          label="Delivery instructions (optional)"
+          value={f.floor}
+          onChange={set('floor', 100)}
+          helperText={`${f.floor.length}/100`}
+        />
+      </Box>
+      {error && <Alert severity="error" sx={{ gridColumn: { sm: '1 / -1' } }}>{error}</Alert>}
+      <Box sx={{ gridColumn: { sm: '1 / -1' }, display: 'flex', gap: 1.5, justifyContent: 'flex-end' }}>
+        <Button onClick={onCancel} disabled={saving} sx={{ textTransform: 'none', color: '#666' }}>Cancel</Button>
+        <Button variant="contained" onClick={save} disabled={saving} sx={{ textTransform: 'none', fontWeight: 600, bgcolor: '#FF9F0D', '&:hover': { bgcolor: '#e68f0c' } }}>
+          {saving ? 'Saving…' : 'Save address'}
+        </Button>
+      </Box>
+    </Box>
+  );
+}
+
+function DeliveryDetails({ data, token, onChanged }: { data: PayData; token: string; onChanged: () => void }) {
+  const [editing, setEditing] = useState(false);
   const a = data.address ?? {};
   const street = (a.street ?? '').trim();
   const cityLine = [a.city, a.state].filter(Boolean).join(', ') + (a.zip ? ` ${a.zip}` : '');
@@ -214,9 +276,19 @@ function DeliveryDetails({ data }: { data: PayData }) {
       </Paper>
 
       <Paper elevation={0} sx={cardSx}>
-        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-          Delivery Address
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+          <Typography variant="h6" sx={{ fontWeight: 600 }}>
+            Delivery Address
+          </Typography>
+          {!editing && (
+            <Button size="small" startIcon={<IconEdit size={16} />} onClick={() => setEditing(true)} sx={{ textTransform: 'none', fontWeight: 600, color: '#FF9F0D' }}>
+              Edit
+            </Button>
+          )}
+        </Box>
+        {editing ? (
+          <AddressEditor data={data} token={token} onCancel={() => setEditing(false)} onSaved={() => { setEditing(false); onChanged(); }} />
+        ) : (
         <Box sx={{ display: 'flex', gap: 2 }}>
           <IconTile>
             <IconMapPin size={24} />
@@ -240,6 +312,7 @@ function DeliveryDetails({ data }: { data: PayData }) {
             )}
           </Box>
         </Box>
+        )}
       </Paper>
     </>
   );
@@ -471,7 +544,7 @@ function PayInner() {
       <Header orderId={data.orderId} />
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 400px' }, gap: 3, alignItems: 'start' }}>
         <Box>
-          <DeliveryDetails data={data} />
+          <DeliveryDetails data={data} token={token} onChanged={() => void load()} />
           {elementsOptions ? (
             <Elements stripe={stripePromise} key={data.clientSecret} options={elementsOptions}>
               <PayForm data={data} token={token} onPaid={() => setJustPaid(true)} onClosed={() => void load()} />
