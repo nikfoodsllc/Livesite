@@ -13,5 +13,11 @@
         }
       ]
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/optimoroute",
+      "schedule": "*/10 * * * *"
+    }
   ]
 }

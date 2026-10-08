@@ -9,6 +9,7 @@ import { paymentErrorFromIntent } from '@/lib/server/stripePaymentInfo';
 import { refundFromCharge } from '@/lib/server/refundInfo';
 import { annotatePaymentIntent } from '@/lib/server/stripePaymentNote';
 import { fetchChargeFee } from '@/lib/server/stripeFee';
+import { syncOrderSafely } from '@/lib/server/optimoRoute/sync';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 if (!stripeSecretKey) {
@@ -147,6 +148,9 @@ export async function POST(request: NextRequest) {
           console.error(`[Webhook] Exception sending confirmation email for order: ${order.orderId}:`, emailError);
         }
 
+        // Put the delivery stop on the OptimoRoute plan (does nothing unless OPTIMOROUTE_SYNC is on; never fails the payment)
+        await syncOrderSafely(order.orderId);
+
         break;
       }
 
@@ -221,6 +225,9 @@ export async function POST(request: NextRequest) {
           console.error(`[Webhook] Exception sending confirmation email for order: ${order.orderId}:`, emailError);
           // Email failure should not break webhook processing - continue with normal flow
         }
+
+        // The same stop as in payment_intent.succeeded; only the first of the two events creates it (a short wait here)
+        await syncOrderSafely(order.orderId, 4000);
 
         // Record what Stripe charged us for this payment (shown in the admin, never to customers).
         // Best effort, and done AFTER the confirmation email: waiting for Stripe to attach the fee can take a few
