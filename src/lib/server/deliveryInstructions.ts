@@ -2,7 +2,7 @@ import { ObjectId } from 'mongodb';
 import { db } from '@/lib/server/db';
 
 /** Delivery instructions are free text kept on the address (its `floor` field) and copied onto each order. */
-export const MAX_DELIVERY_INSTRUCTIONS = 100;
+export const MAX_DELIVERY_INSTRUCTIONS = 30;
 
 /**
  * Cleans what the customer typed: trimmed, line breaks and runs of spaces become one space, cut to the limit.
