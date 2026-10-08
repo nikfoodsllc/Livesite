@@ -20,7 +20,7 @@ import {
   useMediaQuery,
   Alert,
 } from '@mui/material';
-import { IconX, IconMapPin, IconCheck, IconAlertCircle, IconPlus } from '@tabler/icons-react';
+import { IconX, IconMapPin, IconCheck, IconAlertCircle, IconPlus, IconEdit } from '@tabler/icons-react';
 import { IAddress } from '@/types/auth';
 import { validateZipcodeServiceability } from '@/utils/zipcodeValidationClient';
 import AddressDialog from '@/components/account/AddressDialog';
@@ -45,6 +45,8 @@ interface AddressSelectionDialogProps {
     phone?: string;
   };
   onAddressRefresh?: () => Promise<void>;
+  /** An address was changed here: the checkout refreshes what it shows when it is the selected one */
+  onAddressEdited?: (address: IAddress) => Promise<void> | void;
 }
 
 export default function AddressSelectionDialog({
@@ -57,6 +59,7 @@ export default function AddressSelectionDialog({
   authenticatedFetch,
   userProfile,
   onAddressRefresh,
+  onAddressEdited,
 }: AddressSelectionDialogProps) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -70,6 +73,8 @@ export default function AddressSelectionDialog({
   const [showAddAddressDialog, setShowAddAddressDialog] = useState(false);
   const [isAddingAddress, setIsAddingAddress] = useState(false);
   const [addAddressError, setAddAddressError] = useState('');
+  // the saved address being changed (opens the same form as the account page's Edit)
+  const [editingAddress, setEditingAddress] = useState<IAddress | null>(null);
 
   // Set initial selected address when dialog opens
   useEffect(() => {
@@ -174,6 +179,37 @@ export default function AddressSelectionDialog({
       setShowAddAddressDialog(false);
       setAddAddressError('');
     }
+  };
+
+  // Save a change to a saved address, re-check its zip code and let the checkout refresh
+  const handleEditAddress = async (addressData: any) => {
+    const addressId = editingAddress?._id?.toString();
+    if (!addressId) return;
+    const response = await authenticatedFetch('/api/address', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...addressData, _id: addressId }),
+    });
+    const data = await response.json();
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || 'Failed to update address');
+    }
+
+    const updated = data.data as IAddress;
+    setAddressValidationStates((prev) => new Map(prev).set(addressId, { isServiceable: false, isValidating: true }));
+    validateZipcodeServiceability(updated.postal_code)
+      .then((result) => {
+        setAddressValidationStates((prev) =>
+          new Map(prev).set(addressId, { isServiceable: result.isServiceable, error: result.isServiceable ? undefined : result.message, isValidating: false })
+        );
+      })
+      .catch(() => {
+        setAddressValidationStates((prev) => new Map(prev).set(addressId, { isServiceable: false, error: 'Unable to verify serviceability', isValidating: false }));
+      });
+
+    if (onAddressRefresh) await onAddressRefresh();
+    if (onAddressEdited) await onAddressEdited(updated);
+    setEditingAddress(null);
   };
 
   const handleAddAddress = async (addressData: any) => {
@@ -375,6 +411,19 @@ export default function AddressSelectionDialog({
                           >
                             {address.name}
                           </Typography>
+                          <Button
+                            size="small"
+                            startIcon={<IconEdit size={14} />}
+                            aria-label={`Edit ${address.name}`}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setEditingAddress(address);
+                            }}
+                            sx={{ textTransform: 'none', fontWeight: 600, color: '#FF9F0D', minWidth: 0, py: 0, ml: 'auto', mr: 1 }}
+                          >
+                            Edit
+                          </Button>
                           {isValidating && <CircularProgress size={16} sx={{ ml: 1 }} />}
                           {!isValidating && (
                             <>
@@ -510,6 +559,17 @@ export default function AddressSelectionDialog({
           </Button>
         </Box>
       </DialogActions>
+
+      {/* Edit Address Dialog */}
+      <AddressDialog
+        open={Boolean(editingAddress)}
+        onClose={() => setEditingAddress(null)}
+        onSave={handleEditAddress}
+        mode="edit"
+        address={editingAddress as never}
+        userProfile={userProfile}
+        existingAddressCount={addresses.length}
+      />
 
       {/* Add Address Dialog */}
       <AddressDialog

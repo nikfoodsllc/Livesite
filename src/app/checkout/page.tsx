@@ -761,6 +761,26 @@ export default function CheckoutPage() {
     }
   };
 
+  // A saved address was changed in the selection dialog: if it is the one on this checkout, show the new details
+  // (contact fields, delivery instructions and the address card) without leaving the page
+  const handleAddressEdited = async (address: IAddress) => {
+    const id = address._id?.toString();
+    if (!id) return;
+    const current = selectedAddressId || cart?.selectedAddress?._id;
+    if (current !== id) return;
+    setName(address.name || user?.name || '');
+    setEmail(address.email || user?.email || '');
+    setPhone(address.phone || user?.phone || '');
+    instructionsAddressIdRef.current = id;
+    setDeliveryInstructions(address.floor ?? '');
+    try {
+      await updateAddress(id);
+      await refreshCart();
+    } catch (error) {
+      console.error('Error refreshing the edited address on the cart:', error);
+    }
+  };
+
   // Fetch user addresses to refresh after adding new address
   const handleAddressRefresh = async () => {
     if (!user) return;
@@ -1353,6 +1373,7 @@ export default function CheckoutPage() {
           phone: user.phone,
         } : undefined}
         onAddressRefresh={handleAddressRefresh}
+        onAddressEdited={handleAddressEdited}
       />
     </Box>
   );
