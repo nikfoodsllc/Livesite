@@ -3,9 +3,9 @@
  *
  * An order is a list of day lines. Each line has the menu day it was picked for (`deliveryDate`, which is
  * also the day the kitchen cooks it) and the day it is delivered (`actualDeliveryDate`, different only when the cart
- * combined a small day into a later one). Moving a line sets BOTH to the new date and the weekday name to match,
- * so the kitchen dashboard, the reports, the route planner and the customer's pages all follow one date.
- * What it was before is kept in the order's `reschedules` history.
+ * combined a small day into a later one). Moving a line changes ONLY the delivery date: the menu / kitchen day and its
+ * weekday name stay as they were, so the kitchen dashboard does not move. The route planner, the customer's pages and
+ * the emails follow the delivery date. What it was before is kept in the order's `reschedules` history.
  *
  * Pure functions with no database access, so they can be tested on their own. Dates are 'YYYY-MM-DD' strings.
  */
@@ -141,19 +141,20 @@ export function planReschedule(order: OrderLike, inputs: RescheduleInput[], toda
     const menuDate = dateText(line.deliveryDate);
     const deliveryDate = dateText(line.actualDeliveryDate) || menuDate;
     if (!menuDate) return { ok: false, code: 'bad_input', error: 'That day has no date to move.' };
-    // nothing to do when the line is already on that date for both the kitchen and the delivery
-    if (menuDate === newDate && deliveryDate === newDate) continue;
+    // nothing to do when the line is already delivered on that date
+    if (deliveryDate === newDate) continue;
 
-    const toDay = weekdayName(newDate);
+    // the kitchen day (deliveryDate) and the weekday name stay; only the delivery date changes
+    const day = typeof line.day === 'string' ? line.day : weekdayName(menuDate);
     changes.push({
       index,
-      fromDay: typeof line.day === 'string' ? line.day : weekdayName(menuDate),
-      toDay,
+      fromDay: day,
+      toDay: day,
       fromMenuDate: menuDate,
       fromDeliveryDate: deliveryDate,
       toDate: newDate,
     });
-    next[index] = { ...line, day: toDay, deliveryDate: newDate, actualDeliveryDate: newDate };
+    next[index] = { ...line, actualDeliveryDate: newDate };
   }
 
   if (changes.length === 0) return { ok: false, code: 'nothing_to_change', error: 'The delivery date is already that date.' };
