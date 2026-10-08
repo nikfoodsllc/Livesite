@@ -179,6 +179,8 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   // Use refs to avoid re-creating fetchCart when zipcodeConfig or selectedAddressObject change
   // This breaks the infinite re-render cycle
   const zipcodeConfigRef = useRef(zipcodeConfig);
+  // Counts cart refreshes so a slow older one cannot overwrite the result of a newer one (latest wins)
+  const fetchSeqRef = useRef(0);
   const selectedAddressObjectRef = useRef(selectedAddressObject);
 
   // Keep refs in sync with state
@@ -194,6 +196,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
    * Fetches the current cart - from localStorage for all users
    */
   const fetchCart = useCallback(async (overrideZipcodeConfig?: ZipcodeConfig | null, overrideAddress?: Cart['selectedAddress']) => {
+    const seq = ++fetchSeqRef.current;
     try {
       setIsLoading(true);
       setError(null);
@@ -206,6 +209,9 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       const configToUse = overrideZipcodeConfig !== undefined ? overrideZipcodeConfig : zipcodeConfigRef.current;
       const addressToUse = overrideAddress !== undefined ? overrideAddress : selectedAddressObjectRef.current;
       const localCartData = await convertLocalCartToCart(configToUse, addressToUse);
+
+      // A newer refresh started while this one was working: its result is the up-to-date one, drop this one
+      if (seq !== fetchSeqRef.current) return;
 
       console.log('[CartContext] convertLocalCartToCart returned:', localCartData);
 
@@ -229,13 +235,14 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         setItemCount(0);
       }
     } catch (err) {
+      if (seq !== fetchSeqRef.current) return;
       console.error('Error fetching cart:', err);
       setError(err instanceof Error ? err.message : 'Failed to load cart');
       setCart(null);
       setSummary(null);
       setItemCount(0);
     } finally {
-      setIsLoading(false);
+      if (seq === fetchSeqRef.current) setIsLoading(false);
     }
   }, []); // Empty dependency array - function uses refs instead of state
 
