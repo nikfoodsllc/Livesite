@@ -2,14 +2,13 @@ import { ObjectId } from 'mongodb';
 import { db } from '@/lib/server/db';
 import { Order } from '@/types/order';
 import {
-  originalDates,
-  planReschedule,
-  type OrderLike,
+  movedItemsOf,
+  planItemReschedule,
   RESCHEDULABLE_STATUSES,
   staleDates,
-  dateText,
+  type ItemSelection,
+  type OrderLike,
   type RescheduleChange,
-  type RescheduleInput,
 } from '@/lib/orderReschedule';
 import { moveOrderStops, pacificToday } from '@/lib/server/optimoRoute/sync';
 import { sendDeliveryDateChangedEmail } from '@/lib/rescheduleEmail';
@@ -19,6 +18,8 @@ import type { MovedDelivery } from '@/templates/deliveryDateChanged';
 export interface RescheduleRecord {
   at: Date;
   by: { id: string; name?: string };
+  /** The delivery date the items were moved to */
+  newDate: string;
   changes: RescheduleChange[];
 }
 
@@ -59,12 +60,13 @@ export interface OptimoSummary {
 }
 
 /**
- * Moves day lines of a paid order to other delivery dates (the kitchen day stays). The order is saved first; the route planner is updated
+ * Moves items of a paid order to another delivery date (the kitchen day stays). The order is saved first; the route planner is updated
  * after it and never blocks the move: if OptimoRoute cannot be reached, the 30-minute check finishes the job.
  */
 export async function rescheduleOrder(
   orderId: string,
-  inputs: RescheduleInput[],
+  selections: ItemSelection[],
+  newDate: string,
   adminId: string,
   options: { now?: Date } = {}
 ): Promise<ServiceResult<{ orderId: string; changes: RescheduleChange[]; optimo: OptimoSummary; emailPending: true }>> {
@@ -72,10 +74,10 @@ export async function rescheduleOrder(
   const order = await loadOrder(orderId);
   if (!order) return { ok: false, status: 404, error: 'Order not found.' };
 
-  const plan = planReschedule(order as unknown as OrderLike, inputs, pacificToday(now));
+  const plan = planItemReschedule(order as unknown as OrderLike, selections, newDate, pacificToday(now));
   if (!plan.ok) return { ok: false, status: plan.code === 'not_allowed' ? 409 : 400, error: plan.error };
 
-  const record: RescheduleRecord = { at: now, by: { id: adminId, name: await adminName(adminId) }, changes: plan.changes };
+  const record: RescheduleRecord = { at: now, by: { id: adminId, name: await adminName(adminId) }, newDate, changes: plan.changes };
   // only saves when the order still looks the way it did when it was read (nobody changed it meanwhile)
   const saved = await db.updateOne(
     'orders',
@@ -112,17 +114,16 @@ async function updateRoutePlanner(orderId: string, left: string[], now: Date): P
   }
 }
 
-/** For each day line that was moved: the date it was originally delivered on and the date it is on now, when they differ. */
+/** The moved items grouped by where they started and where they are now, for the email. */
 export function movesToTell(order: OrderWithHistory): MovedDelivery[] {
-  const firsts = originalDates(order.reschedules);
-  const moves: MovedDelivery[] = [];
-  for (const [index, original] of firsts) {
-    const line = order.items?.[index];
-    if (!line) continue;
-    const toDate = dateText(line.actualDeliveryDate) || dateText(line.deliveryDate);
-    if (toDate && original.deliveryDate && toDate !== original.deliveryDate) moves.push({ fromDate: original.deliveryDate, toDate });
+  const groups = new Map<string, MovedDelivery>();
+  for (const m of movedItemsOf(order as unknown as OrderLike)) {
+    const key = `${m.fromDate}>${m.toDate}`;
+    const group = groups.get(key) ?? { fromDate: m.fromDate, toDate: m.toDate, items: [] };
+    group.items = [...(group.items ?? []), m.quantity > 1 ? `${m.quantity} \u00d7 ${m.name}` : m.name];
+    groups.set(key, group);
   }
-  return moves;
+  return [...groups.values()];
 }
 
 /** Emails the customer the new delivery dates. Only one send at a time per order (a double click sends one email). */
