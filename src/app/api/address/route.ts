@@ -29,7 +29,7 @@ const addressSchema = z.object({
 
 floor: z
   .string()
-  .max(30, 'Floor must be maximum 30 characters')
+  .max(100, 'Delivery instructions must be maximum 100 characters')
   .optional(),
   entrance: z.string().optional(),
   isDefault: z.boolean().optional(),
