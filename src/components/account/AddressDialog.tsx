@@ -380,7 +380,8 @@ export default function AddressDialog({
         </IconButton>
       </DialogTitle>
 
-      <DialogContent ref={dialogContentRef} sx={{ pt: 1 }}>
+      {/* MUI removes the top padding of a content that follows the title, which cut off the floating label of the first field */}
+      <DialogContent ref={dialogContentRef} sx={{ '.MuiDialogTitle-root + &': { pt: 1.5 } }}>
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
             {error}
