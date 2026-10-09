@@ -127,10 +127,11 @@ export async function driversWithRoutes(date: string): Promise<OptimoResult<stri
 
 /** How many stops are on a driver's route on one day. */
 export async function plannedStopCount(date: string): Promise<OptimoResult<number>> {
-  const result = await getCall<{ routes?: Array<{ stops?: Array<{ orderNo?: string }> }> }>('get_routes', { date });
+  const result = await getCall<{ routes?: Array<{ stops?: Array<{ id?: string; orderNo?: string }> }> }>('get_routes', { date });
   if (!result.ok) return { ok: false, code: result.code, message: result.message };
   let count = 0;
-  for (const route of result.data?.routes ?? []) count += (route.stops ?? []).filter((s) => s.orderNo).length;
+  // every stop has an id; only the stops this site created have an orderNo (the team's own uploads have none)
+  for (const route of result.data?.routes ?? []) count += (route.stops ?? []).filter((s) => s.id || s.orderNo).length;
   return { ok: true, data: count };
 }
 
