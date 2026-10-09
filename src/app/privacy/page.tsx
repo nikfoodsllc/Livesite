@@ -254,7 +254,7 @@ export default function PrivacyPolicyPage() {
                   fontSize: { xs: '0.95rem', md: '1rem' },
                 }}
               >
-                <strong>We do not share your mobile phone number or your text-message opt-in data and consent with any third parties or affiliates for marketing or promotional purposes.</strong> Mobile information is never sold or rented. It is shared only with the service providers that deliver our messages (our text-message provider and the mobile carriers), solely so that they can send the messages you asked for.
+                <strong>No mobile information will be shared with third parties/affiliates for marketing/promotional purposes. All the above categories exclude text messaging originator opt-in data and consent; this information will not be shared with any third parties.</strong> Our text-message provider and the mobile carriers only carry the messages you asked for, on our behalf.
               </Typography>
               <Typography
                 variant="body1"

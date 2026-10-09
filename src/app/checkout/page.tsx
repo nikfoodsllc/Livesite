@@ -94,7 +94,7 @@ interface CheckoutFormContentProps {
   onPhoneChange: (value: string) => void;
   onPhoneError: (error: string | null) => void;
   smsOptIn: boolean;
-  onSmsChange: (value: boolean) => void;
+  onSmsChange?: (value: boolean) => void;
   onPaymentMethodChange: (method: PaymentMethod) => void;
   onTipChange: (percentage: number) => void;
   onPlaceOrder: () => Promise<void>;
@@ -484,7 +484,9 @@ export default function CheckoutPage() {
   const [smsConsent, setSmsConsent] = useState<{ optedIn: boolean; phone: string | null } | null>(null);
   const [smsTouched, setSmsTouched] = useState<boolean | null>(null);
   const phoneDigits = phone.replace(/\D/g, '').slice(-10);
-  const smsChecked = smsTouched !== null ? smsTouched : Boolean(smsConsent?.optedIn && smsConsent.phone && smsConsent.phone === phoneDigits);
+  // the box is never ticked for the customer; when they already agreed for this very number it is not shown at all
+  const smsAlreadyOn = Boolean(smsConsent?.optedIn && smsConsent.phone && smsConsent.phone === phoneDigits);
+  const smsChecked = smsTouched === true;
   const handleSmsChange = (value: boolean) => setSmsTouched(value);
   // delivery instructions of this order (start from the ones saved on the selected address)
   const [deliveryInstructions, setDeliveryInstructions] = useState('');
@@ -1033,8 +1035,8 @@ export default function CheckoutPage() {
         currency: 'usd',
         paymentIntentId: paymentIntentId ?? undefined,
         deliveryInstructions: cleanInstructionsText(deliveryInstructions),
-        // not sent while the saved choice is still loading, so a quick payment cannot switch an existing agreement off
-        smsOptIn: smsTouched !== null || smsConsent ? smsChecked : undefined,
+        // only ever sent when the customer ticked the box themselves (an existing agreement is never changed here)
+        smsOptIn: smsChecked ? true : undefined,
       };
       sentInstructionsRef.current = cleanInstructionsText(deliveryInstructions);
 
@@ -1088,8 +1090,6 @@ export default function CheckoutPage() {
     cart,
     deliveryInstructions,
     smsChecked,
-    smsTouched,
-    smsConsent,
     email,
     handleClosedDays,
     name,
@@ -1366,7 +1366,7 @@ export default function CheckoutPage() {
             onPhoneChange={handlePhoneChange}
             onPhoneError={handlePhoneError}
             smsOptIn={smsChecked}
-            onSmsChange={handleSmsChange}
+            onSmsChange={smsAlreadyOn ? undefined : handleSmsChange}
             onPaymentMethodChange={setPaymentMethod}
             onTipChange={setTipPercentage}
             onPlaceOrder={handlePlaceOrder}

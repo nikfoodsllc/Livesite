@@ -21,11 +21,11 @@ export default function SmsConsentField({ checked, onChange, disabled, hint }: S
   return (
     <Box>
       <FormControlLabel
-        control={<Checkbox checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} sx={{ py: 0.5 }} />}
-        label={<Typography sx={{ fontSize: 15, fontWeight: 500 }}>{SMS_CONSENT_LABEL}</Typography>}
-        sx={{ m: 0, alignItems: 'center' }}
+        control={<Checkbox checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} sx={{ py: 0.25, pt: 0.1 }} />}
+        label={<Typography sx={{ fontSize: 14.5, fontWeight: 500, lineHeight: 1.4 }}>{SMS_CONSENT_LABEL}</Typography>}
+        sx={{ m: 0, alignItems: 'flex-start' }}
       />
-      <Typography sx={{ fontSize: 12.5, color: 'text.secondary', pl: '34px', mt: -0.25, lineHeight: 1.5 }}>
+      <Typography sx={{ fontSize: 12.5, color: 'text.secondary', pl: '42px', mt: 0.25, lineHeight: 1.5 }}>
         {hint ?? SMS_CONSENT_SMALL_PRINT}{' '}
         <Link href="/terms#sms" style={{ color: 'inherit', textDecoration: 'underline' }}>Terms</Link>
         {' · '}

@@ -2,15 +2,15 @@
  * What a customer agrees to when they tick the text-message box, and the words the box shows. The version is stored with
  * every consent so we can always show exactly what the customer saw when they agreed.
  */
-export const SMS_CONSENT_VERSION = '2026-10-09';
+export const SMS_CONSENT_VERSION = '2026-10-09b';
 
-/** The label next to the box. Short on purpose; the legal detail is on the Terms and Privacy pages. */
-export const SMS_CONSENT_LABEL = 'Text me order updates';
+/** The label next to the box: the wording carriers require. The box is never ticked by default. */
+export const SMS_CONSENT_LABEL = 'By checking this box, you agree to receive SMS disclosures from Nikfoods LLC.';
 
 /** The small print under the label (required on every place that collects the opt-in). */
 export const SMS_CONSENT_SMALL_PRINT = 'Msg & data rates may apply. Reply STOP to cancel.';
 
-export type SmsConsentSource = 'checkout' | 'profile' | 'text_reply';
+export type SmsConsentSource = 'checkout' | 'profile' | 'text_reply' | 'public_form';
 
 export interface SmsConsent {
   optedIn: boolean;

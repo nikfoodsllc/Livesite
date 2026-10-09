@@ -26,17 +26,44 @@ export interface SmsLogEntry {
 }
 
 const LOG = 'smsMessages';
+const SUBSCRIBERS = 'smsSubscribers';
+
+/** Someone who agreed on the public Text Updates page (no account needed). One record per number. */
+export interface SmsSubscriber {
+  phone: string;
+  optedIn: boolean;
+  optedInAt: Date;
+  optedOutAt?: Date;
+  source: 'public_form';
+  version: string;
+  /** Evidence of where the agreement came from */
+  ip?: string;
+  userAgent?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 async function usersCollection() {
   return db.getCollectionForOperations('users');
 }
 
-/** The customer's text-message choice, or null when they never made one. */
+/**
+ * The customer's text-message choice, or null when they never made one. An agreement given on the public Text Updates page
+ * for the number on the customer's profile counts too.
+ */
 export async function getSmsConsent(userId: string): Promise<SmsConsent | null> {
   if (!ObjectId.isValid(userId)) return null;
   const users = await usersCollection();
-  const user = await users.findOne({ _id: new ObjectId(userId) }, { projection: { smsConsent: 1 } });
-  return (user?.smsConsent as SmsConsent | undefined) ?? null;
+  const user = await users.findOne({ _id: new ObjectId(userId) }, { projection: { smsConsent: 1, phone: 1 } });
+  const own = (user?.smsConsent as SmsConsent | undefined) ?? null;
+  if (canText(own)) return own;
+  const profilePhone = normalizeUsPhone(user?.phone);
+  if (profilePhone) {
+    const subscribers = await db.getCollectionForOperations<SmsSubscriber>(SUBSCRIBERS);
+    const sub = await subscribers.findOne({ phone: profilePhone, optedIn: true } as never);
+    if (sub) return { optedIn: true, phone: profilePhone, optedInAt: sub.optedInAt, source: 'public_form', version: sub.version };
+  }
+  return own;
 }
 
 /** The consent only counts for the number it was given for, and only while it has not been withdrawn. */
@@ -70,6 +97,13 @@ export async function setSmsConsent(
     return { ok: true, optedIn: true, newlyOptedIn: true };
   }
 
+  // a withdrawal also ends an agreement given on the public page for the profile's number
+  const profile = await users.findOne({ _id }, { projection: { phone: 1 } });
+  const numbers = [normalizeUsPhone(before?.phone), normalizeUsPhone(profile?.phone)].filter((n): n is string => Boolean(n));
+  if (numbers.length) {
+    const subscribers = await db.getCollectionForOperations<SmsSubscriber>(SUBSCRIBERS);
+    await subscribers.updateMany({ phone: { $in: numbers }, optedIn: true } as never, { $set: { optedIn: false, optedOutAt: now, updatedAt: now } } as never);
+  }
   if (!before || !before.optedIn) return { ok: true, optedIn: false, newlyOptedIn: false };
   const via = choice.source === 'text_reply' ? 'text_reply' : choice.source === 'checkout' ? 'checkout' : 'profile';
   await users.updateOne({ _id }, { $set: { 'smsConsent.optedIn': false, 'smsConsent.optedOutAt': now, 'smsConsent.optedOutVia': via, updatedAt: now } });
@@ -81,7 +115,9 @@ export async function applyTextReply(phoneInput: unknown, kind: 'stop' | 'start'
   const phone = normalizeUsPhone(phoneInput);
   if (!phone) return 0;
   const users = await usersCollection();
+  const subscribers = await db.getCollectionForOperations<SmsSubscriber>(SUBSCRIBERS);
   if (kind === 'stop') {
+    await subscribers.updateMany({ phone, optedIn: true } as never, { $set: { optedIn: false, optedOutAt: now, updatedAt: now } } as never);
     const r = await users.updateMany(
       { 'smsConsent.phone': phone, 'smsConsent.optedIn': true },
       { $set: { 'smsConsent.optedIn': false, 'smsConsent.optedOutAt': now, 'smsConsent.optedOutVia': 'text_reply', updatedAt: now } }
@@ -89,6 +125,7 @@ export async function applyTextReply(phoneInput: unknown, kind: 'stop' | 'start'
     return r.modifiedCount;
   }
   // START: the customer asked to receive texts again from the number they had agreed for
+  await subscribers.updateMany({ phone, optedIn: false, optedOutAt: { $exists: true } } as never, { $set: { optedIn: true, optedInAt: now, updatedAt: now }, $unset: { optedOutAt: '' } } as never);
   const r = await users.updateMany(
     { 'smsConsent.phone': phone, 'smsConsent.optedIn': false, 'smsConsent.optedOutAt': { $exists: true } },
     { $set: { 'smsConsent.optedIn': true, 'smsConsent.optedInAt': now, 'smsConsent.source': 'text_reply', 'smsConsent.version': SMS_CONSENT_VERSION, updatedAt: now }, $unset: { 'smsConsent.optedOutAt': '', 'smsConsent.optedOutVia': '' } }
@@ -189,5 +226,65 @@ export async function sendRescheduleSms(orderId: string, adminId: string, now: D
     return { ok: true, orderId, sentAt: now.toISOString(), mode: sent.mode };
   } finally {
     await collection.updateOne({ orderId } as never, { $unset: { rescheduleSmsLock: '' } } as never).catch(() => undefined);
+  }
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Public sign-up page (no account needed)
+
+export type SubscribeResult = { ok: true; alreadySubscribed: boolean } | { ok: false; status: number; error: string };
+
+/** Max sign-ups from one address per hour, and per number per day (stops someone using the form to text strangers). */
+const MAX_PER_IP_PER_HOUR = 5;
+const MAX_PER_PHONE_PER_DAY = 3;
+
+/**
+ * Records an agreement made on the public Text Updates page and sends the one-time welcome text (when SMS is on). The box
+ * must have been ticked by the visitor: the caller passes `agreed` straight from the request.
+ */
+export async function subscribePublic(args: { phone: unknown; agreed: unknown; ip?: string; userAgent?: string }, now: Date = new Date()): Promise<SubscribeResult> {
+  if (args.agreed !== true) return { ok: false, status: 400, error: 'Please tick the box to agree.' };
+  const phone = normalizeUsPhone(args.phone);
+  if (!phone) return { ok: false, status: 400, error: 'Enter a 10 digit US phone number.' };
+
+  const attempts = await db.getCollectionForOperations<{ ip?: string; phone: string; at: Date }>('smsSignupAttempts');
+  const hourAgo = new Date(now.getTime() - 3_600_000);
+  const dayAgo = new Date(now.getTime() - 86_400_000);
+  if (args.ip && (await attempts.countDocuments({ ip: args.ip, at: { $gte: hourAgo } } as never)) >= MAX_PER_IP_PER_HOUR) return { ok: false, status: 429, error: 'Too many tries. Please try again later.' };
+  if ((await attempts.countDocuments({ phone, at: { $gte: dayAgo } } as never)) >= MAX_PER_PHONE_PER_DAY) return { ok: false, status: 429, error: 'Too many tries for this number. Please try again tomorrow.' };
+  await attempts.insertOne({ ip: args.ip, phone, at: now } as never);
+
+  const subscribers = await db.getCollectionForOperations<SmsSubscriber>(SUBSCRIBERS);
+  const existing = await subscribers.findOne({ phone } as never);
+  if (existing?.optedIn) return { ok: true, alreadySubscribed: true };
+  await subscribers.updateOne(
+    { phone } as never,
+    {
+      $set: { optedIn: true, optedInAt: now, source: 'public_form', version: SMS_CONSENT_VERSION, ip: args.ip, userAgent: (args.userAgent ?? '').slice(0, 300), updatedAt: now },
+      $unset: { optedOutAt: '' },
+      $setOnInsert: { phone, createdAt: now },
+    } as never,
+    { upsert: true }
+  );
+  await sendWelcomeToNumber(phone);
+  return { ok: true, alreadySubscribed: false };
+}
+
+async function sendWelcomeToNumber(phone: string): Promise<void> {
+  try {
+    const mode = smsMode();
+    if (mode === 'off') return;
+    const body = isTestSite() ? `[TEST] ${welcomeText()}` : welcomeText();
+    const now = new Date();
+    const log = await db.getCollectionForOperations<SmsLogEntry>(LOG);
+    const entry: SmsLogEntry = { to: phone, kind: 'welcome', body, mode, status: 'dry', createdAt: now, updatedAt: now };
+    if (mode === 'dry') {
+      await log.insertOne(entry as never);
+      return;
+    }
+    const sent = await sendViaTwilio(phone, body, `${getSiteUrl()}/api/webhooks/twilio`);
+    await log.insertOne({ ...entry, status: sent.ok ? sent.status || 'queued' : 'failed', providerSid: sent.sid, error: sent.error, errorCode: sent.code } as never);
+  } catch (error) {
+    console.warn('[sms] welcome text failed', error instanceof Error ? error.message : error);
   }
 }

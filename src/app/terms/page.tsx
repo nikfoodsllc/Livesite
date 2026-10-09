@@ -771,7 +771,7 @@ export default function TermsPage() {
                     fontSize: { xs: '0.95rem', md: '1rem' },
                   }}
                 >
-                  <strong>Program:</strong> NikFoods order updates, run by Nikfoods LLC. By ticking the text-message box at checkout or in My Account, you agree to receive text messages about your orders at the mobile number you gave. Consent is optional and is not a condition of any purchase.
+                  <strong>Program:</strong> NikFoods order updates, run by Nikfoods LLC. By ticking the text-message box at checkout, in My Account or on the Text Updates sign-up page, you agree to receive text messages about your orders at the mobile number you gave. Consent is optional and is not a condition of any purchase.
                 </Typography>
                 <Typography
                   variant="body1"
@@ -815,7 +815,7 @@ export default function TermsPage() {
                     fontSize: { xs: '0.95rem', md: '1rem' },
                   }}
                 >
-                  <strong>Carriers:</strong> carriers are not liable for delayed or undelivered messages. Supported on major US carriers. Your mobile number and consent are never shared with third parties for marketing or promotional purposes; see our Privacy Policy.
+                  <strong>Carriers:</strong> carriers are not liable for delayed or undelivered messages. Supported on major US carriers. No mobile information will be shared with third parties/affiliates for marketing/promotional purposes; see our Privacy Policy.
                 </Typography>
               </Box>
             </Box>
