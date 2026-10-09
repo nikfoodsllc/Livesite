@@ -175,11 +175,13 @@ function logoStrip(logoUrl: string, w: number, pad: string): string {
 
 /**
  * Subject line: "NikFoods Order Confirmation #<order number> - <order date>". An order an admin entered for the customer
- * (payment link, cash, Zelle...) starts with "Offline": "Offline NikFoods Order Confirmation #...".
+ * (payment link, cash, Zelle...) is always paid by the time this is sent, and its subject says so:
+ * "Paid - Offline NikFoods Order #<order number>".
  */
 export function getOrderConfirmationEmailSubject(order: Pick<Order, 'orderId' | 'createdAt' | 'source'>): string {
+  if (order.source === 'admin') return `Paid - Offline NikFoods Order #${order.orderId}`;
   const placed = fmt(toDate(order.createdAt || new Date()), { month: 'short', day: 'numeric', year: 'numeric' });
-  return `${order.source === 'admin' ? 'Offline ' : ''}NikFoods Order Confirmation #${order.orderId} - ${placed}`;
+  return `NikFoods Order Confirmation #${order.orderId} - ${placed}`;
 }
 
 export function getOrderConfirmationEmailTemplate(order: Order, profileCustomerDetails?: CustomerInfo): string {
