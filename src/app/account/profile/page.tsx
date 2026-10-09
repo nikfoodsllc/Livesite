@@ -5,6 +5,7 @@ import { Box } from '@mui/material';
 import AccountPageHeader from '@/components/account/AccountPageHeader';
 import PersonalInfoCard from '@/components/account/PersonalInfoCard';
 import LoginCredentialsCard from '@/components/account/LoginCredentialsCard';
+import SmsPreferenceCard from '@/components/account/SmsPreferenceCard';
 
 export default function ProfilePage() {
   return (
@@ -18,6 +19,7 @@ export default function ProfilePage() {
         }}
       >
         <PersonalInfoCard />
+        <SmsPreferenceCard />
         <LoginCredentialsCard />
       </Box>
     </Box>

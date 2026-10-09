@@ -20,6 +20,7 @@ import { closedLinesMessage, legacyClosedDates } from '@/lib/server/orderCutoff'
 import { attachOrderToDraft } from '@/lib/server/checkoutDrafts';
 import { rememberUserPhone } from '@/lib/server/userPhone';
 import { cleanInstructions, saveInstructionsOnAddress } from '@/lib/server/deliveryInstructions';
+import { sendWelcomeText, setSmsConsent } from '@/lib/server/smsService';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 if (!stripeSecretKey) {
@@ -44,6 +45,8 @@ interface CreateOrderRequest {
   paymentIntentId?: string;
   /** Delivery instructions typed at checkout: go on this order and are saved on the selected address */
   deliveryInstructions?: string;
+  /** The text-message box at checkout: true = agree to order texts for this phone, false = stop them, absent = leave as is */
+  smsOptIn?: boolean;
 }
 
 /**
@@ -306,6 +309,16 @@ export async function POST(request: NextRequest) {
 
         // the instructions typed at checkout are also saved on the selected address for next time (best effort)
         if (instructions !== undefined) await saveInstructionsOnAddress(userId, cart.selectedAddress._id, instructions);
+
+        // the text-message box (best effort; the consent is for the phone given here)
+        if (typeof body.smsOptIn === 'boolean') {
+          try {
+            const sms = await setSmsConsent(userId, { optedIn: body.smsOptIn, phone: customerInfo.phone, source: 'checkout' });
+            if (sms.ok && sms.newlyOptedIn) await sendWelcomeText(userId);
+          } catch (smsError) {
+            console.warn('[sms] could not save the text-message choice', smsError instanceof Error ? smsError.message : smsError);
+          }
+        }
 
         // Email will be sent via Stripe webhook when payment succeeds
         // This ensures emails are only sent for successful payments

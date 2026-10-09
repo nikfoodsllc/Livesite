@@ -24,6 +24,8 @@ export const INTERNAL_ORDER_FIELDS = [
   'reschedules',
   'rescheduleEmail',
   'rescheduleEmailLock',
+  'rescheduleSms',
+  'rescheduleSmsLock',
 ] as const;
 
 export function toCustomerOrder<T extends object>(order: T): Omit<T, (typeof INTERNAL_ORDER_FIELDS)[number]> {

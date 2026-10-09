@@ -4,6 +4,7 @@ import React, { useRef, useEffect, forwardRef, useImperativeHandle, useState, us
 import { Box, TextField, Typography, Paper } from '@mui/material';
 import { IconUser, IconMail, IconPhone, IconCheck } from '@tabler/icons-react';
 import { validateUSPhone } from '@/utils/validation';
+import SmsConsentField from '@/components/common/SmsConsentField';
 
 interface ContactInfoSectionProps {
   name: string;
@@ -13,6 +14,9 @@ interface ContactInfoSectionProps {
   onEmailChange: (value: string) => void;
   onPhoneChange: (value: string) => void;
   onPhoneError: (error: string | null) => void;
+  /** The text-message box; shown only when the parent provides it */
+  smsOptIn?: boolean;
+  onSmsChange?: (value: boolean) => void;
   errors?: {
     name?: string;
     email?: string;
@@ -33,6 +37,8 @@ const ContactInfoSection = forwardRef<ContactInfoSectionRef, ContactInfoSectionP
   onEmailChange,
   onPhoneChange,
   onPhoneError,
+  smsOptIn,
+  onSmsChange,
   errors = {},
 }, ref) => {
   // Individual field refs for scroll-to-error functionality
@@ -203,6 +209,7 @@ const ContactInfoSection = forwardRef<ContactInfoSectionRef, ContactInfoSectionP
             ) : undefined,
           }}
         />
+        {onSmsChange && <SmsConsentField checked={Boolean(smsOptIn)} onChange={onSmsChange} />}
       </Box>
     </Paper>
   );

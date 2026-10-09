@@ -749,6 +749,75 @@ export default function TermsPage() {
               >
                 Customers may opt out of marketing communications at any time.
               </Typography>
+              <Box id="sms" sx={{ mt: 3, scrollMarginTop: 80 }}>
+                <Typography
+                  variant="h6"
+                  sx={{
+                    fontWeight: 600,
+                    color: 'primary.main',
+                    mt: 3,
+                    mb: 1.5,
+                    fontSize: { xs: '1rem', md: '1.125rem' },
+                  }}
+                >
+                  Text message (SMS) program
+                </Typography>
+                <Typography
+                  variant="body1"
+                  sx={{
+                    color: 'text.secondary',
+                    lineHeight: 1.8,
+                    mb: 2,
+                    fontSize: { xs: '0.95rem', md: '1rem' },
+                  }}
+                >
+                  <strong>Program:</strong> NikFoods order updates, run by Nikfoods LLC. By ticking the text-message box at checkout, in My Account or on the Text Updates sign-up page, you agree to receive text messages about your orders at the mobile number you gave. Consent is optional and is not a condition of any purchase.
+                </Typography>
+                <Typography
+                  variant="body1"
+                  sx={{
+                    color: 'text.secondary',
+                    lineHeight: 1.8,
+                    mb: 2,
+                    fontSize: { xs: '0.95rem', md: '1rem' },
+                  }}
+                >
+                  <strong>Messages:</strong> transactional order and delivery updates only, such as a change to your delivery date. We do not send marketing or promotional texts under this program. Message frequency varies with your orders.
+                </Typography>
+                <Typography
+                  variant="body1"
+                  sx={{
+                    color: 'text.secondary',
+                    lineHeight: 1.8,
+                    mb: 2,
+                    fontSize: { xs: '0.95rem', md: '1rem' },
+                  }}
+                >
+                  <strong>Cost:</strong> message and data rates may apply, as set by your mobile carrier.
+                </Typography>
+                <Typography
+                  variant="body1"
+                  sx={{
+                    color: 'text.secondary',
+                    lineHeight: 1.8,
+                    mb: 2,
+                    fontSize: { xs: '0.95rem', md: '1rem' },
+                  }}
+                >
+                  <strong>Opt out and help:</strong> reply STOP to any message to cancel, or turn off Text messages in My Account &gt; Profile. Reply HELP for help, or email support@nikfoods.com. After you reply STOP you will receive one final confirmation and no further texts unless you opt in again.
+                </Typography>
+                <Typography
+                  variant="body1"
+                  sx={{
+                    color: 'text.secondary',
+                    lineHeight: 1.8,
+                    mb: 0,
+                    fontSize: { xs: '0.95rem', md: '1rem' },
+                  }}
+                >
+                  <strong>Carriers:</strong> carriers are not liable for delayed or undelivered messages. Supported on major US carriers. No mobile information will be shared with third parties/affiliates for marketing/promotional purposes; see our Privacy Policy.
+                </Typography>
+              </Box>
             </Box>
 
             <Divider sx={{ my: 4 }} />

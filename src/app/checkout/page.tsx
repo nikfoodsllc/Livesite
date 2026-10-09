@@ -93,6 +93,8 @@ interface CheckoutFormContentProps {
   onEmailChange: (value: string) => void;
   onPhoneChange: (value: string) => void;
   onPhoneError: (error: string | null) => void;
+  smsOptIn: boolean;
+  onSmsChange?: (value: boolean) => void;
   onPaymentMethodChange: (method: PaymentMethod) => void;
   onTipChange: (percentage: number) => void;
   onPlaceOrder: () => Promise<void>;
@@ -133,6 +135,8 @@ function CheckoutFormContent({
   onEmailChange,
   onPhoneChange,
   onPhoneError,
+  smsOptIn,
+  onSmsChange,
   onPaymentMethodChange,
   onTipChange,
   onPlaceOrder,
@@ -249,6 +253,8 @@ function CheckoutFormContent({
           onEmailChange={onEmailChange}
           onPhoneChange={onPhoneChange}
           onPhoneError={onPhoneError}
+          smsOptIn={smsOptIn}
+          onSmsChange={onSmsChange}
           errors={errors}
         />
 
@@ -474,6 +480,14 @@ export default function CheckoutPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  // text-message box: starts unticked; ticked from the start only when the customer already agreed for this very number
+  const [smsConsent, setSmsConsent] = useState<{ optedIn: boolean; phone: string | null } | null>(null);
+  const [smsTouched, setSmsTouched] = useState<boolean | null>(null);
+  const phoneDigits = phone.replace(/\D/g, '').slice(-10);
+  // the box is never ticked for the customer; when they already agreed for this very number it is not shown at all
+  const smsAlreadyOn = Boolean(smsConsent?.optedIn && smsConsent.phone && smsConsent.phone === phoneDigits);
+  const smsChecked = smsTouched === true;
+  const handleSmsChange = (value: boolean) => setSmsTouched(value);
   // delivery instructions of this order (start from the ones saved on the selected address)
   const [deliveryInstructions, setDeliveryInstructions] = useState('');
   const instructionsAddressIdRef = useRef<string | null>(null);
@@ -511,6 +525,24 @@ export default function CheckoutPage() {
   // Form container ref for scroll behavior
   const formContainerRef = useRef<HTMLDivElement>(null);
   const contactInfoRef = useRef<ContactInfoSectionRef>(null);
+
+  // what the customer already chose about text messages (the box stays unticked when they never agreed)
+  useEffect(() => {
+    if (!user) return;
+    let alive = true;
+    (async () => {
+      try {
+        const response = await authenticatedFetch('/api/account/sms-consent');
+        const body = await response.json().catch(() => ({}));
+        if (alive && response.ok) setSmsConsent({ optedIn: Boolean(body?.data?.optedIn), phone: body?.data?.phone ?? null });
+      } catch {
+        /* the box simply stays unticked */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [user, authenticatedFetch]);
   const paymentFormRef = useRef<CheckoutPaymentDetailsHandle>(null);
 
   const [cardDetailsComplete, setCardDetailsComplete] = useState(false);
@@ -1003,6 +1035,8 @@ export default function CheckoutPage() {
         currency: 'usd',
         paymentIntentId: paymentIntentId ?? undefined,
         deliveryInstructions: cleanInstructionsText(deliveryInstructions),
+        // only ever sent when the customer ticked the box themselves (an existing agreement is never changed here)
+        smsOptIn: smsChecked ? true : undefined,
       };
       sentInstructionsRef.current = cleanInstructionsText(deliveryInstructions);
 
@@ -1055,6 +1089,7 @@ export default function CheckoutPage() {
     authenticatedFetch,
     cart,
     deliveryInstructions,
+    smsChecked,
     email,
     handleClosedDays,
     name,
@@ -1330,6 +1365,8 @@ export default function CheckoutPage() {
             onEmailChange={handleEmailChange}
             onPhoneChange={handlePhoneChange}
             onPhoneError={handlePhoneError}
+            smsOptIn={smsChecked}
+            onSmsChange={smsAlreadyOn ? undefined : handleSmsChange}
             onPaymentMethodChange={setPaymentMethod}
             onTipChange={setTipPercentage}
             onPlaceOrder={handlePlaceOrder}
