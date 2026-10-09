@@ -219,7 +219,7 @@ export function getPaymentLinkEmailTemplate(order: Order, payUrl: string, accoun
   @media only screen and (max-width: 620px) {
     .wrap { width:100% !important; border-radius:0 !important; }
     .px { padding-left:20px !important; padding-right:20px !important; }
-    .hero-h { font-size:25px !important; line-height:30px !important; }
+    .hero-h { font-size:22px !important; line-height:28px !important; }
     .btn a { display:block !important; }
     .outer { padding:0 !important; }
     .dpx { padding-left:14px !important; padding-right:14px !important; }
@@ -245,7 +245,7 @@ export function getPaymentLinkEmailTemplate(order: Order, payUrl: string, accoun
 
   <tr><td class="px" align="center" bgcolor="${C.card}" style="padding:16px 32px 8px;background:${C.card};">
     <div style="font-size:12px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:${C.brandText};margin-bottom:4px;word-break:break-word;">Order # ${esc(order.orderId)}</div>
-    <div class="hero-h" style="font-size:30px;line-height:36px;font-weight:800;color:${C.text};">${greeting} please pay for your order</div>
+    <div class="hero-h" style="font-size:26px;line-height:32px;font-weight:800;color:${C.text};">${greeting} Kindly pay to confirm your offline order.</div>
     <div style="font-size:15px;line-height:22px;color:${C.body};margin:6px auto 0;max-width:460px;">Tap the button to pay securely by card or Apple Pay.</div>
   </td></tr>
 
