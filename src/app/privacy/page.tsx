@@ -93,10 +93,6 @@ export default function PrivacyPolicyPage() {
                 Welcome to NikFoods. We respect your privacy and are committed to protecting your personal data.
                 This privacy policy explains how we collect, use, disclose, and safeguard your information when
                 you use our Indian food delivery service. Please read this policy carefully.
-                <Box component="br" sx={{ display: { xs: 'block', md: 'none' } }} />
-                <Box component="br" sx={{ display: { xs: 'block', md: 'none' } }} />
-                <strong>Disclaimer:</strong> This privacy policy template is for informational purposes only and
-                should be reviewed by legal counsel to ensure compliance with applicable laws and regulations.
               </Typography>
             </Box>
 
@@ -220,6 +216,56 @@ export default function PrivacyPolicyPage() {
                 your orders and deliveries, improve our services and menu offerings, personalize your experience,
                 send you promotional communications (with your consent), process payments, and prevent fraud
                 and ensure security. We may also use your information to comply with legal obligations.
+              </Typography>
+            </Box>
+
+            <Divider sx={{ my: 4 }} />
+
+            {/* Text Messages (SMS) Section */}
+            <Box id="sms" sx={{ mb: 5, scrollMarginTop: 80 }}>
+              <Typography
+                variant="h5"
+                sx={{
+                  fontWeight: 600,
+                  color: 'text.primary',
+                  mb: 2,
+                  fontSize: { xs: '1.25rem', md: '1.5rem' },
+                }}
+              >
+                Text Messages (SMS)
+              </Typography>
+              <Typography
+                variant="body1"
+                sx={{
+                  color: 'text.secondary',
+                  lineHeight: 1.8,
+                  mb: 2,
+                  fontSize: { xs: '0.95rem', md: '1rem' },
+                }}
+              >
+                If you choose to receive text messages, we collect your mobile phone number and a record of your consent: the date and place where you agreed, the wording you agreed to, and the number it applies to. We use this only to send you order and delivery updates from NikFoods, such as a change to your delivery date. Agreeing to text messages is optional and is not a condition of any purchase.
+              </Typography>
+              <Typography
+                variant="body1"
+                sx={{
+                  color: 'text.secondary',
+                  lineHeight: 1.8,
+                  mb: 2,
+                  fontSize: { xs: '0.95rem', md: '1rem' },
+                }}
+              >
+                <strong>We do not share your mobile phone number or your text-message opt-in data and consent with any third parties or affiliates for marketing or promotional purposes.</strong> Mobile information is never sold or rented. It is shared only with the service providers that deliver our messages (our text-message provider and the mobile carriers), solely so that they can send the messages you asked for.
+              </Typography>
+              <Typography
+                variant="body1"
+                sx={{
+                  color: 'text.secondary',
+                  lineHeight: 1.8,
+                  mb: 0,
+                  fontSize: { xs: '0.95rem', md: '1rem' },
+                }}
+              >
+                You can stop text messages at any time by replying STOP to any message, or by turning off Text messages in My Account &gt; Profile. Reply HELP for help or email support@nikfoods.com. Message and data rates may apply.
               </Typography>
             </Box>
 

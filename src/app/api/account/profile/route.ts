@@ -4,6 +4,8 @@ import { jwtHandler } from '@/lib/jwt';
 import { IUser } from '@/types/auth';
 import { ObjectId as MongoObjectId, Filter } from 'mongodb';
 import { validateUSPhone } from '@/utils/validation';
+import { getSmsConsent, setSmsConsent } from '@/lib/server/smsService';
+import { normalizeUsPhone } from '@/lib/server/userPhone';
 
 // GET /api/account/profile - Get user profile
 export async function GET(request: NextRequest) {
@@ -53,6 +55,7 @@ export async function GET(request: NextRequest) {
             name: user.name,
             email: user.email,
             phone: user.phone,
+            smsOptedIn: Boolean((user as unknown as { smsConsent?: { optedIn?: boolean } }).smsConsent?.optedIn),
             role: user.role,
             isCompleted: user.isCompleted,
             createdAt: user.createdAt,
@@ -139,6 +142,18 @@ export async function PUT(request: NextRequest) {
         { error: 'Failed to update profile' },
         { status: 500 }
       );
+    }
+
+    // text messages were agreed for the OLD number: a new number must agree again
+    if (phone) {
+      try {
+        const consent = await getSmsConsent(userId);
+        if (consent?.optedIn && normalizeUsPhone(phone) !== normalizeUsPhone(consent.phone)) {
+          await setSmsConsent(userId, { optedIn: false, source: 'profile' });
+        }
+      } catch (smsError) {
+        console.warn('[sms] could not update the text-message choice', smsError instanceof Error ? smsError.message : smsError);
+      }
     }
 
     // Get updated user
