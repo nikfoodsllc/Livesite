@@ -1,11 +1,14 @@
 /**
  * When the routes of a delivery day are planned, as pure rules (no database, no OptimoRoute) so they can be tested.
  *
- * Routes for tomorrow are planned once, shortly after the 5 PM Pacific cutoff of the flat items. After that, any stop added
- * later (a late admin-entered order) is placed with the same routes kept (a top-up). Nothing is ever planned for a day
+ * Routes for tomorrow are planned once, at 11 PM Pacific the evening before (the cron runs every 30 minutes, so at 11:00 or 11:30).
+ * If that was missed, a day that has not been planned is still planned before 8 AM on its delivery day (the routes are sent at
+ * 10 AM). After that, any stop added later (a late admin-entered order) is placed with the same routes kept (a top-up). Nothing is ever planned for a day
  * that has no stops, and a failed plan is retried a few times.
  */
-export const PLAN_AFTER_MINUTES = 17 * 60 + 10; // 5:10 PM Pacific
+export const PLAN_AFTER_MINUTES = 23 * 60; // 11:00 PM Pacific the day before delivery
+/** On the delivery day itself a plan may still be started (or topped up) until this time: before the 10 AM send, never during the deliveries. */
+export const PLAN_UNTIL_MORNING_MINUTES = 8 * 60; // 8:00 AM Pacific
 export const MAX_RUNS_PER_DAY = 6;
 export const MAX_FAILED_TRIES = 3;
 export const STALE_RUNNING_MS = 25 * 60 * 1000;
@@ -50,6 +53,11 @@ export function decidePlan(args: { now: Date; record: PlanRecord | null; stopCou
   if (record.state === 'failed') return record.failures >= MAX_FAILED_TRIES ? { do: 'nothing', why: 'gave_up' } : { do: 'start', why: 'retry' };
   if (record.state === 'finished') return newStopsSinceFinish > 0 ? { do: 'start', why: 'top_up' } : { do: 'nothing', why: 'done' };
   return { do: 'nothing', why: 'done' };
+}
+
+/** Whether a plan may still be STARTED for today's deliveries (before 8 AM Pacific) or only followed to its end. */
+export function todayPlanning(now: Date): 'may_start' | 'advance_only' {
+  return pacificMinutes(now) < PLAN_UNTIL_MORNING_MINUTES ? 'may_start' : 'advance_only';
 }
 
 /** What a status answer from OptimoRoute means for a running plan. */

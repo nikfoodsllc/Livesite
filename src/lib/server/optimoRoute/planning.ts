@@ -2,12 +2,12 @@ import { db } from '@/lib/server/db';
 import { addDays } from '@/lib/orderReschedule';
 import { optimoMode } from './config';
 import { driversWithRoutes, plannedStopCount, planningStatus, startPlanning } from './client';
-import { decidePlan, planOutcome, type PlanRecord } from './planningRules';
+import { decidePlan, planOutcome, todayPlanning, type PlanRecord } from './planningRules';
 import { pacificToday } from './sync';
 
 /**
  * Automatic route planning (user decision 2026-10-08): the routes of tomorrow's deliveries are planned once, shortly after
- * 5 PM Pacific, with the drivers OptimoRoute has available that day. PLANNING ONLY: routes are never sent to drivers and no
+ * 11 PM Pacific the evening before, with the drivers OptimoRoute has available that day. PLANNING ONLY: routes are never sent to drivers and no
  * customer is notified (the team reviews and sends them in OptimoRoute). Late stops are placed with existing routes kept.
  *
  *   OPTIMOROUTE_PLAN unset or 'off'  nothing planned (the default)
@@ -68,7 +68,7 @@ export async function driversToPlanWith(date: string, env: Record<string, string
 }
 
 /** Plans one date now (or advances a running plan). `force` skips the time-of-day rule (admin button, tests). */
-export async function planDate(date: string, options: { now?: Date; force?: boolean; onlyAdvance?: boolean } = {}): Promise<PlanReport> {
+export async function planDate(date: string, options: { now?: Date; force?: boolean; onlyAdvance?: boolean; earlyMorning?: boolean } = {}): Promise<PlanReport> {
   const mode = planMode();
   const report: PlanReport = { mode, date, action: 'nothing' };
   if (mode === 'off') return report;
@@ -76,8 +76,8 @@ export async function planDate(date: string, options: { now?: Date; force?: bool
   const plans = await plansCollection();
   const record = (await plans.findOne({ date })) as (PlanRecord & { planningId?: number }) | null;
   const counts = await stopCounts(date, record?.finishedAt);
-  const action = decidePlan({ now, record, stopCount: counts.total, newStopsSinceFinish: counts.fresh, ignoreTime: options.force });
-  // a plan that is still running is followed to its end, but a day is only STARTED the evening before (never on its delivery day)
+  const action = decidePlan({ now, record, stopCount: counts.total, newStopsSinceFinish: counts.fresh, ignoreTime: options.force || options.earlyMorning });
+  // a plan that is still running is followed to its end, but a day is only STARTED the evening before (or before 8 AM on its delivery day), never during the deliveries
   if (options.onlyAdvance && action.do === 'start') {
     report.action = 'nothing:not_started_today';
     return report;
@@ -141,7 +141,7 @@ export async function runAutoPlanning(now: Date = new Date()): Promise<PlanRepor
   const today = pacificToday(now);
   for (const date of [today, addDays(today, 1)]) {
     try {
-      reports.push(await planDate(date, { now, onlyAdvance: date === today }));
+      reports.push(await planDate(date, { now, onlyAdvance: date === today && todayPlanning(now) === 'advance_only', earlyMorning: date === today && todayPlanning(now) === 'may_start' }));
     } catch (error) {
       console.error('[optimoroute] planning step failed', { date, error: error instanceof Error ? error.message : String(error) });
       reports.push({ mode: planMode(), date, action: 'error', error: 'planning step failed' });
