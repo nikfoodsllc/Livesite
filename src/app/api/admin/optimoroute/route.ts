@@ -3,6 +3,8 @@ import { requireAdmin } from '@/lib/adminAuth';
 import { optimoApiKey, optimoMode } from '@/lib/server/optimoRoute/config';
 import { previewDate, reconcile, syncOrder } from '@/lib/server/optimoRoute/sync';
 import { planDate, planMode, planRecord } from '@/lib/server/optimoRoute/planning';
+import { dispatchRecord, sendMode } from '@/lib/server/optimoRoute/dispatch';
+import { dispatchStatus } from '@/lib/server/optimoRoute/client';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -18,12 +20,12 @@ export async function GET(request: NextRequest) {
   if (denied) return denied;
   const date = new URL(request.url).searchParams.get('date') ?? '';
   const mode = optimoMode();
-  if (!date) return NextResponse.json({ success: true, mode, planMode: planMode(), keySet: Boolean(optimoApiKey()) });
+  if (!date) return NextResponse.json({ success: true, mode, planMode: planMode(), sendMode: sendMode(), keySet: Boolean(optimoApiKey()) });
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return NextResponse.json({ success: false, error: 'date must be YYYY-MM-DD' }, { status: 400 });
   if (!optimoApiKey()) return NextResponse.json({ success: false, error: 'OPTIMOROUTE_API_KEY is not set' }, { status: 503 });
   const preview = await previewDate(date);
   if ('error' in preview) return NextResponse.json({ success: false, error: preview.error }, { status: 502 });
-  return NextResponse.json({ success: true, mode, planMode: planMode(), data: preview, plan: await planRecord(date) });
+  return NextResponse.json({ success: true, mode, planMode: planMode(), data: preview, plan: await planRecord(date), dispatch: { record: await dispatchRecord(date), optimoroute: (await dispatchStatus(date)).data } });
 }
 
 export async function POST(request: NextRequest) {

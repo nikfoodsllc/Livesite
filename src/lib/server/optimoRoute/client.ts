@@ -133,3 +133,45 @@ export async function plannedStopCount(date: string): Promise<OptimoResult<numbe
   for (const route of result.data?.routes ?? []) count += (route.stops ?? []).filter((s) => s.orderNo).length;
   return { ok: true, data: count };
 }
+
+export interface DispatchStatus {
+  live?: boolean;
+  routes?: { state?: string; sentAtUtc?: string | null; scheduledForUtc?: string | null };
+  notifications?: { state?: string; sentAtUtc?: string | null; scheduledForUtc?: string | null };
+}
+
+/** Whether the routes and customer notifications of a day are not_sent, scheduled or sent (read only). */
+export async function dispatchStatus(date: string): Promise<OptimoResult<DispatchStatus>> {
+  const result = await getCall<DispatchStatus>('get_dispatch_status', { date });
+  return { ok: result.ok, code: result.code, message: result.message, data: result.data };
+}
+
+/**
+ * Sends the routes of a day to the drivers' phones and, with `sendNotifications`, the customers' notifications the account
+ * is set up for (OptimoRoute's Order Tracking settings; each order's own preference, 'both' by default).
+ */
+export async function sendRoutes(date: string, sendNotifications: boolean): Promise<OptimoResult<{ date?: string }>> {
+  const result = await call<{ date?: string }>('send_routes', { date, sendNotifications });
+  return { ok: result.ok, code: result.code, message: result.message, data: result.data };
+}
+
+export interface CompletionInfo {
+  /** success, failed, rejected, unfinished, or while the day is running: scheduled, on_route ... */
+  status?: string;
+  /** When the driver finished the stop (UTC, 'YYYY-MM-DDTHH:MM:SS') */
+  endUtc?: string;
+}
+
+/** What drivers reported for stops, by OptimoRoute order id (read only; up to 20 ids per call). */
+export async function completionDetails(ids: string[]): Promise<OptimoResult<Record<string, CompletionInfo>>> {
+  const out: Record<string, CompletionInfo> = {};
+  for (let i = 0; i < ids.length; i += 20) {
+    const chunk = ids.slice(i, i + 20);
+    const result = await call<{ orders?: Array<{ success?: boolean; id?: string; data?: { status?: string; endTime?: { utcTime?: string } } }> }>('get_completion_details', { orders: chunk.map((id) => ({ id })) });
+    if (!result.ok) return { ok: false, code: result.code, message: result.message };
+    for (const o of result.data?.orders ?? []) {
+      if (o.success && o.id) out[o.id] = { status: o.data?.status, endUtc: o.data?.endTime?.utcTime };
+    }
+  }
+  return { ok: true, data: out };
+}

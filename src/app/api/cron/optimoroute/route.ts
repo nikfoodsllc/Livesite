@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/adminAuth';
 import { reconcile } from '@/lib/server/optimoRoute/sync';
 import { runAutoPlanning } from '@/lib/server/optimoRoute/planning';
+import { runAutoDispatch } from '@/lib/server/optimoRoute/dispatch';
+import { runCompletionSync } from '@/lib/server/optimoRoute/completion';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -24,7 +26,11 @@ export async function GET(request: NextRequest) {
     const data = await reconcile();
     // after the stops are in OptimoRoute: plan tomorrow's routes when it is time (a no-op unless OPTIMOROUTE_PLAN is on or dry)
     const planning = await runAutoPlanning();
-    return NextResponse.json({ success: true, data, planning });
+    // at 10:00 AM Pacific on the delivery day: send the routes to the drivers and notify the customers (a no-op unless OPTIMOROUTE_SEND is on or dry)
+    const dispatch = await runAutoDispatch();
+    // what the drivers finished: mark fully delivered orders Delivered (a no-op unless OPTIMOROUTE_COMPLETION is on or dry)
+    const completion = await runCompletionSync();
+    return NextResponse.json({ success: true, data, planning, dispatch, completion });
   } catch (error) {
     console.error('[optimoroute] reconcile failed', error instanceof Error ? error.message : String(error));
     return NextResponse.json({ success: false, error: 'Reconcile failed' }, { status: 500 });
