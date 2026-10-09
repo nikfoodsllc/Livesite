@@ -201,7 +201,17 @@ export default function Footer() {
           <Typography variant="body2" sx={{ color: '#B0B0B0' }}>
             © {currentYear} NikFoods. All rights reserved.
           </Typography>
-          <Box sx={{ display: 'flex', gap: 3 }}>
+          <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap', justifyContent: 'center' }}>
+            {[{ label: 'Terms', href: '/terms' }, { label: 'Text Updates', href: '/sms' }].map((l) => (
+              <Link
+                key={l.href}
+                href={l.href}
+                underline="none"
+                sx={{ color: '#B0B0B0', fontSize: '0.875rem', '&:hover': { color: theme.palette.primary.main } }}
+              >
+                {l.label}
+              </Link>
+            ))}
             <Link
               href="/privacy"
               underline="none"
