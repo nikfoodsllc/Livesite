@@ -146,6 +146,12 @@ function OrderSummary({ data }: { data: PayData }) {
             <Typography variant="body2">Subtotal</Typography>
             <Typography variant="body2" sx={{ fontWeight: 500 }}>{money(data.subtotal)}</Typography>
           </Box>
+          {hasAmount(data.discount) && (
+            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+              <Typography variant="body2">Discount</Typography>
+              <Typography variant="body2" sx={{ fontWeight: 500, color: '#14803C' }}>-{money(data.discount ?? 0)}</Typography>
+            </Box>
+          )}
           {hasAmount(taxesAndFees) && (
             <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
               <Typography variant="body2" component="div"><TaxesFeesLabel /></Typography>

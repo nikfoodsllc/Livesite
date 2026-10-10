@@ -2,6 +2,7 @@ import { Order, OrderDay } from '@/types/order';
 import { getSiteUrl } from '@/lib/siteUrl';
 import { EMAIL_LOGO_CID } from '@/lib/emailLogo';
 import { hasAmount } from '@/lib/orderTotalsDisplay';
+import { getZelleId } from '@/lib/zelle';
 
 function esc(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -191,10 +192,64 @@ function sumRow(label: string, value: string, note?: string): string {
  * NikFoods emails: gold logo on a dark strip, every coloured block a table cell with a bgcolor).
  */
 export function getPaymentLinkEmailTemplate(order: Order, payUrl: string, accountCreated: boolean): string {
-  const logoUrl = `cid:${EMAIL_LOGO_CID}`;
-  const siteUrl = getSiteUrl();
   const name = order.customerInfo?.name?.trim().split(/\s+/)[0] ?? '';
   const greeting = name ? `Hi ${esc(name)},` : 'Hi there,';
+  const total = money(order.totalPaid, order.currency);
+  return renderOfflineEmail(order, accountCreated, {
+    title: 'Your NikFoods order is ready for payment',
+    preheader: `Tap to pay ${esc(total)} securely by card or Apple Pay.`,
+    heading: `${greeting} kindly pay to confirm your offline order.`,
+    intro: 'Tap the button to pay securely by card or Apple Pay.',
+    cta: `<table role="presentation" class="btn" cellpadding="0" cellspacing="0" style="border-collapse:separate;"><tr>
+      <td align="center" bgcolor="${C.brand}" style="border-radius:14px;background:${C.brand};border:2px solid ${C.brand};">
+        <a href="${esc(payUrl)}" style="display:inline-block;padding:11px 34px;font-size:17px;font-weight:800;color:${C.onBrand};border-radius:14px;">Pay ${esc(total)} &rarr;</a>
+      </td>
+    </tr></table>
+    <div style="font-size:12px;color:${C.muted};margin-top:6px;line-height:17px;">Button not working? Copy this link into your browser:<br><a href="${esc(payUrl)}" style="color:${C.brandText};word-break:break-all;">${esc(payUrl)}</a></div>`,
+  });
+}
+
+/** Subject of the Zelle instructions email of an admin-entered order. */
+export function getZelleInstructionsEmailSubject(order: Order): string {
+  return `Zelle Instructions - Offline NikFoods Order #${order.orderId}`;
+}
+
+/**
+ * Same email as the pay-link one, but with the Zelle instructions instead of a pay button: no Stripe, no link. The customer sends the
+ * total by Zelle to our Zelle address and an admin marks the order paid when it arrives.
+ */
+export function getZelleInstructionsEmailTemplate(order: Order, accountCreated: boolean): string {
+  const name = order.customerInfo?.name?.trim().split(/\s+/)[0] ?? '';
+  const greeting = name ? `Hi ${esc(name)},` : 'Hi there,';
+  const total = money(order.totalPaid, order.currency);
+  const zelleId = getZelleId();
+  return renderOfflineEmail(order, accountCreated, {
+    title: 'Zelle instructions for your NikFoods order',
+    preheader: `Please pay ${esc(total)} by Zelle to ${esc(zelleId)}.`,
+    // the amount and the Zelle address are in the box below: the heading does not repeat them
+    heading: `${greeting} kindly pay to confirm your offline order.`,
+    intro: 'Your order is confirmed as soon as we receive your payment.',
+    cta: `<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:separate;margin:0 auto;"><tr>
+      <td align="center" bgcolor="${C.tile}" style="background:${C.tile};border:2px solid ${C.tileLine};border-radius:16px;padding:12px 26px;">
+        <div style="font-size:12px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:${C.brandText};">Send ${esc(total)} by Zelle to</div>
+        <div style="font-size:20px;line-height:28px;font-weight:800;color:${C.text};word-break:break-all;margin-top:2px;">${esc(zelleId)}</div>
+      </td>
+    </tr></table>`,
+  });
+}
+
+interface OfflineEmailParts {
+  title: string;
+  preheader: string;
+  heading: string;
+  intro: string;
+  /** The block under the heading: the pay button, or the Zelle instructions */
+  cta: string;
+}
+
+function renderOfflineEmail(order: Order, accountCreated: boolean, parts: OfflineEmailParts): string {
+  const logoUrl = `cid:${EMAIL_LOGO_CID}`;
+  const siteUrl = getSiteUrl();
   const total = money(order.totalPaid, order.currency);
   const taxesAndFees = order.taxes + order.platformFee + order.deliveryFee;
   const accountNote = accountCreated
@@ -211,7 +266,7 @@ export function getPaymentLinkEmailTemplate(order: Order, payUrl: string, accoun
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="light dark">
-<title>Your NikFoods order is ready for payment</title>
+<title>${esc(parts.title)}</title>
 <style>
   body { margin:0; padding:0; -webkit-text-size-adjust:100%; }
   table { border-collapse:collapse; }
@@ -236,7 +291,7 @@ export function getPaymentLinkEmailTemplate(order: Order, payUrl: string, accoun
 </style>
 </head>
 <body bgcolor="${C.page}" style="margin:0;padding:0;background:${C.page};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:${C.text};">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;font-size:1px;line-height:1px;">Tap to pay ${esc(total)} securely by card or Apple Pay.</div>
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;font-size:1px;line-height:1px;">${parts.preheader}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="${C.page}" style="background:${C.page};">
 <tr><td class="outer" align="center" style="padding:16px 12px;">
 <table role="presentation" class="wrap" width="640" cellpadding="0" cellspacing="0" bgcolor="${C.card}" style="width:640px;max-width:640px;background:${C.card};border-radius:24px;overflow:hidden;border:1px solid ${C.line};border-collapse:separate;">
@@ -245,17 +300,12 @@ export function getPaymentLinkEmailTemplate(order: Order, payUrl: string, accoun
 
   <tr><td class="px" align="center" bgcolor="${C.card}" style="padding:16px 32px 8px;background:${C.card};">
     <div style="font-size:12px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:${C.brandText};margin-bottom:4px;word-break:break-word;">Order # ${esc(order.orderId)}</div>
-    <div class="hero-h" style="font-size:26px;line-height:32px;font-weight:800;color:${C.text};">${greeting} kindly pay to confirm your offline order.</div>
-    <div style="font-size:15px;line-height:22px;color:${C.body};margin:6px auto 0;max-width:460px;">Tap the button to pay securely by card or Apple Pay.</div>
+    <div class="hero-h" style="font-size:26px;line-height:32px;font-weight:800;color:${C.text};">${parts.heading}</div>
+    <div style="font-size:15px;line-height:22px;color:${C.body};margin:6px auto 0;max-width:460px;">${esc(parts.intro)}</div>
   </td></tr>
 
   <tr><td class="px" align="center" bgcolor="${C.card}" style="padding:12px 32px 4px;background:${C.card};">
-    <table role="presentation" class="btn" cellpadding="0" cellspacing="0" style="border-collapse:separate;"><tr>
-      <td align="center" bgcolor="${C.brand}" style="border-radius:14px;background:${C.brand};border:2px solid ${C.brand};">
-        <a href="${esc(payUrl)}" style="display:inline-block;padding:11px 34px;font-size:17px;font-weight:800;color:${C.onBrand};border-radius:14px;">Pay ${esc(total)} &rarr;</a>
-      </td>
-    </tr></table>
-    <div style="font-size:12px;color:${C.muted};margin-top:6px;line-height:17px;">Button not working? Copy this link into your browser:<br><a href="${esc(payUrl)}" style="color:${C.brandText};word-break:break-all;">${esc(payUrl)}</a></div>
+    ${parts.cta}
   </td></tr>
 
   <tr><td class="px" bgcolor="${C.card}" style="padding:12px 32px 0;background:${C.card};">
@@ -273,6 +323,7 @@ export function getPaymentLinkEmailTemplate(order: Order, payUrl: string, accoun
       <tr><td style="padding:8px 18px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
           ${sumRow('Subtotal', money(order.subtotal, order.currency))}
+          ${hasAmount(order.discount?.amount) ? sumRow('Discount', '&minus;' + money(order.discount!.amount, order.currency)) : ''}
           ${hasAmount(taxesAndFees) ? sumRow('Taxes &amp; Fees', money(taxesAndFees, order.currency)) : ''}
           ${order.tip > 0 ? sumRow('Tip', money(order.tip, order.currency), '&mdash; thank you!') : ''}
         </table>

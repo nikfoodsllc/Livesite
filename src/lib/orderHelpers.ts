@@ -70,6 +70,7 @@ export function convertCartToOrderItems(
         comboSelections: item.comboSelections,
         notes: item.notes,
         ...(item.listingType ? { listingType: item.listingType } : {}),
+        ...(item.priceEditedFrom !== undefined ? { priceEditedFrom: item.priceEditedFrom } : {}),
       })),
       dayTotal: cartDay.dayTotal,
     };

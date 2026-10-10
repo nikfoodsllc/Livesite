@@ -20,7 +20,7 @@ import { validateZipcodeServiceabilityServer } from '@/utils/zipcodeValidation';
 import { syncOrderSafely } from '@/lib/server/optimoRoute/sync';
 import { calculateDeliveryDates } from '@/lib/deliveryCalculator';
 import { convertCartToOrderItems, createAddressSnapshot, formatOrderForDatabase, generateOrderId } from '@/lib/orderHelpers';
-import { sendPaymentLinkEmail } from '@/lib/offlineOrderEmail';
+import { sendPaymentLinkEmail, sendZelleInstructionsEmail } from '@/lib/offlineOrderEmail';
 import { recordPaymentLinkEmailSent, type PaymentLinkEmailRecord, type PaymentLinkViews } from '@/lib/server/paymentLinkTracking';
 import { sendOrderConfirmationEmail } from '@/lib/email';
 
@@ -28,6 +28,8 @@ const MAX_LINES = 60;
 
 export type OfflinePayment =
   | { mode: 'link' }
+  /** The customer pays by Zelle: the order waits unpaid and the customer gets the Zelle instructions by email (no Stripe) */
+  | { mode: 'zelle' }
   | { mode: 'offline'; /** how it was paid: Cash, Zelle or any text the admin typed (stored as the order's payment method) */ method: string; note?: string };
 
 export interface OfflineOrderInput {
@@ -36,6 +38,8 @@ export interface OfflineOrderInput {
   lines: OfflineLineInput[];
   tipPercentage: number;
   waivePlatformFee?: boolean;
+  /** Dollars off the order (admin only) */
+  discount?: number;
   allowBelowMinimum?: boolean;
   payment: OfflinePayment;
   /** One id per press of Create: a second request with the same id is refused, so a double tap or a retry cannot make the order twice */
@@ -74,9 +78,12 @@ function fail(status: number, error: string, extra: Partial<ServiceFailure> = {}
 
 /** Checks the lines and the delivery address, prices everything and totals it. Shared by the preview and the real thing. */
 async function prepare(
-  input: Pick<OfflineOrderInput, 'lines' | 'address' | 'tipPercentage' | 'waivePlatformFee'>
+  input: Pick<OfflineOrderInput, 'lines' | 'address' | 'tipPercentage' | 'waivePlatformFee' | 'discount'>
 ): Promise<{ ok: true; value: Prepared } | ServiceFailure> {
   const { lines, address, tipPercentage } = input;
+  if (input.discount !== undefined && input.discount !== null && (!Number.isFinite(Number(input.discount)) || Number(input.discount) < 0 || Number(input.discount) > 10000)) {
+    return fail(400, 'The discount must be a dollar amount from $0 to $10,000');
+  }
 
   if (!Array.isArray(lines) || lines.length === 0) return fail(400, 'Add at least one item');
   if (lines.length > MAX_LINES) return fail(400, `An order can have at most ${MAX_LINES} lines`);
@@ -112,6 +119,7 @@ async function prepare(
     minOrderValue: zip.config?.minCartValue,
     tipPercentage,
     waivePlatformFee: input.waivePlatformFee,
+    discount: input.discount,
   });
 
   // no minimum per day for the delivery plan either: each day is delivered on its own date
@@ -127,7 +135,7 @@ export interface OfflinePreview {
     actualDeliveryDate?: string;
     message?: string;
     dayTotal: number;
-    items: Array<{ name: string; quantity: number; unitPrice: number; lineTotal: number; portion?: string; spice?: string; eco?: boolean }>;
+    items: Array<{ name: string; quantity: number; unitPrice: number; lineTotal: number; portion?: string; spice?: string; eco?: boolean; /** menu price when the admin typed another one */ priceEditedFrom?: number }>;
   }>;
   totals: BuiltOfflineCart['totals'];
   minOrderValue: number;
@@ -139,7 +147,7 @@ export interface OfflinePreview {
 
 /** What the order would look like and cost, without saving anything. */
 export async function previewOfflineOrder(
-  input: Pick<OfflineOrderInput, 'lines' | 'address' | 'tipPercentage' | 'waivePlatformFee'>
+  input: Pick<OfflineOrderInput, 'lines' | 'address' | 'tipPercentage' | 'waivePlatformFee' | 'discount'>
 ): Promise<{ ok: true; preview: OfflinePreview } | ServiceFailure> {
   const prepared = await prepare(input);
   if (!prepared.ok) return prepared;
@@ -159,6 +167,7 @@ export async function previewOfflineOrder(
         portion: it.selectedPortion,
         spice: it.selectedSpiceLevel,
         eco: it.isEcoFriendlyContainer,
+        ...(it.priceEditedFrom !== undefined ? { priceEditedFrom: it.priceEditedFrom } : {}),
       })),
     })),
     totals: built.totals,
@@ -212,7 +221,7 @@ function stripeClient(): Stripe | null {
 export interface CreatedOfflineOrder {
   orderId: string;
   totalPaid: number;
-  mode: 'link' | 'offline';
+  mode: 'link' | 'offline' | 'zelle';
   accountCreated: boolean;
   payLink?: string;
   emailSent: boolean;
@@ -258,16 +267,19 @@ async function createNewOfflineOrder(
   if (!phone) return fail(400, 'Phone number must be 10 digits');
   if (!input.address?.street_address || input.address.street_address.trim().length < 5) return fail(400, 'Enter the street address');
   if (!input.address.city || input.address.city.trim().length < 2) return fail(400, 'Enter the city');
-  if (payment?.mode !== 'link' && payment?.mode !== 'offline') return fail(400, 'Choose how the customer pays');
+  if (payment?.mode !== 'link' && payment?.mode !== 'offline' && payment?.mode !== 'zelle') return fail(400, 'Choose how the customer pays');
   if (payment.mode === 'offline' && !normalizePaymentMethod(payment.method)) return fail(400, 'Choose how it was paid (Cash, Zelle, or type the method)');
   if (payment.mode === 'offline' && (payment.note ?? '').length > 200) return fail(400, 'The payment note is too long');
 
   if (typeof input.requestId !== 'string' || !/^[A-Za-z0-9-]{16,64}$/.test(input.requestId)) return fail(400, 'Missing request id. Reload the page and try again.');
 
+  // the Platform Fee only covers Stripe's card fee: a Zelle order has none unless the admin says otherwise
+  if (payment.mode === 'zelle' && input.waivePlatformFee === undefined) input = { ...input, waivePlatformFee: true };
   const prepared = await prepare(input);
   if (!prepared.ok) return prepared;
   const { built, orderItems } = prepared.value;
 
+  if (payment.mode === 'zelle' && !(built.totals.total > 0)) return fail(400, 'The total is $0.00, so there is nothing to pay by Zelle. Use “Already paid” instead.');
   const stripe = payment.mode === 'link' ? stripeClient() : null;
   if (payment.mode === 'link' && !stripe) return fail(500, 'Stripe is not configured on the site');
 
@@ -293,6 +305,7 @@ async function createNewOfflineOrder(
     address: createAddressSnapshot(built.cart.selectedAddress!),
     customerInfo: { name, email, phone },
     subtotal: totals.subtotal,
+    ...(totals.discount > 0 ? { discount: { amount: totals.discount, code: 'ADMIN' } } : {}),
     platformFee: totals.platformFee,
     deliveryFee: totals.deliveryFee,
     taxes: totals.tax,
@@ -336,6 +349,23 @@ async function createNewOfflineOrder(
     // cash / paid-another-way orders are confirmed right now: put the delivery stop on the OptimoRoute plan
     await syncOrderSafely(orderId);
     return { ok: true, order: { orderId, totalPaid: totals.total, mode: 'offline', accountCreated: ensured.accountCreated, emailSent, emailError } };
+  }
+
+  if (payment.mode === 'zelle') {
+    // Zelle: nothing goes through Stripe. The order waits unpaid until an admin marks it paid; the customer gets the instructions.
+    const zelleOrder: Order = { ...base, paymentMethod: 'Zelle', zellePending: true } as Order;
+    const savedZelle = await db.create('orders', formatOrderForDatabase(zelleOrder));
+    if (!savedZelle.success) {
+      await released();
+      return fail(500, 'Failed to save the order');
+    }
+    await completeRequest(input.requestId, orderId);
+    const zelleEmail = await sendZelleInstructionsEmail(zelleOrder, ensured.accountCreated);
+    if (zelleEmail.success) {
+      await db.updateOne('orders', { orderId } as never, { $set: { paymentLinkSentAt: new Date() } } as never);
+      await recordPaymentLinkEmailSent(orderId, zelleEmail);
+    }
+    return { ok: true, order: { orderId, totalPaid: totals.total, mode: 'zelle', accountCreated: ensured.accountCreated, emailSent: zelleEmail.success, emailError: zelleEmail.error } };
   }
 
   // pay link: open the Stripe payment first, so an order is never saved without a way to pay it
@@ -425,6 +455,8 @@ export interface OfflineOrderRow {
   paymentMethod: string;
   /** Paid by a payment link (as opposed to recorded as paid offline) */
   linkOrder: boolean;
+  /** link = card through a pay link, zelle = waits for a Zelle payment, offline = recorded as paid outside the website */
+  payKind: 'link' | 'zelle' | 'offline';
   /** Still waiting for the customer to pay the link */
   awaitingPayment: boolean;
   linkSentAt?: string;
@@ -531,7 +563,7 @@ export async function listOfflineOrders(limit = 40): Promise<OfflineOrderRow[]> 
     db.read<Order>('orders', { source: 'admin' } as never, { sort: { createdAt: -1 }, limit: take }),
     db.read<Order>(
       'orders',
-      { source: 'admin', stripePaymentIntentId: { $exists: true }, paymentStatus: { $ne: 'paid' }, status: { $ne: 'cancelled' } } as never,
+      { source: 'admin', $or: [{ stripePaymentIntentId: { $exists: true } }, { zellePending: true }], paymentStatus: { $ne: 'paid' }, status: { $ne: 'cancelled' } } as never,
       { sort: { createdAt: -1 }, limit: 200 }
     ),
   ]);
@@ -549,7 +581,8 @@ export async function listOfflineOrders(limit = 40): Promise<OfflineOrderRow[]> 
     paymentStatus: o.paymentStatus,
     paymentMethod: o.paymentMethod,
     linkOrder: Boolean(o.stripePaymentIntentId),
-    awaitingPayment: Boolean(o.stripePaymentIntentId) && o.paymentStatus !== 'paid' && o.status !== 'cancelled',
+    payKind: o.zellePending ? 'zelle' : o.stripePaymentIntentId ? 'link' : 'offline',
+    awaitingPayment: (Boolean(o.stripePaymentIntentId) || Boolean(o.zellePending)) && o.paymentStatus !== 'paid' && o.status !== 'cancelled',
     linkSentAt: o.paymentLinkSentAt ? (o.paymentLinkSentAt instanceof Date ? o.paymentLinkSentAt.toISOString() : String(o.paymentLinkSentAt)) : undefined,
     deliveryDates: Array.from(new Set((o.items ?? []).map((d) => String(d.actualDeliveryDate ?? d.deliveryDate).slice(0, 10)))).sort(),
     ...(latestEmail(o) ? { linkEmail: latestEmail(o) } : {}),
@@ -566,7 +599,7 @@ async function loadCancellableOrder(orderId: string): Promise<{ ok: true; order:
   if (!order || order.source !== 'admin') return fail(404, 'No admin-entered order with that number');
   if (order.paymentStatus === 'paid') return fail(409, 'This order is already paid. Refunds are done in Stripe.');
   if (order.status === 'cancelled') return fail(409, 'This order was already cancelled');
-  if (!order.stripePaymentIntentId) return fail(409, 'Only an order waiting for a payment link can be cancelled or edited here');
+  if (!order.stripePaymentIntentId && !order.zellePending) return fail(409, 'Only an order waiting for payment can be cancelled or edited here');
   return { ok: true, order };
 }
 
@@ -576,10 +609,10 @@ export async function cancelOfflineOrder(orderId: string, adminId?: string): Pro
   if (!loaded.ok) return loaded;
   const order = loaded.order;
 
-  const stripe = stripeClient();
-  if (!stripe) return fail(500, 'Stripe is not configured on the site');
-  try {
-    const pi = await stripe.paymentIntents.retrieve(order.stripePaymentIntentId!);
+  const stripe = order.stripePaymentIntentId ? stripeClient() : null;
+  if (order.stripePaymentIntentId && !stripe) return fail(500, 'Stripe is not configured on the site');
+  if (order.stripePaymentIntentId && stripe) try {
+    const pi = await stripe.paymentIntents.retrieve(order.stripePaymentIntentId);
     if (pi.status === 'succeeded' || pi.status === 'processing') return fail(409, 'The customer has already paid by card, so it cannot be cancelled. Refunds are done in Stripe.');
     if (pi.status !== 'canceled') {
       try {
@@ -620,12 +653,18 @@ export interface EditableOrder {
     isEcoFriendlyContainer?: boolean;
     comboSelections?: Record<string, string[]>;
     notes?: string;
+    /** The price typed for one item (the order keeps it when it is edited again) */
+    unitPriceEdited?: number;
     name: string;
     unitPrice: number;
     tags: string[];
   }>;
   tipPercentage: number;
   waivePlatformFee: boolean;
+  /** Dollars off */
+  discount: number;
+  /** How the order is paid, so the replacement starts on the same choice */
+  payKind: 'link' | 'zelle';
 }
 
 /** The order laid out the way the Create Order form holds it, so an admin can change it and submit it as a replacement. */
@@ -658,13 +697,15 @@ export async function getOrderForEdit(orderId: string): Promise<{ ok: true; orde
         ...(item.isEcoFriendlyContainer ? { isEcoFriendlyContainer: true } : {}),
         ...(item.comboSelections && Object.keys(item.comboSelections).length > 0 ? { comboSelections: item.comboSelections } : {}),
         ...(item.notes ? { notes: item.notes } : {}),
+        ...(item.priceEditedFrom !== undefined ? { unitPriceEdited: Math.round((item.price - (item.isEcoFriendlyContainer ? item.ecoContainerCharge ?? 0 : 0)) * 100) / 100 } : {}),
         name: item.food.name,
         unitPrice: item.price,
         tags,
       });
     }
   }
-  const pct = o.subtotal > 0 ? (o.tip / o.subtotal) * 100 : 0;
+  const payable = Math.max(0, (o.subtotal ?? 0) - (o.discount?.amount ?? 0));
+  const pct = payable > 0 ? (o.tip / payable) * 100 : 0;
   const tipPercentage = TIP_PERCENTAGES.reduce((best, p) => (Math.abs(p - pct) < Math.abs(best - pct) ? p : best), 0 as number);
   return {
     ok: true,
@@ -682,6 +723,8 @@ export async function getOrderForEdit(orderId: string): Promise<{ ok: true; orde
       lines,
       tipPercentage,
       waivePlatformFee: Boolean((o as unknown as { platformFeeWaived?: boolean }).platformFeeWaived),
+      discount: o.discount?.amount ?? 0,
+      payKind: o.zellePending ? 'zelle' : 'link',
     },
   };
 }
@@ -703,9 +746,24 @@ export async function resendPaymentLink(
   const now = options.now ?? new Date();
   const found = await db.readOne<Order>('orders', { orderId } as never);
   const order = found.success ? found.data : null;
-  if (!order || order.source !== 'admin' || !order.stripePaymentIntentId) return fail(404, 'No pay-by-link order with that number');
+  if (!order || order.source !== 'admin' || (!order.stripePaymentIntentId && !order.zellePending)) return fail(404, 'No order waiting for payment with that number');
   if (order.paymentStatus === 'paid') return fail(409, 'This order is already paid');
   if (order.status === 'cancelled') return fail(409, 'This order was cancelled');
+
+  // Zelle order: there is no link; "send" means emailing the Zelle instructions again (once every few seconds at most)
+  if (order.zellePending) {
+    if (options.sendEmail === false) return fail(409, 'A Zelle order has no payment link to copy');
+    if (order.paymentLinkSentAt) {
+      const last = new Date(order.paymentLinkSentAt as unknown as string | Date).getTime();
+      if (Number.isFinite(last) && now.getTime() - last < REMINDER_COOLDOWN_MS) return fail(409, 'The instructions were just emailed. Wait a few seconds before sending them again.');
+    }
+    const sentZelle = await sendZelleInstructionsEmail(order, false);
+    if (sentZelle.success) {
+      await db.updateOne('orders', { orderId } as never, { $set: { paymentLinkSentAt: now } } as never);
+      await recordPaymentLinkEmailSent(orderId, sentZelle);
+    }
+    return { ok: true, payLink: '', emailSent: sentZelle.success, emailError: sentZelle.error, refreshed: false };
+  }
 
   const sending = options.sendEmail !== false;
   if (sending && options.keepCurrent && order.paymentLinkSentAt) {
@@ -770,7 +828,7 @@ export async function markOfflinePaid(
         paidAt: new Date(),
         updatedAt: new Date(),
       },
-      $unset: { paymentLinkTokenHash: '', paymentLinkToken: '' },
+      $unset: { paymentLinkTokenHash: '', paymentLinkToken: '', zellePending: '' },
     } as never
   );
   if (!update.success) return fail(500, 'Failed to record the payment');
