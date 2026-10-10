@@ -226,7 +226,8 @@ export function getZelleInstructionsEmailTemplate(order: Order, accountCreated: 
   return renderOfflineEmail(order, accountCreated, {
     title: 'Zelle instructions for your NikFoods order',
     preheader: `Please pay ${esc(total)} by Zelle to ${esc(zelleId)}.`,
-    heading: `${greeting} please pay ${esc(total)} by Zelle to confirm your offline order.`,
+    // the amount and the Zelle address are in the box below: the heading does not repeat them
+    heading: `${greeting} kindly pay to confirm your offline order.`,
     intro: 'Your order is confirmed as soon as we receive your payment.',
     cta: `<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:separate;margin:0 auto;"><tr>
       <td align="center" bgcolor="${C.tile}" style="background:${C.tile};border:2px solid ${C.tileLine};border-radius:16px;padding:12px 26px;">
