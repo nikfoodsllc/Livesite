@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import { getJwtSecret } from '@/lib/jwtSecret';
 
 /**
  * JWT Token Payload Interface
@@ -16,11 +17,11 @@ export interface JWTPayload {
  */
 class JWTHandler {
   private static instance: JWTHandler;
-  private secret: string;
 
-  private constructor() {
-    const secret = process.env.PRIVATE_KEY || 'default-jwt-secret-key-change-in-production';
-    this.secret = secret;
+  private constructor() {}
+
+  private get secret(): string {
+    return getJwtSecret();
   }
 
   /**

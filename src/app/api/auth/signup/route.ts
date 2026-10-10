@@ -5,6 +5,7 @@ import { hashPassword } from '@/lib/password';
 import { signupStep1Schema } from '@/lib/validations/auth';
 import { IUser, AuthResponse, UserResponse } from '@/types/auth';
 import { normalizeUsPhone } from '@/lib/server/userPhone';
+import { clientIp, consume, tooManyMessage } from '@/lib/server/authRateLimit';
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,6 +22,15 @@ export async function POST(request: NextRequest) {
     }
 
     const { fullName, email, password, phone } = validation.data;
+
+    // No more than 10 sign-ups an hour from one address
+    const limited = await consume([{ key: `signup:ip:${clientIp(request)}`, max: 10, windowSec: 3600 }]);
+    if (!limited.ok) {
+      return Response.json(
+        { error: tooManyMessage(limited.retryAfterSec) },
+        { status: 429, headers: { 'Retry-After': String(limited.retryAfterSec) } }
+      );
+    }
 
     // Normalize email (lowercase and trim)
     const normalizedEmail = email.toLowerCase().trim();
