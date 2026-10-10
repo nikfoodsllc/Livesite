@@ -4,6 +4,8 @@ import { verifyOTP } from '@/lib/otp';
 import { verifyOtpSchema } from '@/lib/validations/auth';
 import { IPasswordReset, ResetTokenPayload } from '@/types/password-reset';
 import jwt from 'jsonwebtoken';
+import { getJwtSecret } from '@/lib/jwtSecret';
+import { clientIp, consume, tooManyMessage } from '@/lib/server/authRateLimit';
 
 const MAX_ATTEMPTS = 3;
 
@@ -25,6 +27,18 @@ export async function POST(request: NextRequest) {
 
     // Normalize email
     const normalizedEmail = email.toLowerCase().trim();
+
+    // Guesses are limited per email across ALL codes (a fresh code does not reset this) and per address
+    const limited = await consume([
+      { key: `otp:email:${normalizedEmail}`, max: 10, windowSec: 15 * 60 },
+      { key: `otp:ip:${clientIp(request)}`, max: 30, windowSec: 15 * 60 },
+    ]);
+    if (!limited.ok) {
+      return NextResponse.json(
+        { error: tooManyMessage(limited.retryAfterSec) },
+        { status: 429, headers: { 'Retry-After': String(limited.retryAfterSec) } }
+      );
+    }
 
     // Find the most recent non-expired password reset request
     const result = await db.readOne<IPasswordReset>('passwordresets', {
@@ -90,7 +104,7 @@ export async function POST(request: NextRequest) {
     };
 
     // Use JWT to create token with 15-minute expiry
-    const resetToken = jwt.sign(payload, process.env.PRIVATE_KEY || 'default-jwt-secret-key-change-in-production', {
+    const resetToken = jwt.sign(payload, getJwtSecret(), {
       expiresIn: '15m',
     });
 

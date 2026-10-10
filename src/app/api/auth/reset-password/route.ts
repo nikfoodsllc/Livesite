@@ -7,6 +7,7 @@ import { IUser } from '@/types/auth';
 import { IPasswordReset, ResetTokenPayload } from '@/types/password-reset';
 import { ObjectId as MongoObjectId } from 'mongodb';
 import jwt from 'jsonwebtoken';
+import { getJwtSecret } from '@/lib/jwtSecret';
 
 // Force dynamic rendering to prevent build-time data collection
 export const dynamic = 'force-dynamic';
@@ -32,7 +33,7 @@ export async function POST(request: NextRequest) {
     try {
       decoded = jwt.verify(
         token,
-        process.env.PRIVATE_KEY || process.env.JWT_SECRET || 'default-jwt-secret-key-change-in-production'
+        getJwtSecret()
       ) as ResetTokenPayload;
     } catch {
       return NextResponse.json(
@@ -110,6 +111,9 @@ export async function POST(request: NextRequest) {
 
     // Delete all password reset records for this email (cleanup)
     await db.delete('passwordresets', { email });
+
+    // Sign the account out everywhere it can renew itself (stored refresh token)
+    await db.delete('refreshtokens', { user: user._id as any });
 
     // Send confirmation email
     const emailResult = await sendPasswordResetConfirmation(email);
