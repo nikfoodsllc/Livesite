@@ -19,6 +19,7 @@ import {
 import '@/lib/emailAnalyticsInit';
 import { EMAIL_LOGO_CID, EMAIL_LOGO_FILENAME, EMAIL_LOGO_PNG_BASE64 } from '@/lib/emailLogo';
 import { markTestSubject } from '@/lib/emailSubject';
+import { getReplyTo } from '@/lib/replyTo';
 
 // Enhanced logging configuration
 const logPrefix = '[Email Service]';
@@ -135,6 +136,7 @@ async function sendOneEmail(
         name: mailtrapFromName,
       },
       to: params.to.map((email) => ({ email })),
+      reply_to: { email: getReplyTo() },
       subject: markTestSubject(params.subject),
       html: params.html,
       category: params.category || 'Transactional',
@@ -161,6 +163,7 @@ async function sendOneEmail(
   const result = await resend.emails.send({
     from: fromEmail,
     to: params.to,
+    replyTo: getReplyTo(),
     subject: markTestSubject(params.subject),
     html: params.html,
     attachments: params.inlineLogo
