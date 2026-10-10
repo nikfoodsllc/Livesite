@@ -28,7 +28,7 @@ import {
 } from '@tabler/icons-react';
 import { useApiClient } from '@/hooks/useApiClient';
 import { useAuth } from '@/contexts/AuthContext';
-import { validatePassword } from '@/lib/password';
+import { passwordProblem, validatePassword } from '@/lib/password';
 import PasswordRequirements from '@/components/common/PasswordRequirements';
 
 interface SignupDialogProps {
@@ -95,8 +95,7 @@ export default function SignupDialog({
     if (!password) {
       newErrors.password = 'Password is required';
     } else if (!validatePassword(password)) {
-      newErrors.password =
-        'Password must be at least 8 characters with uppercase, lowercase, number, and special character';
+      newErrors.password = passwordProblem(password) ?? 'Invalid password';
     }
 
     if (!acceptPrivacyPolicy) {

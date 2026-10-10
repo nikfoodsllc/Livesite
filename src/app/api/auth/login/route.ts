@@ -1,10 +1,15 @@
 import { NextRequest } from 'next/server';
+import bcrypt from 'bcryptjs';
 import { db } from '@/lib/server/db';
 import { jwtHandler } from '@/lib/jwt';
 import { comparePassword } from '@/lib/password';
+import { clearCounter, clientIp, isBlocked, recordFailure, tooManyMessage, type RateLimit } from '@/lib/server/authRateLimit';
 import { loginSchema } from '@/lib/validations/auth';
 import { IUser, AuthResponse, UserResponse } from '@/types/auth';
 import { ObjectId as MongoObjectId } from 'mongodb';
+
+// a real hash of nothing in particular: used so an unknown email costs the same time as a wrong password
+const DUMMY_HASH = bcrypt.hashSync('no-such-account', 10);
 
 interface IRefreshToken {
   _id?: MongoObjectId;
@@ -30,27 +35,39 @@ export async function POST(request: NextRequest) {
 
     const { email, password } = validation.data;
 
+    // Slow down password guessing: failed tries count per email + address, and per address
+    const ip = clientIp(request);
+    const pairKey = `login:pair:${email}:${ip}`;
+    const limits: RateLimit[] = [
+      { key: pairKey, max: 8, windowSec: 15 * 60 },
+      { key: `login:ip:${ip}`, max: 40, windowSec: 15 * 60 },
+    ];
+    const blocked = await isBlocked(limits);
+    if (!blocked.ok) {
+      return Response.json(
+        { error: tooManyMessage(blocked.retryAfterSec) },
+        { status: 429, headers: { 'Retry-After': String(blocked.retryAfterSec) } }
+      );
+    }
+
     // Find user by email
     const userResult = await db.readOne<IUser>('users', { email });
+    const user = userResult.success ? userResult.data : null;
 
-    if (!userResult.success || !userResult.data) {
+    // Always run one password check, so an unknown email takes as long as a wrong password
+    const isPasswordValid = await comparePassword(
+      password,
+      user?.password || DUMMY_HASH
+    );
+
+    if (!user || !isPasswordValid) {
+      await recordFailure(limits);
       return Response.json(
         { error: 'Invalid email or password' },
         { status: 401 }
       );
     }
-
-    const user = userResult.data;
-
-    // Verify password
-    const isPasswordValid = await comparePassword(password, user.password);
-
-    if (!isPasswordValid) {
-      return Response.json(
-        { error: 'Invalid email or password' },
-        { status: 401 }
-      );
-    }
+    await clearCounter(pairKey);
 
     const userId = user._id!.toString();
 

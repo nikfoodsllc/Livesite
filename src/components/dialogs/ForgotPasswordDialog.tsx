@@ -30,7 +30,8 @@ import {
   IconEye,
   IconEyeOff,
 } from '@tabler/icons-react';
-import { validatePassword } from '@/lib/password';
+import { passwordProblem, validatePassword } from '@/lib/password';
+import PasswordRequirements from '@/components/common/PasswordRequirements';
 
 interface ForgotPasswordDialogProps {
   open: boolean;
@@ -176,8 +177,7 @@ export default function ForgotPasswordDialog({
     if (!newPassword) {
       newErrors.newPassword = 'Password is required';
     } else if (!validatePassword(newPassword)) {
-      newErrors.newPassword =
-        'Password must be at least 8 characters with uppercase, lowercase, number, and special character';
+      newErrors.newPassword = passwordProblem(newPassword) ?? 'Invalid password';
     }
 
     if (!confirmPassword) {
@@ -933,87 +933,8 @@ export default function ForgotPasswordDialog({
               }}
             />
 
-            {/* Password Requirements */}
-            <Box
-              sx={{
-                backgroundColor: '#F0F9FF',
-                borderRadius: '12px',
-                p: 2,
-              }}
-            >
-              <Typography
-                sx={{
-                  fontSize: 14,
-                  fontWeight: 600,
-                  color: '#1A1106',
-                  mb: 1,
-                }}
-              >
-                Password must contain:
-              </Typography>
-              <List dense sx={{ p: 0 }}>
-                <ListItem sx={{ py: 0.5, px: 0 }}>
-                  <ListItemIcon sx={{ minWidth: 28 }}>
-                    <IconCheck size={16} color="#2196F3" />
-                  </ListItemIcon>
-                  <ListItemText
-                    primary="At least 8 characters"
-                    primaryTypographyProps={{
-                      fontSize: 13,
-                      color: '#0066B2',
-                    }}
-                  />
-                </ListItem>
-                <ListItem sx={{ py: 0.5, px: 0 }}>
-                  <ListItemIcon sx={{ minWidth: 28 }}>
-                    <IconCheck size={16} color="#2196F3" />
-                  </ListItemIcon>
-                  <ListItemText
-                    primary="One uppercase letter"
-                    primaryTypographyProps={{
-                      fontSize: 13,
-                      color: '#0066B2',
-                    }}
-                  />
-                </ListItem>
-                <ListItem sx={{ py: 0.5, px: 0 }}>
-                  <ListItemIcon sx={{ minWidth: 28 }}>
-                    <IconCheck size={16} color="#2196F3" />
-                  </ListItemIcon>
-                  <ListItemText
-                    primary="One lowercase letter"
-                    primaryTypographyProps={{
-                      fontSize: 13,
-                      color: '#0066B2',
-                    }}
-                  />
-                </ListItem>
-                <ListItem sx={{ py: 0.5, px: 0 }}>
-                  <ListItemIcon sx={{ minWidth: 28 }}>
-                    <IconCheck size={16} color="#2196F3" />
-                  </ListItemIcon>
-                  <ListItemText
-                    primary="One number"
-                    primaryTypographyProps={{
-                      fontSize: 13,
-                      color: '#0066B2',
-                    }}
-                  />
-                </ListItem>
-                <ListItem sx={{ py: 0.5, px: 0 }}>
-                  <ListItemIcon sx={{ minWidth: 28 }}>
-                    <IconCheck size={16} color="#2196F3" />
-                  </ListItemIcon>
-                  <ListItemText
-                    primary="One special character (!@#$%^&*()_+)"
-                    primaryTypographyProps={{
-                      fontSize: 13,
-                      color: '#0066B2',
-                    }}
-                  />
-                </ListItem>
-              </List>
-            </Box>
+            {/* Password rule */}
+            <PasswordRequirements password={newPassword} />
 
             {/* Submit Button */}
             <Button

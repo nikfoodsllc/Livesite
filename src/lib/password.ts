@@ -1,15 +1,24 @@
 import bcrypt from 'bcryptjs';
 
 /**
- * Password validation regex
- * Requirements:
- * - Minimum 8 characters
- * - At least one uppercase letter
- * - At least one lowercase letter
- * - At least one number
- * - At least one special character (!@#$%^&*()_+)
+ * Password rule (same in the customer site, the admin and the app):
+ * 8 or more characters, any characters allowed, at most 72 bytes
+ * (bcrypt ignores everything after 72 bytes). Simple passwords are fine on purpose.
  */
-export const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+])[A-Za-z\d!@#$%^&*()_+]{8,}$/;
+export const PASSWORD_MIN_LENGTH = 8;
+export const PASSWORD_MAX_BYTES = 72;
+
+/** The first thing wrong with a new password, or null when it is fine. */
+export const passwordProblem = function(password: string): string | null {
+  if (!password || !password.trim()) return 'Password is required';
+  if (password.length < PASSWORD_MIN_LENGTH) {
+    return `Password must be at least ${PASSWORD_MIN_LENGTH} characters`;
+  }
+  if (new TextEncoder().encode(password).length > PASSWORD_MAX_BYTES) {
+    return 'Password is too long';
+  }
+  return null;
+};
 
 /**
  * Hash a password using bcrypt
@@ -35,12 +44,12 @@ export const comparePassword = async function(
 };
 
 /**
- * Validate password against requirements
+ * Validate password against the rule above
  * @param password - Password to validate
  * @returns True if password meets requirements
  */
 export const validatePassword = function(password: string): boolean {
-  return PASSWORD_REGEX.test(password);
+  return passwordProblem(password) === null;
 };
 
 export interface PasswordRequirement {
@@ -50,24 +59,7 @@ export interface PasswordRequirement {
 
 export const PASSWORD_REQUIREMENTS: PasswordRequirement[] = [
   {
-    label: 'At least 8 characters',
-    check: (password: string) => password.length >= 8,
-  },
-  {
-    label: 'One uppercase letter',
-    check: (password: string) => /[A-Z]/.test(password),
-  },
-  {
-    label: 'One lowercase letter',
-    check: (password: string) => /[a-z]/.test(password),
-  },
-  {
-    label: 'One number',
-    check: (password: string) => /\d/.test(password),
-  },
-  {
-    label: 'One special character (!@#$%^&*()_+)',
-    check: (password: string) => /[!@#$%^&*()_+]/.test(password),
+    label: `At least ${PASSWORD_MIN_LENGTH} characters`,
+    check: (password: string) => password.length >= PASSWORD_MIN_LENGTH,
   },
 ];
-

@@ -5,6 +5,7 @@ import { sendPasswordResetOTP } from '@/lib/email';
 import { forgotPasswordSchema } from '@/lib/validations/auth';
 import { IUser } from '@/types/auth';
 import { IPasswordReset } from '@/types/password-reset';
+import { clientIp, consume, tooManyMessage } from '@/lib/server/authRateLimit';
 
 export async function POST(request: NextRequest) {
   try {
@@ -25,26 +26,35 @@ export async function POST(request: NextRequest) {
     // Normalize email
     const normalizedEmail = email.toLowerCase().trim();
 
-    // Check if user exists
-    const userResult = await db.readOne<IUser>('users', { email: normalizedEmail });
-
-    // If user doesn't exist, return error immediately
-    if (!userResult.success || !userResult.data) {
+    // At most 3 codes an hour per email and 10 per address: counted whether or not the
+    // account exists, so a code cannot be guessed by asking for fresh ones again and again
+    const limited = await consume([
+      { key: `forgot:email:${normalizedEmail}`, max: 3, windowSec: 3600 },
+      { key: `forgot:ip:${clientIp(request)}`, max: 10, windowSec: 3600 },
+    ]);
+    if (!limited.ok) {
       return NextResponse.json(
-        { error: 'No account found with this email address. Please check your email or sign up for a new account.' },
-        { status: 404 }
+        { error: tooManyMessage(limited.retryAfterSec) },
+        { status: 429, headers: { 'Retry-After': String(limited.retryAfterSec) } }
       );
     }
+
+    // The answer is the same whether or not there is an account (nothing to learn about who is registered)
+    const sameAnswer = NextResponse.json(
+      {
+        success: true,
+        message: 'If there is an account for this email, a verification code is on its way.',
+      },
+      { status: 200 }
+    );
+
+    const userResult = await db.readOne<IUser>('users', { email: normalizedEmail });
+    if (!userResult.success || !userResult.data) return sameAnswer;
 
     const user = userResult.data;
 
-    // Check if user uses credentials provider (not social login)
-    if (user.provider !== 'credentials') {
-      return NextResponse.json(
-        { error: 'This account uses social login. Password reset is not available for social login accounts.' },
-        { status: 400 }
-      );
-    }
+    // Social-login accounts have no password to reset
+    if (user.provider !== 'credentials') return sameAnswer;
 
     // Generate OTP
     const otp = generateOTP();
@@ -78,14 +88,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Return success message
-    return NextResponse.json(
-      {
-        success: true,
-        message: 'A verification code has been sent to your email address.',
-      },
-      { status: 200 }
-    );
+    return sameAnswer;
   } catch (error) {
     console.error('Forgot password error:', error);
     return NextResponse.json(
