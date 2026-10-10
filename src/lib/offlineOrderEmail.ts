@@ -4,6 +4,7 @@ import { Order } from '@/types/order';
 import { getPaymentLinkEmailSubject, getPaymentLinkEmailTemplate } from '@/templates/paymentLink';
 import { EMAIL_LOGO_CID, EMAIL_LOGO_FILENAME, EMAIL_LOGO_PNG_BASE64 } from '@/lib/emailLogo';
 import { markTestSubject } from '@/lib/emailSubject';
+import { getReplyTo } from '@/lib/replyTo';
 
 /**
  * Sends the pay-link email of an admin-entered order. It has its own small sender on purpose, so the
@@ -39,6 +40,7 @@ export async function sendPaymentLinkEmail(
         client.send({
           from: { email: process.env.MAILTRAP_FROM_EMAIL || 'hello@demomailtrap.co', name: process.env.MAILTRAP_FROM_NAME || 'Nikfoods Test' },
           to: [{ email: recipient }],
+          reply_to: { email: getReplyTo() },
           subject,
           html,
           category: 'Payment Link',
@@ -62,6 +64,7 @@ export async function sendPaymentLinkEmail(
       resend.emails.send({
         from: process.env.RESEND_FROM_EMAIL || '"Nikfoods" <no-reply@nikfoods-email.synngular.com>',
         to: [recipient],
+        replyTo: getReplyTo(),
         subject,
         html,
         attachments: [{ filename: EMAIL_LOGO_FILENAME, contentType: 'image/png', content: logo, contentId: EMAIL_LOGO_CID }],
