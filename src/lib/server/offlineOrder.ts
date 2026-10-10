@@ -31,6 +31,11 @@ export interface OfflineLineInput {
   /** { comboSectionId: [chosen option ids] } */
   comboSelections?: Record<string, string[]>;
   notes?: string;
+  /**
+   * The admin typed another price for ONE of this item (dollars). It replaces the menu price of the item with its size and combo
+   * choices; the eco container charge, when chosen, is still added on top. The menu price is kept on the order as `priceEditedFrom`.
+   */
+  unitPrice?: number;
 }
 
 export interface OfflineAddressInput {
@@ -53,6 +58,8 @@ export interface LineProblem {
 
 export const MAX_LINE_QUANTITY = 99;
 export const MAX_NOTE_CHARS = 300;
+/** The highest price an admin may type for one item */
+export const MAX_EDITED_PRICE = 1000;
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -150,6 +157,19 @@ export function priceLine(
     return { problem: `${name}: this item is not a combo` };
   }
 
+  // the admin typed another price: it replaces the price worked out from the menu (the eco charge stays on top)
+  let priceEditedFrom: number | undefined;
+  if (line.unitPrice !== undefined && line.unitPrice !== null) {
+    const typed = Number(line.unitPrice);
+    if (!Number.isFinite(typed) || typed < 0 || typed > MAX_EDITED_PRICE) return { problem: `${name}: the price must be between $0 and $${MAX_EDITED_PRICE}` };
+    const menuPrice = money(unitPrice - (ecoContainerCharge ?? 0));
+    const edited = money(typed);
+    if (edited !== menuPrice) {
+      priceEditedFrom = menuPrice;
+      unitPrice = money(edited + (ecoContainerCharge ?? 0));
+    }
+  }
+
   unitPrice = money(unitPrice);
   const totalPrice = money(unitPrice * line.quantity);
   return {
@@ -167,6 +187,7 @@ export function priceLine(
       comboSelections: Object.keys(comboSelections).length > 0 ? comboSelections : undefined,
       notes: line.notes?.trim() || undefined,
       listingType,
+      ...(priceEditedFrom !== undefined ? { priceEditedFrom } : {}),
       price: unitPrice,
       subtotal: totalPrice,
       totalPrice,
@@ -175,7 +196,10 @@ export function priceLine(
 }
 
 export interface OfflineTotals {
+  /** What the items cost before any discount */
   subtotal: number;
+  /** Dollars off, 0 when none (never more than the subtotal) */
+  discount: number;
   platformFee: number;
   deliveryFee: number;
   tax: number;
@@ -205,6 +229,8 @@ export function buildOfflineCart(params: {
   minOrderValue?: number;
   tipPercentage: number;
   waivePlatformFee?: boolean;
+  /** Dollars off the order (admin only). The Platform Fee, the tax and the tip are worked out on what is left. */
+  discount?: number;
 }): BuiltOfflineCart {
   const { items, address, tipPercentage, waivePlatformFee } = params;
   const minOrderValue = params.minOrderValue && params.minOrderValue > 0 ? params.minOrderValue : DEFAULT_MIN_CART_VALUE;
@@ -235,10 +261,13 @@ export function buildOfflineCart(params: {
   }));
 
   const subtotal = money(calculateCartSubtotal(days));
-  const platformFee = waivePlatformFee ? 0 : getPlatformFee(subtotal);
-  const tax = calculateTax(subtotal, platformFee);
-  const tip = money((subtotal * tipPercentage) / 100);
-  const total = money(subtotal + platformFee + tax + tip);
+  // the discount comes off the subtotal first: the fee, the tax and the tip are all worked out on what the customer really pays for the food
+  const discount = Math.min(subtotal, Math.max(0, money(Number(params.discount) || 0)));
+  const payable = money(subtotal - discount);
+  const platformFee = waivePlatformFee ? 0 : getPlatformFee(payable);
+  const tax = calculateTax(payable, platformFee);
+  const tip = money((payable * tipPercentage) / 100);
+  const total = money(payable + platformFee + tax + tip);
 
   const cart: Cart = {
     _id: 'offline-cart',
@@ -260,14 +289,14 @@ export function buildOfflineCart(params: {
     tax,
     deliveryFee: 0,
     platformFee,
-    totalAmount: money(subtotal + platformFee + tax),
+    totalAmount: money(payable + platformFee + tax),
     itemCount: calculateItemCount(days),
     canCheckout: clubbing.canCheckout,
   } as Cart;
 
   return {
     cart,
-    totals: { subtotal, platformFee, deliveryFee: 0, tax, tip, total },
+    totals: { subtotal, discount, platformFee, deliveryFee: 0, tax, tip, total },
     minOrderValue,
     belowMinimum,
     deliveryMessages: days.filter((d) => d.deliveryMessage).map((d) => d.deliveryMessage!.message),

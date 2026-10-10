@@ -280,6 +280,15 @@ export default function OrderDetailsDialog({ open, order, onClose }: OrderDetail
               </Typography>
             </Box>
 
+            {hasAmount(order.discount?.amount) && (
+              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Typography sx={{ fontSize: '14px', color: '#374151' }}>Discount</Typography>
+                <Typography sx={{ fontSize: '14px', color: '#14803C' }}>
+                  -{formatCurrency(order.discount!.amount, order.currency)}
+                </Typography>
+              </Box>
+            )}
+
             {hasAmount(taxesAndFeesOf(order)) && (
               <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                 <Typography sx={{ fontSize: '14px', color: '#374151' }}><TaxesFeesLabel /></Typography>

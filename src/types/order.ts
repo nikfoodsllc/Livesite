@@ -80,6 +80,8 @@ export interface OrderDayItem {
   originalDeliveryDate?: string;
   /** Flat or day-wise item (decides which order cutoff applies). Set for admin-entered orders; otherwise worked out from the menu. */
   listingType?: 'flat' | 'day-wise';
+  /** Admin-entered orders: the menu price of one item when the admin typed another price (the typed price is `price`, eco charge included) */
+  priceEditedFrom?: number;
 }
 
 export interface OrderDay {
@@ -166,7 +168,9 @@ export interface Order {
   createdByAdmin?: string; // Admin user id (business only)
   paymentLinkTokenHash?: string; // SHA-256 of the secret in the customer's pay link (business only)
   paymentLinkToken?: string; // the secret itself, so an admin can copy or re-send the SAME link (business only; removed when the order is paid or cancelled)
-  paymentLinkSentAt?: Date | string; // When the pay link was last emailed
+  paymentLinkSentAt?: Date | string; // When the pay link (or the Zelle instructions) was last emailed
+  /** Admin-entered order the customer pays by Zelle: unpaid until an admin marks it paid (no Stripe payment behind it) */
+  zellePending?: boolean;
   offlinePaymentNote?: string; // How an order was paid outside the website (cash, Zelle, ...)
   platformFeeWaived?: boolean; // The admin dropped the Platform Fee on this order
   paidAt?: Date | string; // When payment was recorded (offline orders)
