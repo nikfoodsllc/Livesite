@@ -4,6 +4,7 @@ import { Order } from '@/types/order';
 import { getDeliveryDateChangedEmailSubject, getDeliveryDateChangedEmailTemplate, type MovedDelivery } from '@/templates/deliveryDateChanged';
 import { EMAIL_LOGO_CID, EMAIL_LOGO_FILENAME, EMAIL_LOGO_PNG_BASE64 } from '@/lib/emailLogo';
 import { markTestSubject } from '@/lib/emailSubject';
+import { getReplyTo } from '@/lib/replyTo';
 
 /**
  * Sends the "your delivery date has changed" email when an admin presses the button. Same own-small-sender pattern as
@@ -38,6 +39,7 @@ export async function sendDeliveryDateChangedEmail(
         client.send({
           from: { email: process.env.MAILTRAP_FROM_EMAIL || 'hello@demomailtrap.co', name: process.env.MAILTRAP_FROM_NAME || 'Nikfoods Test' },
           to: [{ email: recipient }],
+          reply_to: { email: getReplyTo() },
           subject,
           html,
           category: 'Delivery Date Changed',
@@ -61,6 +63,7 @@ export async function sendDeliveryDateChangedEmail(
       resend.emails.send({
         from: process.env.RESEND_FROM_EMAIL || '"Nikfoods" <no-reply@nikfoods-email.synngular.com>',
         to: [recipient],
+        replyTo: getReplyTo(),
         subject,
         html,
         attachments: [{ filename: EMAIL_LOGO_FILENAME, contentType: 'image/png', content: logo, contentId: EMAIL_LOGO_CID }],
