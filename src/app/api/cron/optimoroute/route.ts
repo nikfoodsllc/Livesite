@@ -4,6 +4,7 @@ import { reconcile } from '@/lib/server/optimoRoute/sync';
 import { runAutoPlanning } from '@/lib/server/optimoRoute/planning';
 import { runAutoDispatch } from '@/lib/server/optimoRoute/dispatch';
 import { runCompletionSync } from '@/lib/server/optimoRoute/completion';
+import { runRosterSnapshots } from '@/lib/server/optimoRoute/roster';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -30,7 +31,9 @@ export async function GET(request: NextRequest) {
     const dispatch = await runAutoDispatch();
     // what the drivers finished: mark fully delivered orders Delivered (a no-op unless OPTIMOROUTE_COMPLETION is on or dry)
     const completion = await runCompletionSync();
-    return NextResponse.json({ success: true, data, planning, dispatch, completion });
+    // a copy of today's and tomorrow's roster (drivers and stops in route order) for the Packing Report; read only
+    const roster = await runRosterSnapshots();
+    return NextResponse.json({ success: true, data, planning, dispatch, completion, roster });
   } catch (error) {
     console.error('[optimoroute] reconcile failed', error instanceof Error ? error.message : String(error));
     return NextResponse.json({ success: false, error: 'Reconcile failed' }, { status: 500 });
