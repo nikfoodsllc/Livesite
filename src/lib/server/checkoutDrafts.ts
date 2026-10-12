@@ -32,6 +32,29 @@ export interface DraftItem {
   note?: string;
 }
 
+/**
+ * One cart line in the form the browser cart keeps it, so a reminder email can put the items back (see lib/server/cartRestore.ts).
+ * Only drafts saved after this existed carry them.
+ */
+export interface RestoreLine {
+  day: string;
+  date: string;
+  foodItem: Record<string, unknown>;
+  quantity: number;
+  unitPrice: number;
+  selectedPortion?: string;
+  selectedPortionPrice?: number;
+  selectedSpiceLevel?: string;
+  isEcoFriendlyContainer?: boolean;
+  ecoContainerCharge?: number;
+  comboSelections?: Record<string, string[]>;
+  notes?: string;
+  listingType?: 'flat' | 'day-wise';
+}
+
+/** A draft whose lines would be larger than this is saved without them (it can still be emailed, just not restored). */
+const MAX_RESTORE_BYTES = 300_000;
+
 export interface DraftCustomer {
   name?: string;
   email?: string;
@@ -43,6 +66,8 @@ export interface CheckoutDraft {
   userId: string;
   customer: DraftCustomer;
   items: DraftItem[];
+  /** The cart lines as the browser cart keeps them, to put the items back from the reminder email */
+  cartLines?: RestoreLine[];
   itemCount: number;
   total: number;
   deliveryDates: string[];
@@ -113,6 +138,32 @@ export function buildDraftItems(cart: Cart): DraftItem[] {
   return items;
 }
 
+/** The cart as lines the browser cart can take back. Empty when it would be too large to keep. */
+export function buildRestoreLines(cart: Cart): RestoreLine[] {
+  const lines: RestoreLine[] = [];
+  for (const day of cart.days ?? []) {
+    for (const item of day.items ?? []) {
+      if (!item.foodItem?._id) continue;
+      lines.push({
+        day: String(item.day || day.day || ''),
+        date: String(item.date || day.date || '').slice(0, 10),
+        foodItem: item.foodItem as unknown as Record<string, unknown>,
+        quantity: Math.max(1, Math.floor(Number(item.quantity) || 1)),
+        unitPrice: money(item.price),
+        ...(item.selectedPortion ? { selectedPortion: String(item.selectedPortion) } : {}),
+        ...(item.selectedPortionPrice !== undefined ? { selectedPortionPrice: Number(item.selectedPortionPrice) } : {}),
+        ...(item.selectedSpiceLevel ? { selectedSpiceLevel: String(item.selectedSpiceLevel) } : {}),
+        ...(item.isEcoFriendlyContainer ? { isEcoFriendlyContainer: true } : {}),
+        ...(item.ecoContainerCharge !== undefined ? { ecoContainerCharge: Number(item.ecoContainerCharge) } : {}),
+        ...(item.comboSelections && Object.keys(item.comboSelections).length > 0 ? { comboSelections: item.comboSelections } : {}),
+        ...(item.notes ? { notes: String(item.notes).slice(0, 200) } : {}),
+        ...(item.listingType ? { listingType: item.listingType } : {}),
+      });
+    }
+  }
+  return JSON.stringify(lines).length > MAX_RESTORE_BYTES ? [] : lines;
+}
+
 let indexesReady: Promise<void> | null = null;
 /** One unique index on the payment id, and the automatic deletion of old records. Created once per process, never fatal. */
 function ensureIndexes(): Promise<void> {
@@ -160,6 +211,7 @@ export async function saveCheckoutDraft(input: {
     await ensureIndexes();
     const now = new Date();
     const items = buildDraftItems(input.cart);
+    const cartLines = buildRestoreLines(input.cart);
     const collection = await db.getCollectionForOperations(COLLECTION);
     await collection.updateOne(
       { paymentIntentId: input.paymentIntentId, status: { $ne: 'converted' } },
@@ -168,6 +220,7 @@ export async function saveCheckoutDraft(input: {
           userId: input.userId,
           customer: input.customer,
           items,
+          ...(cartLines.length > 0 ? { cartLines } : { cartLines: [] }),
           itemCount: items.reduce((sum, i) => sum + i.quantity, 0),
           total: money(input.total),
           deliveryDates: [...new Set(items.map((i) => i.date))].sort(),
