@@ -1,4 +1,10 @@
 {
+  "git": {
+    "deploymentEnabled": {
+      "shrey/*": false,
+      "shrey/**": false
+    }
+  },
   "headers": [
     {
       "source": "/.well-known/apple-developer-merchantid-domain-association",
