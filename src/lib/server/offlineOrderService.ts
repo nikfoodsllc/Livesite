@@ -23,6 +23,7 @@ import { convertCartToOrderItems, createAddressSnapshot, formatOrderForDatabase,
 import { sendPaymentLinkEmail, sendZelleInstructionsEmail } from '@/lib/offlineOrderEmail';
 import { recordPaymentLinkEmailSent, type PaymentLinkEmailRecord, type PaymentLinkViews } from '@/lib/server/paymentLinkTracking';
 import { sendOrderConfirmationEmail } from '@/lib/email';
+import { comboQuantityText } from '@/lib/comboQuantity';
 
 const MAX_LINES = 60;
 
@@ -503,13 +504,13 @@ const dayString = (value: unknown): string => String(value instanceof Date ? val
 /** The combo picks of an order item, one line per section ('Title: Name (size), Name (size)'). */
 function comboChoiceLines(item: OrderDay['items'][number]): string[] {
   const picks = item.comboSelections ?? {};
-  const sections = ((item.food as unknown as { sections?: Array<{ _id?: string; title?: string; selectedItems?: Array<{ _id?: string; portion?: string; item?: { name?: string } }> }> }).sections ?? []);
+  const sections = ((item.food as unknown as { sections?: Array<{ _id?: string; title?: string; selectedItems?: Array<{ _id?: string; portion?: string; quantity?: number; item?: { name?: string } }> }> }).sections ?? []);
   const lines: string[] = [];
   for (const section of sections) {
     const names = ((section._id && picks[section._id]) || [])
       .map((id) => section.selectedItems?.find((s) => s._id === id))
       .filter((s): s is NonNullable<typeof s> => Boolean(s))
-      .map((s) => `${s.item?.name ?? 'Item'}${s.portion ? ` (${s.portion})` : ''}`);
+      .map((s) => `${s.item?.name ?? 'Item'}${s.portion ? ` (${s.portion})` : ''}${comboQuantityText(s.quantity)}`);
     if (names.length > 0) lines.push(`${section.title ?? 'Choice'}: ${names.join(', ')}`);
   }
   return lines;
@@ -681,11 +682,11 @@ export async function getOrderForEdit(orderId: string): Promise<{ ok: true; orde
       if (item.selectedPortion) tags.push(item.selectedPortion);
       if (item.spiceLevel) tags.push(item.spiceLevel);
       if (item.isEcoFriendlyContainer) tags.push('Eco container');
-      for (const section of ((item.food as unknown as { sections?: Array<{ _id?: string; title?: string; selectedItems?: Array<{ _id?: string; portion?: string; item?: { name?: string } }> }> }).sections ?? [])) {
+      for (const section of ((item.food as unknown as { sections?: Array<{ _id?: string; title?: string; selectedItems?: Array<{ _id?: string; portion?: string; quantity?: number; item?: { name?: string } }> }> }).sections ?? [])) {
         const names = ((section._id && picks[section._id]) || [])
           .map((id) => section.selectedItems?.find((s) => s._id === id))
           .filter((s): s is NonNullable<typeof s> => Boolean(s))
-          .map((s) => `${s.item?.name ?? 'Item'}${s.portion ? ` (${s.portion})` : ''}`);
+          .map((s) => `${s.item?.name ?? 'Item'}${s.portion ? ` (${s.portion})` : ''}${comboQuantityText(s.quantity)}`);
         if (names.length > 0) tags.push(`${section.title ?? 'Choice'}: ${names.join(', ')}`);
       }
       lines.push({

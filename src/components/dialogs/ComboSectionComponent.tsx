@@ -2,6 +2,7 @@
 
 import { Box, Checkbox, FormControlLabel, Radio, RadioGroup, Typography } from '@mui/material';
 import { ComboSection } from '@/types/food';
+import { comboItemQuantity } from '@/lib/comboQuantity';
 
 interface ComboSectionComponentProps {
   section: ComboSection;
@@ -131,6 +132,11 @@ export default function ComboSectionComponent({
                           ({item.portion})
                         </Typography>
                       )}
+                      {comboItemQuantity(item.quantity) > 1 && (
+                        <Typography sx={{ fontSize: '0.875rem', fontWeight: 700, color: '#374151' }}>
+                          × {comboItemQuantity(item.quantity)}
+                        </Typography>
+                      )}
                     </Box>
                     {item.price > 0 && (
                       <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#f89c35' }}>
@@ -189,6 +195,11 @@ export default function ComboSectionComponent({
                     {item.portion && (
                       <Typography sx={{ fontSize: '0.875rem', color: '#6B7280' }}>
                         ({item.portion})
+                      </Typography>
+                    )}
+                    {comboItemQuantity(item.quantity) > 1 && (
+                      <Typography sx={{ fontSize: '0.875rem', fontWeight: 700, color: '#374151' }}>
+                        × {comboItemQuantity(item.quantity)}
                       </Typography>
                     )}
                   </Box>

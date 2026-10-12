@@ -6,6 +6,7 @@
 //  - text on small coloured blocks is dark and the block has a border, so it stays readable even if the fill is dropped
 //  - the gold logo sits on its own dark strip (an opaque image on a solid cell), never directly on a flipping page
 import type { Order, OrderDay, OrderDayItem, CustomerInfo } from '@/types/order';
+import { comboQuantityText } from '@/lib/comboQuantity';
 const PST = 'America/Los_Angeles';
 import { getSiteUrl } from '@/lib/siteUrl';
 import { EMAIL_LOGO_CID } from '@/lib/emailLogo';
@@ -77,7 +78,7 @@ function toppings(item: OrderDayItem): string {
         .map((id: string) => s.selectedItems.find((si) => si._id === id))
         .filter((si): si is NonNullable<typeof si> => !!si?.item?.name)
         // the chosen item is the important part: its name and its size are bold and dark; only the section title stays light
-        .map((si) => `<span style="white-space:nowrap;font-weight:700;color:${C.body};">${esc(si.item.name)}${has(si.portion) ? ` (${esc(si.portion.trim())})` : ''}</span>`);
+        .map((si) => `<span style="white-space:nowrap;font-weight:700;color:${C.body};">${esc(si.item.name)}${has(si.portion) ? ` (${esc(si.portion.trim())})` : ''}${esc(comboQuantityText(si.quantity))}</span>`);
       if (!chosen.length) return '';
       return `<div style="margin-top:1px;color:${C.muted};font-size:12px;line-height:17px;"><span style="font-weight:400;">${esc(s.title)}:</span> ${chosen.join(', ')}</div>`;
     })

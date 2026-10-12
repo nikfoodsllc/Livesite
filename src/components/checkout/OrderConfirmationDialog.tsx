@@ -30,6 +30,7 @@ import { formatCurrency } from '@/lib/orderHelpers';
 import { formatDeliveryDate } from '@/lib/orderHelpers';
 import { hasAmount, taxesAndFeesOf } from '@/lib/orderTotalsDisplay';
 import TaxesFeesLabel from '@/components/common/TaxesFeesLabel';
+import { comboQuantityText } from '@/lib/comboQuantity';
 
 interface OrderConfirmationDialogProps {
   open: boolean;
@@ -214,9 +215,9 @@ export default function OrderConfirmationDialog({
                                     ) as SelectedComboItem | undefined;
                                     if (!selectedItem) return null;
 
-                                    const portionText = selectedItem.portion
-                                      ? ` (${selectedItem.portion})`
-                                      : '';
+                                    const portionText =
+                                      (selectedItem.portion ? ` (${selectedItem.portion})` : '') +
+                                      comboQuantityText(selectedItem.quantity);
 
                                     return (
                                       <Typography
