@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Box, Container, Typography, CircularProgress, useTheme, useMediaQuery, Button } from '@mui/material';
 import { IconArrowLeft } from '@tabler/icons-react';
 import { useRouter } from 'next/navigation';
@@ -8,13 +8,64 @@ import Footer from '@/components/layout/Footer';
 import { CartDaySection, CartSummary, EmptyCart } from '@/components/cart';
 import AddressSelector from '@/components/cart/AddressSelector';
 import { useCart } from '@/contexts/CartContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { useHeader } from '@/contexts/HeaderContext';
+import { useApiClient } from '@/hooks/useApiClient';
+import { hasItems as hasLocalCartItems, restoreLines } from '@/lib/localStorageCart';
 import { getCheckoutMessage, DEFAULT_MIN_CART_VALUE } from '@/lib/cartLogic';
 
 export default function CartPage() {
   const theme = useTheme();
   const router = useRouter();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const { cart, summary, isLoading, updateAddress, updateZipcode, selectedAddressId, selectedZipcode, minOrderValue, zipcodeConfig } = useCart();
+  const { cart, summary, isLoading, updateAddress, updateZipcode, selectedAddressId, selectedZipcode, minOrderValue, zipcodeConfig, refreshCart } = useCart();
+  const { user, isLoading: authLoading } = useAuth();
+  const { openLoginDialog } = useHeader();
+  const { authenticatedFetch } = useApiClient();
+  const prompted = useRef(false);
+  const restored = useRef(false);
+
+  // The reminder email's link carries a secret (?r=): tell the site the customer really came back from the email, even before they log in
+  const clickSent = useRef(false);
+  useEffect(() => {
+    if (clickSent.current || typeof window === 'undefined') return;
+    const reminderToken = new URLSearchParams(window.location.search).get('r');
+    if (!reminderToken) return;
+    clickSent.current = true;
+    fetch('/api/cart-reminder/clicked', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ t: reminderToken }) }).catch(() => undefined);
+  }, []);
+
+  // "Complete your order" in the cart reminder email opens /cart?restore=1: ask to log in (once), then, if this cart is empty,
+  // put back the items of their unfinished checkout and continue to checkout
+  useEffect(() => {
+    if (typeof window === 'undefined' || new URLSearchParams(window.location.search).get('restore') !== '1') return;
+    if (authLoading) return;
+    if (!user) {
+      if (!prompted.current) {
+        prompted.current = true;
+        openLoginDialog();
+      }
+      return;
+    }
+    if (restored.current) return;
+    restored.current = true;
+    (async () => {
+      try {
+        if (!hasLocalCartItems()) {
+          const response = await authenticatedFetch('/api/cart/restore', { method: 'POST' });
+          const json = await response.json().catch(() => null);
+          const lines = json?.data?.lines;
+          if (response.ok && Array.isArray(lines) && lines.length > 0 && restoreLines(lines) > 0) await refreshCart();
+        }
+      } catch (error) {
+        console.warn('Could not restore the saved cart', error);
+      } finally {
+        // "Complete your order" goes straight on to checkout (it explains by itself if something in the cart cannot be ordered);
+        // with nothing to order the empty cart is shown instead
+        router.replace(hasLocalCartItems() ? '/checkout' : '/cart');
+      }
+    })();
+  }, [user, authLoading, openLoginDialog, authenticatedFetch, refreshCart, router]);
 
   // Cart is loaded automatically by CartContext for both guest and authenticated users
 

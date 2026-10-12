@@ -3,6 +3,7 @@ import { sendOrderConfirmationEmail, sendPasswordResetOTP, sendPasswordResetConf
 import { Order } from '@/types/order';
 import { formatAPITimestamp } from '@/lib/apiDateFormat';
 import { requireAdmin } from '@/lib/adminAuth';
+import { sendCartReminderEmail } from '@/lib/cartReminderEmail';
 
 /**
  * POST /api/test/email
@@ -100,6 +101,21 @@ export async function POST(request: NextRequest) {
         result = await sendOrderConfirmationEmail(testOrder);
         break;
 
+      case 'cart-reminder': {
+        // a sample cart (made-up items), sent to the address given; nothing is saved
+        const sent = await sendCartReminderEmail(testEmail, {
+          name: 'Priya Sharma',
+          total: 76.49,
+          items: [
+            { date: '2026-10-13', name: 'Chole Masala', quantity: 1, unitPrice: 9.99, lineTotal: 9.99, portion: '12Oz', spice: 'Medium Spice', eco: true },
+            { date: '2026-10-13', name: 'Veg Combo (Our Bestseller for Tuesday)', quantity: 1, unitPrice: 26.5, lineTotal: 26.5, eco: true, spice: 'Mild (Kid Friendly)', choices: ['Veg Curry of the Day: Kale Chane (12Oz)', 'Staples: Chapati'] },
+            { date: '2026-10-16', name: 'Gajar Ka Halwa', quantity: 2, unitPrice: 20, lineTotal: 40, portion: '16Oz' },
+          ],
+        });
+        result = { success: sent.success, error: sent.error };
+        break;
+      }
+
       case 'payment-failed':
         const failedOrder: Order = orderData || {
           _id: 'test-order-id',
@@ -139,7 +155,7 @@ export async function POST(request: NextRequest) {
 
       default:
         return NextResponse.json(
-          { success: false, error: 'Invalid test type. Use: password-reset, password-reset-confirmation, order-confirmation, or payment-failed' },
+          { success: false, error: 'Invalid test type. Use: password-reset, password-reset-confirmation, order-confirmation, payment-failed, or cart-reminder' },
           { status: 400 }
         );
     }
