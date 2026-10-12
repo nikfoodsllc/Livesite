@@ -58,6 +58,8 @@ export interface SelectedComboItem {
     url: string;
   };
   portion?: string;
+  /** How many of this item come with one combo (missing = 1) */
+  quantity?: number;
   price: number;
   portionId: string;
   isDefault: boolean;

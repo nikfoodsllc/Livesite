@@ -1,6 +1,7 @@
 import type Stripe from 'stripe';
 import { db } from '@/lib/server/db';
 import type { Cart, CartItem } from '@/types/cart';
+import { comboQuantityText } from '@/lib/comboQuantity';
 
 /**
  * Checkout drafts: one record per payment the site prepared when someone opened checkout (`checkoutDrafts`).
@@ -98,7 +99,7 @@ function comboChoices(item: CartItem): string[] {
   const sections = ((item.foodItem as unknown as { sections?: Array<Record<string, unknown>> })?.sections ?? []) as Array<{
     _id?: string;
     title?: string;
-    selectedItems?: Array<{ _id?: string; portion?: string; item?: { name?: string } }>;
+    selectedItems?: Array<{ _id?: string; portion?: string; quantity?: number; item?: { name?: string } }>;
   }>;
   const out: string[] = [];
   for (const section of sections) {
@@ -106,7 +107,7 @@ function comboChoices(item: CartItem): string[] {
     const names = ids
       .map((id) => section.selectedItems?.find((o) => o._id === id))
       .filter((o): o is NonNullable<typeof o> => Boolean(o))
-      .map((o) => `${o.item?.name ?? 'Item'}${o.portion ? ` (${o.portion})` : ''}`);
+      .map((o) => `${o.item?.name ?? 'Item'}${o.portion ? ` (${o.portion})` : ''}${comboQuantityText(o.quantity)}`);
     if (names.length > 0) out.push(`${section.title ?? 'Choice'}: ${names.join(', ')}`);
   }
   return out;

@@ -8,6 +8,7 @@ import { type DayDeliveryInfo } from '@/lib/deliveryCalculator';
 import DeliveryDateBadge from './DeliveryDateBadge';
 import { hasAmount, taxesAndFeesOf } from '@/lib/orderTotalsDisplay';
 import TaxesFeesLabel from '@/components/common/TaxesFeesLabel';
+import { comboQuantityText } from '@/lib/comboQuantity';
 
 interface CheckoutOrderSummaryProps {
   cartDays: CartDay[];
@@ -124,7 +125,7 @@ export default function CheckoutOrderSummary({
                               const selectedItem = section.selectedItems.find((si) => si._id === itemId);
                               if (!selectedItem) return null;
 
-                              const portionText = selectedItem.portion ? ` (${selectedItem.portion})` : '';
+                              const portionText = (selectedItem.portion ? ` (${selectedItem.portion})` : '') + comboQuantityText(selectedItem.quantity);
 
                               return (
                                 <Typography

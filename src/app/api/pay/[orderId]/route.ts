@@ -5,6 +5,7 @@ import { Order, OrderDay } from '@/types/order';
 import { paymentTokenMatches } from '@/lib/server/paymentLink';
 import { cleanInstructions } from '@/lib/server/deliveryInstructions';
 import { validateZipcodeServiceabilityServer } from '@/utils/zipcodeValidation';
+import { comboQuantityText } from '@/lib/comboQuantity';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,7 +27,7 @@ function toPayItem(it: OrderDay['items'][number]): PayItem {
     const choices = (it.comboSelections?.[section._id] ?? [])
       .map((id) => section.selectedItems.find((o) => o._id === id))
       .filter((o): o is NonNullable<typeof o> => !!o?.item?.name)
-      .map((o) => `${o.item.name}${o.portion ? ` (${o.portion})` : ''}`);
+      .map((o) => `${o.item.name}${o.portion ? ` (${o.portion})` : ''}${comboQuantityText(o.quantity)}`);
     if (choices.length > 0) combo.push({ title: section.title, choices });
   }
   return { name: it.food.name, quantity: it.quantity, price: it.price, portion: it.selectedPortion, spice: it.spiceLevel, eco: it.isEcoFriendlyContainer, notes: it.notes, combo };
