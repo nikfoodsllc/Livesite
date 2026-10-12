@@ -18,6 +18,7 @@ import VegIndicator from '@/components/common/VegIndicator';
 import { CartItem } from '@/types/cart';
 import { useCart } from '@/contexts/CartContext';
 import { formatSpiceLevel } from '@/utils/formatters';
+import { comboQuantityText } from '@/lib/comboQuantity';
 
 interface CartItemCardProps {
   item: CartItem;
@@ -281,7 +282,7 @@ export default function CartItemCard({ item }: CartItemCardProps) {
                       if (!selectedItem) return null;
 
                       const itemPrice = selectedItem.price && selectedItem.price > 0 ? ` (+$${selectedItem.price.toFixed(2)})` : '';
-                      const portionText = selectedItem.portion ? ` (${selectedItem.portion})` : '';
+                      const portionText = (selectedItem.portion ? ` (${selectedItem.portion})` : '') + comboQuantityText(selectedItem.quantity);
 
                       return (
                         <Typography

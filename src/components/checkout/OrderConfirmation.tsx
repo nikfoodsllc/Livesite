@@ -17,6 +17,7 @@ import { ComboSection, SelectedComboItem } from '@/types/food';
 import { formatDeliveryDate } from '@/lib/orderHelpers';
 import { hasAmount, taxesAndFeesOf } from '@/lib/orderTotalsDisplay';
 import TaxesFeesLabel from '@/components/common/TaxesFeesLabel';
+import { comboQuantityText } from '@/lib/comboQuantity';
 
 interface OrderConfirmationProps {
   order: Order;
@@ -127,7 +128,7 @@ export default function OrderConfirmation({ order }: OrderConfirmationProps) {
                             const selectedItem = section.selectedItems?.find((si) => si._id === itemId) as SelectedComboItem | undefined;
                             if (!selectedItem) return null;
 
-                            const portionText = selectedItem.portion ? ` (${selectedItem.portion})` : '';
+                            const portionText = (selectedItem.portion ? ` (${selectedItem.portion})` : '') + comboQuantityText(selectedItem.quantity);
 
                             return (
                               <Typography

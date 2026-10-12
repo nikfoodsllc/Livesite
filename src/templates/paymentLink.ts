@@ -3,6 +3,7 @@ import { getSiteUrl } from '@/lib/siteUrl';
 import { EMAIL_LOGO_CID } from '@/lib/emailLogo';
 import { hasAmount } from '@/lib/orderTotalsDisplay';
 import { getZelleId } from '@/lib/zelle';
+import { comboQuantityText } from '@/lib/comboQuantity';
 
 function esc(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -66,7 +67,7 @@ function toppings(item: OrderDay['items'][number]): string {
       const chosen = (item.comboSelections?.[s._id] ?? [])
         .map((id: string) => s.selectedItems.find((si) => si._id === id))
         .filter((si): si is NonNullable<typeof si> => !!si?.item?.name)
-        .map((si) => `<span style="white-space:nowrap;font-weight:700;color:${C.body};">${esc(si.item.name)}${has(si.portion) ? ` (${esc(si.portion.trim())})` : ''}</span>`);
+        .map((si) => `<span style="white-space:nowrap;font-weight:700;color:${C.body};">${esc(si.item.name)}${has(si.portion) ? ` (${esc(si.portion.trim())})` : ''}${esc(comboQuantityText(si.quantity))}</span>`);
       if (!chosen.length) return '';
       return `<div style="margin-top:1px;color:${C.muted};font-size:12px;line-height:17px;"><span style="font-weight:400;">${esc(s.title)}:</span> ${chosen.join(', ')}</div>`;
     })
