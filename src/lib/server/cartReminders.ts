@@ -28,6 +28,7 @@ export const REMINDER_MAX_AGE_HOURS = 24;
 export const REMINDER_GAP_DAYS = 14;
 export const REMINDER_MAX_ATTEMPTS = 3;
 const MAX_PER_RUN = 20;
+const AGAIN_COOLDOWN_SECONDS = 30;
 
 export type ReminderMode = 'off' | 'dry' | 'on';
 export function reminderMode(env: Record<string, string | undefined> = process.env): ReminderMode {
@@ -79,6 +80,91 @@ export function allowedOnTestSite(email: string, env: Record<string, string | un
   const allow = (env.CART_REMINDER_ALLOW ?? '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
   const e = email.trim().toLowerCase();
   return allow.some((a) => e.includes(a));
+}
+
+type DraftCollection = Awaited<ReturnType<typeof db.getCollectionForOperations<ReminderDraft & Record<string, unknown>>>>;
+
+export type ReminderOutcome = { status: 'sent' } | { status: 'failed'; error: string } | { status: 'not_claimed' };
+
+/**
+ * Claims the cart (so two runs, or a run and an admin, can never both send), sends the reminder and writes what happened on the
+ * draft. `by` is the admin's id when an admin pressed Email in Abandoned Checkout.
+ */
+export async function claimAndSendReminder(collection: DraftCollection, d: ReminderDraft, now: Date, by?: string, again = false): Promise<ReminderOutcome> {
+  const token = randomBytes(24).toString('hex');
+  // an admin who confirmed "send another" may follow an earlier reminder, but never within 30 seconds of it (a double press)
+  const sentBefore = new Date(now.getTime() - AGAIN_COOLDOWN_SECONDS * 1000);
+  const claimed = await collection.updateOne(
+    {
+      _id: d._id,
+      status: 'open',
+      $or: [
+        { reminderEmail: { $exists: false } },
+        { 'reminderEmail.status': 'failed', 'reminderEmail.attempts': { $lt: REMINDER_MAX_ATTEMPTS } },
+        ...(again ? [{ 'reminderEmail.status': { $in: ['sent', 'delivered', 'delayed', 'bounced', 'complained'] }, 'reminderEmail.sentAt': { $lt: sentBefore } }] : []),
+      ],
+    } as never,
+    {
+      $set: {
+        'reminderEmail.status': 'claimed',
+        'reminderEmail.claimedAt': now,
+        'reminderEmail.token': token,
+        ...(by ? { 'reminderEmail.sentBy': by } : {}),
+        // the new email starts its own log; when the earlier one went out stays on record
+        ...(again && d.reminderEmail?.sentAt ? { 'reminderEmail.previousSentAt': d.reminderEmail.sentAt } : {}),
+      },
+      $inc: { 'reminderEmail.attempts': 1 },
+      ...(again ? { $unset: { 'reminderEmail.messageId': '', 'reminderEmail.deliveredAt': '', 'reminderEmail.bouncedAt': '', 'reminderEmail.bounceReason': '', 'reminderEmail.firstOpenedAt': '', 'reminderEmail.lastOpenedAt': '', 'reminderEmail.openCount': '', 'reminderEmail.firstClickedAt': '', 'reminderEmail.lastClickedAt': '', 'reminderEmail.clickCount': '', 'reminderEmail.error': '' } } : {}),
+    } as never
+  );
+  if (claimed.modifiedCount === 0) return { status: 'not_claimed' };
+  const sent = await sendCartReminderEmail(d.customer!.email!, {
+    name: d.customer?.name,
+    items: d.items as never,
+    total: Number(d.total) || 0,
+    trackingToken: token,
+  });
+  if (sent.success) {
+    const at = new Date();
+    await collection.updateOne(
+      { _id: d._id } as never,
+      { $set: { 'reminderEmail.status': 'sent', 'reminderEmail.sentAt': at, 'reminderEmail.messageId': sent.messageId ?? null, 'reminderEmail.provider': sent.provider ?? null, reminderEmailSentAt: at }, $unset: { 'reminderEmail.error': '' } } as never
+    );
+    return { status: 'sent' };
+  }
+  const error = String(sent.error ?? 'Email failed').slice(0, 200);
+  await collection.updateOne({ _id: d._id } as never, { $set: { 'reminderEmail.status': 'failed', 'reminderEmail.error': error } } as never);
+  return { status: 'failed', error };
+}
+
+export type ManualReminderResult =
+  | { ok: true }
+  | { ok: false; code: 'not_found' | 'no_email' | 'no_items' | 'already_sent' | 'held_back' | 'send_failed'; message: string };
+
+/**
+ * An admin pressed Email on a person in Abandoned Checkout: send the same reminder now, without waiting for the 30 minutes.
+ * Only an open checkout with an email and saved items; one reminder per cart (it shows what happened to the first).
+ */
+export async function sendReminderNow(paymentIntentId: string, adminId: string, again = false): Promise<ManualReminderResult> {
+  const collection = await db.getCollectionForOperations<ReminderDraft & Record<string, unknown>>(COLLECTION);
+  const d = await collection.findOne({ paymentIntentId, status: 'open' } as never, {
+    projection: { userId: 1, customer: 1, status: 1, orderId: 1, contacted: 1, dismissedAt: 1, lastActivityAt: 1, total: 1, items: 1, cartLines: 1, reminderEmail: 1 },
+  });
+  if (!d) return { ok: false, code: 'not_found', message: 'This checkout is no longer open.' };
+  const email = (d.customer?.email ?? '').trim();
+  if (!email.includes('@')) return { ok: false, code: 'no_email', message: 'No email saved for this person.' };
+  if (!d.items || d.items.length === 0 || !d.cartLines || d.cartLines.length === 0) {
+    return { ok: false, code: 'no_items', message: 'This checkout has no saved items, so the reminder cannot be built.' };
+  }
+  if (!allowedOnTestSite(email)) return { ok: false, code: 'held_back', message: 'On the test site only addresses in the allow list can be emailed.' };
+  const r = d.reminderEmail;
+  if (r && !again && !(r.status === 'failed' && (r.attempts ?? 0) < REMINDER_MAX_ATTEMPTS)) {
+    return { ok: false, code: 'already_sent', message: 'A reminder was already sent for this checkout.' };
+  }
+  const outcome = await claimAndSendReminder(collection, d, new Date(), adminId, again);
+  if (outcome.status === 'sent') return { ok: true };
+  if (outcome.status === 'not_claimed') return { ok: false, code: 'already_sent', message: 'A reminder was already sent for this checkout.' };
+  return { ok: false, code: 'send_failed', message: `The email could not be sent: ${outcome.error}` };
 }
 
 export interface ReminderRunResult {
@@ -142,37 +228,10 @@ export async function runCartReminders(now: Date = new Date()): Promise<Reminder
   if (mode === 'dry') return result;
 
   for (const d of targets.slice(0, MAX_PER_RUN)) {
-    const token = randomBytes(24).toString('hex');
-    // claim the cart first: two runs at once can never both send
-    const claimed = await collection.updateOne(
-      {
-        _id: d._id,
-        status: 'open',
-        $or: [{ reminderEmail: { $exists: false } }, { 'reminderEmail.status': 'failed', 'reminderEmail.attempts': { $lt: REMINDER_MAX_ATTEMPTS } }],
-      } as never,
-      { $set: { 'reminderEmail.status': 'claimed', 'reminderEmail.claimedAt': now, 'reminderEmail.token': token }, $inc: { 'reminderEmail.attempts': 1 } } as never
-    );
-    if (claimed.modifiedCount === 0) {
-      result.skippedClaimed += 1;
-      continue;
-    }
-    const sent = await sendCartReminderEmail(d.customer!.email!, {
-      name: d.customer?.name,
-      items: d.items as never,
-      total: Number(d.total) || 0,
-      trackingToken: token,
-    });
-    if (sent.success) {
-      const at = new Date();
-      await collection.updateOne(
-        { _id: d._id } as never,
-        { $set: { 'reminderEmail.status': 'sent', 'reminderEmail.sentAt': at, 'reminderEmail.messageId': sent.messageId ?? null, 'reminderEmail.provider': sent.provider ?? null, reminderEmailSentAt: at }, $unset: { 'reminderEmail.error': '' } } as never
-      );
-      result.sent += 1;
-    } else {
-      await collection.updateOne({ _id: d._id } as never, { $set: { 'reminderEmail.status': 'failed', 'reminderEmail.error': String(sent.error ?? 'Email failed').slice(0, 200) } } as never);
-      result.failed += 1;
-    }
+    const outcome = await claimAndSendReminder(collection, d, now);
+    if (outcome.status === 'sent') result.sent += 1;
+    else if (outcome.status === 'failed') result.failed += 1;
+    else result.skippedClaimed += 1;
     await new Promise((resolve) => setTimeout(resolve, 1500)); // Resend allows about 2 sends a second; the team copy is one more
   }
   return result;
