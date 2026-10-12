@@ -465,6 +465,36 @@ export async function getAllDays(): Promise<LocalCartDay[]> {
   });
 }
 
+/**
+ * Puts saved lines (from the reminder email's "Complete your order" button) into the cart, but only when the cart is empty:
+ * a cart someone has been filling on this device is never touched. Returns how many lines were put back.
+ */
+export function restoreLines(lines: Array<Omit<LocalCartItem, 'lineId' | 'foodItemId' | 'totalPrice' | 'addedAt'> & { day: string; date: string; foodItem: FoodItem }>): number {
+  if (Object.keys(getCart().days).length > 0) return 0;
+  const cart = getCart();
+  let count = 0;
+  for (const line of lines) {
+    if (!line?.foodItem?._id || !line.day || !line.date) continue;
+    const quantity = Math.max(1, Math.floor(Number(line.quantity) || 1));
+    const { day, date, ...rest } = line;
+    const key = day as DayType;
+    if (!cart.days[key]) cart.days[key] = { day: key, date, items: {} };
+    const lineId = newLineId();
+    cart.days[key].items[lineId] = {
+      ...rest,
+      lineId,
+      foodItemId: line.foodItem._id,
+      quantity,
+      unitPrice: Number(line.unitPrice) || 0,
+      totalPrice: (Number(line.unitPrice) || 0) * quantity,
+      addedAt: new Date().toISOString(),
+    };
+    count += 1;
+  }
+  if (count > 0) saveCart(cart);
+  return count;
+}
+
 export function hasItems(): boolean {
   const cart = getCart();
   return Object.keys(cart.days).length > 0;

@@ -107,7 +107,7 @@ function dayCards(items: DraftItem[]): string {
 export function getCartReminderEmailTemplate(input: CartReminderInput): string {
   const logoUrl = `cid:${EMAIL_LOGO_CID}`;
   const siteUrl = getSiteUrl();
-  const cartUrl = `${siteUrl}/cart`;
+  const cartUrl = `${siteUrl}/cart?restore=1`;
   const first = input.name?.trim().split(/\s+/)[0] ?? '';
   const greeting = first ? `Hi ${esc(first)},` : 'Hi there,';
   const count = input.items.reduce((n, i) => n + (Number(i.quantity) || 0), 0);
