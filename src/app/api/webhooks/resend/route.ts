@@ -8,6 +8,7 @@ import { Resend } from 'resend';
 import { applyPaymentLinkEmailEvent } from '@/lib/server/paymentLinkTracking';
 import { applyConfirmationEmailEvent } from '@/lib/server/confirmationEmailTracking';
 import { applyRescheduleEmailEvent } from '@/lib/server/rescheduleEmailTracking';
+import { applyCartReminderEmailEvent } from '@/lib/server/cartReminderTracking';
 import { emailAnalytics } from '@/lib/emailAnalytics';
 import { WebhookPayload } from '@/types/email';
 import { formatAPITimestamp } from '@/lib/apiDateFormat';
@@ -89,8 +90,8 @@ export async function POST(request: NextRequest) {
         at: Number.isNaN(when.getTime()) ? new Date() : when,
         bounceReason: data.bounce?.message,
       };
-      // an email belongs to one of three: a payment link (kept on the order's link emails), a moved-date email, or the order confirmation
-      if (!(await applyPaymentLinkEmailEvent(event)) && !(await applyRescheduleEmailEvent(event))) await applyConfirmationEmailEvent(event);
+      // an email belongs to one of four: a payment link (kept on the order's link emails), a moved-date email, a cart reminder (kept on the checkout draft), or the order confirmation
+      if (!(await applyPaymentLinkEmailEvent(event)) && !(await applyRescheduleEmailEvent(event)) && !(await applyCartReminderEmailEvent(event))) await applyConfirmationEmailEvent(event);
     }
 
     // Process webhook events through analytics service
