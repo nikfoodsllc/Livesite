@@ -36,7 +36,7 @@ export default function CartPage() {
   }, []);
 
   // "Complete your order" in the cart reminder email opens /cart?restore=1: ask to log in (once), then, if this cart is empty,
-  // put back the items of their unfinished checkout
+  // put back the items of their unfinished checkout and continue to checkout
   useEffect(() => {
     if (typeof window === 'undefined' || new URLSearchParams(window.location.search).get('restore') !== '1') return;
     if (authLoading) return;
@@ -60,7 +60,9 @@ export default function CartPage() {
       } catch (error) {
         console.warn('Could not restore the saved cart', error);
       } finally {
-        router.replace('/cart');
+        // "Complete your order" goes straight on to checkout (it explains by itself if something in the cart cannot be ordered);
+        // with nothing to order the empty cart is shown instead
+        router.replace(hasLocalCartItems() ? '/checkout' : '/cart');
       }
     })();
   }, [user, authLoading, openLoginDialog, authenticatedFetch, refreshCart, router]);
