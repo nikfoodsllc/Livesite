@@ -25,6 +25,16 @@ export default function CartPage() {
   const prompted = useRef(false);
   const restored = useRef(false);
 
+  // The reminder email's link carries a secret (?r=): tell the site the customer really came back from the email, even before they log in
+  const clickSent = useRef(false);
+  useEffect(() => {
+    if (clickSent.current || typeof window === 'undefined') return;
+    const reminderToken = new URLSearchParams(window.location.search).get('r');
+    if (!reminderToken) return;
+    clickSent.current = true;
+    fetch('/api/cart-reminder/clicked', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ t: reminderToken }) }).catch(() => undefined);
+  }, []);
+
   // "Complete your order" in the cart reminder email opens /cart?restore=1: ask to log in (once), then, if this cart is empty,
   // put back the items of their unfinished checkout
   useEffect(() => {
