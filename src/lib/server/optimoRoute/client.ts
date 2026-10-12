@@ -1,5 +1,6 @@
 import { optimoApiKey } from './config';
 import type { ExistingOptimoOrder, OptimoOrderPayload } from './stops';
+import { normalizeRoutes, type RosterRoute } from './rosterRules';
 
 /**
  * The few OptimoRoute calls the sync needs (https://optimoroute.com/api/). The key goes in the query string as the API
@@ -175,4 +176,11 @@ export async function completionDetails(ids: string[]): Promise<OptimoResult<Rec
     }
   }
   return { ok: true, data: out };
+}
+
+/** The drivers and their stops, in route order, of one day (read only). */
+export async function routesForDate(date: string): Promise<OptimoResult<RosterRoute[]>> {
+  const result = await getCall<{ routes?: Parameters<typeof normalizeRoutes>[0] }>('get_routes', { date });
+  if (!result.ok) return { ok: false, code: result.code, message: result.message };
+  return { ok: true, data: normalizeRoutes(result.data?.routes) };
 }
