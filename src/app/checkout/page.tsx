@@ -1213,6 +1213,14 @@ export default function CheckoutPage() {
       throw new Error('Unsupported payment method');
     }
 
+    // Apple Pay only opens when the payment form is submitted straight away in the tap: do this BEFORE any network call
+    // (creating the order, checking the days). Cards do not care, which is why only Apple Pay failed with 'Unable to show Apple Pay'.
+    let formSubmitted = false;
+    if (paymentClientSecret && paymentFormRef.current) {
+      formSubmitted = await paymentFormRef.current.submitForm();
+      if (!formSubmitted) throw new Error('Payment details need attention');
+    }
+
     let orderIdForPayment = pendingOrderId;
 
     if (!paymentClientSecret) {
@@ -1246,7 +1254,7 @@ export default function CheckoutPage() {
       }
     }
 
-    await paymentFormRef.current.confirmPayment(orderIdForPayment);
+    await paymentFormRef.current.confirmPayment(orderIdForPayment, { alreadySubmitted: formSubmitted });
   };
 
   if (closedNotice && (!cart || cart.days.length === 0)) {
