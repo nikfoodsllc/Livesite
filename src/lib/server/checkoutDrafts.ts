@@ -15,7 +15,7 @@ import { comboQuantityText } from '@/lib/comboQuantity';
  */
 
 const COLLECTION = 'checkoutDrafts';
-const RETENTION_DAYS = 60;
+const RETENTION_DAYS = 7; // a leftover checkout older than a week is no longer worth following up
 const SAVE_TIMEOUT_MS = 2000;
 
 export interface DraftItem {
