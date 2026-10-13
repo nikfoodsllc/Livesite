@@ -7,7 +7,13 @@ import { IconLock } from '@tabler/icons-react';
 import { reportPaymentError, paymentIntentIdFromClientSecret } from '@/lib/checkout/reportPaymentError';
 
 export interface CheckoutPaymentDetailsHandle {
-  confirmPayment: (orderIdOverride?: string) => Promise<boolean>;
+  /**
+   * Validates the payment form (and opens a wallet such as Apple Pay). It must be the FIRST thing a tap on Pay does: Apple Pay
+   * only shows its sheet when this runs straight away in the tap, before any network call.
+   */
+  submitForm: () => Promise<boolean>;
+  /** Pass { alreadySubmitted: true } after submitForm succeeded, so the form is not submitted twice. */
+  confirmPayment: (orderIdOverride?: string, options?: { alreadySubmitted?: boolean }) => Promise<boolean>;
 }
 
 export interface CheckoutPaymentDetailsProps {
@@ -46,7 +52,35 @@ const CheckoutPaymentDetails = forwardRef<
   const elements = useElements();
   const [localError, setLocalError] = useState<string | null>(null);
 
-  const confirmPayment = async (orderIdOverride?: string): Promise<boolean> => {
+  const submitForm = async (): Promise<boolean> => {
+    if (!stripe || !elements) {
+      setLocalError('Payment system is still loading. Please wait a moment.');
+      return false;
+    }
+    setLocalError(null);
+    // the busy state is left to the steps that follow (creating the order, confirming): nothing here may leave the button stuck
+    try {
+      const { error: submitError } = await elements.submit();
+      if (submitError) {
+        reportPaymentError({
+          stage: 'submit_form',
+          message: submitError.message ?? 'Please check your payment details.',
+          code: submitError.code,
+          type: submitError.type,
+          orderId: orderId ?? undefined,
+          paymentIntentId: paymentIntentIdFromClientSecret(clientSecret),
+        });
+        setLocalError(submitError.message ?? 'Please check your payment details.');
+        return false;
+      }
+      return true;
+    } catch (e) {
+      setLocalError(e instanceof Error ? e.message : 'Something went wrong');
+      return false;
+    }
+  };
+
+  const confirmPayment = async (orderIdOverride?: string, options?: { alreadySubmitted?: boolean }): Promise<boolean> => {
     const resolvedOrderId = orderIdOverride ?? orderId;
     if (!stripe || !elements) {
       setLocalError('Payment system is still loading. Please wait a moment.');
@@ -57,19 +91,21 @@ const CheckoutPaymentDetails = forwardRef<
     onSubmittingChange(true);
 
     try {
-      const { error: submitError } = await elements.submit();
-      if (submitError) {
-        reportPaymentError({
-          stage: 'submit_form',
-          message: submitError.message ?? 'Please check your payment details.',
-          code: submitError.code,
-          type: submitError.type,
-          orderId: resolvedOrderId,
-          paymentIntentId: paymentIntentIdFromClientSecret(clientSecret),
-        });
-        setLocalError(submitError.message ?? 'Please check your payment details.');
-        onSubmittingChange(false);
-        return false;
+      if (!options?.alreadySubmitted) {
+        const { error: submitError } = await elements.submit();
+        if (submitError) {
+          reportPaymentError({
+            stage: 'submit_form',
+            message: submitError.message ?? 'Please check your payment details.',
+            code: submitError.code,
+            type: submitError.type,
+            orderId: resolvedOrderId,
+            paymentIntentId: paymentIntentIdFromClientSecret(clientSecret),
+          });
+          setLocalError(submitError.message ?? 'Please check your payment details.');
+          onSubmittingChange(false);
+          return false;
+        }
       }
 
       const returnUrl =
@@ -147,7 +183,7 @@ const CheckoutPaymentDetails = forwardRef<
     }
   };
 
-  useImperativeHandle(ref, () => ({ confirmPayment }), [
+  useImperativeHandle(ref, () => ({ submitForm, confirmPayment }), [
     stripe,
     elements,
     clientSecret,

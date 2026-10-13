@@ -336,6 +336,13 @@ function PayForm({ data, token, onPaid, onClosed }: { data: PayData; token: stri
     setBusy(true);
     setError('');
     try {
+      // submit the payment form FIRST, straight away in the tap: Apple Pay only opens its sheet before any network call
+      const submitted = await elements.submit();
+      if (submitted.error) {
+        setError(submitted.error.message ?? 'Please check your payment details.');
+        setBusy(false);
+        return;
+      }
       // ask the site whether every delivery day is still open, right before charging (like the checkout page does)
       const check = await fetch(`/api/pay/${encodeURIComponent(data.orderId)}/check?t=${encodeURIComponent(token)}`, { method: 'POST', cache: 'no-store' });
       if (check.status === 409) {
@@ -343,12 +350,6 @@ function PayForm({ data, token, onPaid, onClosed }: { data: PayData; token: stri
         setError(`${body.error || 'Ordering has closed for a day in this order.'} Please contact support@nikfoods.com so we can help.`);
         setBusy(false);
         onClosed();
-        return;
-      }
-      const submitted = await elements.submit();
-      if (submitted.error) {
-        setError(submitted.error.message ?? 'Please check your payment details.');
-        setBusy(false);
         return;
       }
       const returnUrl = `${window.location.origin}/pay/${encodeURIComponent(data.orderId)}?t=${encodeURIComponent(token)}`;
