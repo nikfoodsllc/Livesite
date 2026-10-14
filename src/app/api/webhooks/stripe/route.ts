@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
             $set: {
               paymentStatus: 'paid',
               status: 'confirmed',
-              ...(paymentMethodLabel ? { paymentMethod: paymentMethodLabel } : {}),
+              ...(paymentMethodLabel ? { paymentMethod: paymentMethodLabel } : order.paymentMethod === 'N/A' ? { paymentMethod: 'Credit Card' } : {}),
               updatedAt: new Date(),
             },
           }
@@ -189,7 +189,7 @@ export async function POST(request: NextRequest) {
             $set: {
               paymentStatus: 'paid',
               status: 'confirmed',
-              ...(paymentMethodLabel ? { paymentMethod: paymentMethodLabel } : {}),
+              ...(paymentMethodLabel ? { paymentMethod: paymentMethodLabel } : order.paymentMethod === 'N/A' ? { paymentMethod: 'Credit Card' } : {}),
               updatedAt: new Date(),
             },
           }
