@@ -93,6 +93,9 @@ async function prepare(
 
   const badDate = lines.find((l) => typeof l.date !== 'string' || !DATE_RE.test(l.date));
   if (badDate) return fail(400, 'Every item needs a delivery day');
+  const badDeliverOn = lines.find((l) => l.deliverOn !== undefined && l.deliverOn !== null && l.deliverOn !== '' && (typeof l.deliverOn !== 'string' || !DATE_RE.test(l.deliverOn)));
+  if (badDeliverOn) return fail(400, 'The delivery date of an item is not a valid date');
+  if (lines.some((l) => l.deliverOn && l.deliverOn < l.date)) return fail(400, 'An item cannot be delivered before its kitchen day');
 
   // Create Order is the admin's master tool: no cutoff, no "day is open" and no "item is on that day's menu" rules.
   // Any date can be picked and any item of the menu can go on it; only the item itself has to exist.
@@ -114,7 +117,14 @@ async function prepare(
   // the delivery area is not enforced either: a zip outside it is allowed, with the standard minimum per day
   const zip = await validateZipcodeServiceabilityServer(address.postal_code.slice(0, 5), db);
 
+  const deliverOnById: Record<string, string> = {};
+  items.forEach((item, i) => {
+    const on = lines[i]?.deliverOn;
+    if (on && on !== item.date) deliverOnById[item._id] = on;
+  });
+
   const built = buildOfflineCart({
+    deliverOnById,
     items,
     address,
     minOrderValue: zip.config?.minCartValue,
@@ -126,6 +136,11 @@ async function prepare(
   // no minimum per day for the delivery plan either: each day is delivered on its own date
   const deliveryCalc = calculateDeliveryDates(built.cart.days, 0);
   const orderItems = convertCartToOrderItems(built.cart.days, deliveryCalc);
+  // an item delivered on another day than its menu day (kitchen day) keeps both dates, like a clubbed item
+  built.cart.days.forEach((day, i) => {
+    const on = (day as unknown as { deliverOn?: string }).deliverOn;
+    if (orderItems[i]) orderItems[i].actualDeliveryDate = (on && on !== day.date ? on : orderItems[i].actualDeliveryDate) as never;
+  });
   return { ok: true, value: { items, built, orderItems, warnings: [] } };
 }
 
@@ -647,6 +662,8 @@ export interface EditableOrder {
   address: { street_address: string; apartment: string; city: string; postal_code: string; entrance: string; floor: string };
   lines: Array<{
     date: string;
+    /** Delivered on another day than the kitchen day */
+    deliverOn?: string;
     foodItemId: string;
     quantity: number;
     selectedPortion?: string;
@@ -676,6 +693,7 @@ export async function getOrderForEdit(orderId: string): Promise<{ ok: true; orde
   const lines: EditableOrder['lines'] = [];
   for (const day of o.items ?? []) {
     const date = String(day.deliveryDate instanceof Date ? day.deliveryDate.toISOString() : day.deliveryDate).slice(0, 10);
+    const actual = day.actualDeliveryDate ? String(day.actualDeliveryDate instanceof Date ? day.actualDeliveryDate.toISOString() : day.actualDeliveryDate).slice(0, 10) : '';
     for (const item of day.items ?? []) {
       const picks = item.comboSelections ?? {};
       const tags: string[] = [];
@@ -691,6 +709,7 @@ export async function getOrderForEdit(orderId: string): Promise<{ ok: true; orde
       }
       lines.push({
         date,
+        ...(actual && actual > date ? { deliverOn: actual } : {}),
         foodItemId: String(item.food._id),
         quantity: item.quantity,
         ...(item.selectedPortion ? { selectedPortion: item.selectedPortion } : {}),
