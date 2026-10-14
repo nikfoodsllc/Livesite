@@ -331,7 +331,8 @@ async function createNewOfflineOrder(
     currency: 'usd',
     status: 'pending',
     paymentStatus: 'unpaid',
-    paymentMethod: 'Credit Card',
+    // not known until the customer pays: the Stripe webhook then records the method used
+    paymentMethod: 'N/A',
     deliveryMessages: built.deliveryMessages,
     source: 'admin',
     createdByAdmin: context.adminId,
