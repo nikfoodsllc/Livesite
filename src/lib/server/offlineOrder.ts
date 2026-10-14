@@ -88,8 +88,8 @@ export function priceLine(
     return { problem: `${name}: the note is too long (${MAX_NOTE_CHARS} characters at most)` };
   }
 
+  // an item sold only by size has no base price: the size's price is the price
   let unitPrice = Number(item.price);
-  if (!(unitPrice >= 0)) return { problem: `${name}: this item has no price` };
 
   // portion: the label must be one the item lists; its price replaces the base price
   let selectedPortionPrice: number | undefined;
@@ -106,6 +106,8 @@ export function priceLine(
   } else if (line.selectedPortion) {
     return { problem: `${name}: this item has no sizes` };
   }
+
+  if (!(unitPrice >= 0)) return { problem: `${name}: this item has no price` };
 
   // spice level
   let selectedSpiceLevel: SpiceLevel | undefined;
