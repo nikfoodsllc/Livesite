@@ -22,6 +22,8 @@ import {
 export interface OfflineLineInput {
   /** Delivery (menu) day, 'YYYY-MM-DD' */
   date: string;
+  /** The day this item is delivered, when it is not the menu day (never before it). 'YYYY-MM-DD' */
+  deliverOn?: string;
   foodItemId: string;
   quantity: number;
   /** Portion label exactly as the item lists it ('16Oz') */
@@ -233,17 +235,28 @@ export function buildOfflineCart(params: {
   waivePlatformFee?: boolean;
   /** Dollars off the order (admin only). The Platform Fee, the tax and the tip are worked out on what is left. */
   discount?: number;
+  /** Per item (by its cart id): the day it is delivered when that is not its menu day */
+  deliverOnById?: Record<string, string>;
 }): BuiltOfflineCart {
   const { items, address, tipPercentage, waivePlatformFee } = params;
   const minOrderValue = params.minOrderValue && params.minOrderValue > 0 ? params.minOrderValue : DEFAULT_MIN_CART_VALUE;
 
+  // one day entry per menu day AND delivery day: items of a menu day that go out on different days are split
   const byDate = new Map<string, CartItem[]>();
-  for (const item of items) byDate.set(item.date, [...(byDate.get(item.date) ?? []), item]);
+  for (const item of items) {
+    const key = `${item.date}|${params.deliverOnById?.[item._id] ?? item.date}`;
+    byDate.set(key, [...(byDate.get(key) ?? []), item]);
+  }
 
   const cartDays: CartDay[] = [...byDate.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, dayItems]) => ({
-      _id: `offline-${date}`,
+    .map(([key, dayItems]) => {
+      const [date, deliverOn] = key.split('|');
+      return { date, deliverOn, dayItems };
+    })
+    .map(({ date, deliverOn, dayItems }) => ({
+      _id: deliverOn === date ? `offline-${date}` : `offline-${date}-${deliverOn}`,
+      deliverOn,
       day: weekdayOf(date),
       date,
       items: dayItems,
