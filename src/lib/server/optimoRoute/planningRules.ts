@@ -1,12 +1,12 @@
 /**
  * When the routes of a delivery day are planned, as pure rules (no database, no OptimoRoute) so they can be tested.
  *
- * Routes for tomorrow are planned once, at 11 PM Pacific the evening before (the cron runs every 30 minutes, so at 11:00 or 11:30).
+ * Routes for tomorrow are planned once, at 8 PM Pacific the evening before (the cron runs every 30 minutes, so at 8:00 or 8:30).
  * If that was missed, a day that has not been planned is still planned before 8 AM on its delivery day (the routes are sent at
  * 10 AM). After that, any stop added later (a late admin-entered order) is placed with the same routes kept (a top-up). Nothing is ever planned for a day
  * that has no stops, and a failed plan is retried a few times.
  */
-export const PLAN_AFTER_MINUTES = 23 * 60; // 11:00 PM Pacific the day before delivery
+export const PLAN_AFTER_MINUTES = 20 * 60; // 8:00 PM Pacific the day before delivery
 /** On the delivery day itself a plan may still be started (or topped up) until this time: before the 10 AM send, never during the deliveries. */
 export const PLAN_UNTIL_MORNING_MINUTES = 8 * 60; // 8:00 AM Pacific
 export const MAX_RUNS_PER_DAY = 6;

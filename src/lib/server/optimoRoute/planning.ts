@@ -7,7 +7,7 @@ import { pacificToday } from './sync';
 
 /**
  * Automatic route planning (user decision 2026-10-08): the routes of tomorrow's deliveries are planned once, shortly after
- * 11 PM Pacific the evening before, with the drivers OptimoRoute has available that day. PLANNING ONLY: routes are never sent to drivers and no
+ * 8 PM Pacific the evening before, with the drivers OptimoRoute has available that day. PLANNING ONLY: routes are never sent to drivers and no
  * customer is notified (the team reviews and sends them in OptimoRoute). Late stops are placed with existing routes kept.
  *
  *   OPTIMOROUTE_PLAN unset or 'off'  nothing planned (the default)
