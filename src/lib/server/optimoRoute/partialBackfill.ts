@@ -26,6 +26,7 @@ export interface PartialBackfillResult {
   changed: string[];
   /** OptimoRoute could not answer for some stops: they were left as unknown */
   askError?: string;
+  stopsUnknown?: number;
   error?: string;
 }
 
@@ -51,13 +52,19 @@ export async function backfillPartialDelivered(from: string, to: string, dryRun:
   // stops in the range that were never recorded as finished: ask OptimoRoute (read only) how they went
   const open = inRange.filter((s) => typeof s.optimoId === 'string' && s.optimoId.length > 0 && !['success', 'failed', 'rejected'].includes(s.completion?.status ?? ''));
   const fresh = new Map<string, { status?: string; at?: string | null }>();
-  for (let i = 0; i < open.length; i += 80) {
-    const chunk = open.slice(i, i + 80);
+  // 20 stops per question (OptimoRoute's limit); a question that fails is asked once more, and if it still fails those stops stay unknown
+  const failed: string[] = [];
+  for (let i = 0; i < open.length; i += 20) {
+    const chunk = open.slice(i, i + 20);
     result.stopsAsked += chunk.length;
-    const details = await completionDetails(chunk.map((s) => s.optimoId as string));
+    let details = await completionDetails(chunk.map((s) => s.optimoId as string));
     if (!details.ok) {
-      // those stops stay unknown (not counted as delivered); the rest of the catch-up carries on
-      result.askError = `${details.code ?? ''} ${details.message ?? ''}`.trim() || 'no answer';
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      details = await completionDetails(chunk.map((s) => s.optimoId as string));
+    }
+    if (!details.ok) {
+      failed.push(`${details.code ?? ''} ${details.message ?? ''}`.trim() || 'no answer');
+      result.stopsUnknown = (result.stopsUnknown ?? 0) + chunk.length;
       continue;
     }
     for (const s of chunk) {
@@ -65,6 +72,7 @@ export async function backfillPartialDelivered(from: string, to: string, dryRun:
       if (info?.status === 'success' || info?.status === 'failed' || info?.status === 'rejected') fresh.set(s.stopKey, { status: info.status, at: info.endUtc ?? null });
     }
   }
+  if (failed.length > 0) result.askError = `${failed.length} question(s) got no answer (${[...new Set(failed)].join('; ')})`;
   if (!dryRun) {
     for (const s of open) {
       const f = fresh.get(s.stopKey);
