@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
       switch (statusFilter) {
         case 'active':
           filter.status = {
-            $in: ['pending', 'confirmed', 'preparing', 'ready', 'out_for_delivery'],
+            $in: ['pending', 'confirmed', 'preparing', 'ready', 'out_for_delivery', 'partially_delivered'],
           };
           break;
         case 'delivered':
