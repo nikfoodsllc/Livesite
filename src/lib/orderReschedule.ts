@@ -108,7 +108,7 @@ export function whyNotReschedulable(order: OrderLike): string | null {
   if (!order.status || !(RESCHEDULABLE_STATUSES as readonly string[]).includes(order.status)) {
     return order.status === 'cancelled'
       ? 'This order is cancelled.'
-      : order.status === 'delivered' || order.status === 'out_for_delivery'
+      : order.status === 'delivered' || order.status === 'out_for_delivery' || order.status === 'partially_delivered'
         ? 'This order is already out for delivery or delivered.'
         : 'This order cannot be moved in its current status.';
   }

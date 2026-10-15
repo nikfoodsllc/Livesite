@@ -19,6 +19,7 @@ export type OrderStatus =
   | 'preparing'
   | 'ready'
   | 'out_for_delivery'
+  | 'partially_delivered'
   | 'delivered'
   | 'cancelled';
 

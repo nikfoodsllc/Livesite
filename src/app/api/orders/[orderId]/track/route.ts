@@ -70,7 +70,8 @@ export async function GET(
       'delivered',
     ];
 
-    const currentStatusIndex = statusOrder.indexOf(order.status);
+    // a partly delivered order is still on its way: it sits on the Out for Delivery step
+    const currentStatusIndex = statusOrder.indexOf(order.status === 'partially_delivered' ? 'out_for_delivery' : order.status);
     const isCancelled = order.status === 'cancelled';
 
     const timeline: TrackingStep[] = statusOrder.map((status, index) => ({
@@ -145,6 +146,7 @@ function getStatusLabel(status: OrderStatus): string {
     preparing: 'Preparing Your Food',
     ready: 'Ready for Pickup',
     out_for_delivery: 'Out for Delivery',
+    partially_delivered: 'Partially Delivered',
     delivered: 'Delivered',
     cancelled: 'Cancelled',
   };
