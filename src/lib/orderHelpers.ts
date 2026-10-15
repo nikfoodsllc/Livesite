@@ -148,6 +148,7 @@ export function getStatusColor(status: Order['status']): string {
     preparing: '#8B5CF6', // purple
     ready: '#06B6D4', // cyan
     out_for_delivery: '#10B981', // emerald
+    partially_delivered: '#14B8A6', // teal
     delivered: '#0A9750', // green
     cancelled: '#EF4444', // red
   };
@@ -164,6 +165,7 @@ export function getStatusLabel(status: Order['status']): string {
     preparing: 'Preparing',
     ready: 'Ready',
     out_for_delivery: 'Out for Delivery',
+    partially_delivered: 'Partially Delivered',
     delivered: 'Delivered',
     cancelled: 'Cancelled',
   };
@@ -174,7 +176,7 @@ export function getStatusLabel(status: Order['status']): string {
  * Checks if an order is active (not delivered or cancelled)
  */
 export function isOrderActive(status: Order['status']): boolean {
-  return ['pending', 'confirmed', 'preparing', 'ready', 'out_for_delivery'].includes(status);
+  return ['pending', 'confirmed', 'preparing', 'ready', 'out_for_delivery', 'partially_delivered'].includes(status);
 }
 
 /**

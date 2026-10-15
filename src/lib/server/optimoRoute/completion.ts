@@ -2,13 +2,15 @@ import { db } from '@/lib/server/db';
 import { addDays } from '@/lib/orderReschedule';
 import { optimoMode } from './config';
 import { completionDetails } from './client';
-import { canMarkDelivered, orderDeliveryOutcome } from './completionRules';
+import { canMarkDelivered, canMarkPartiallyDelivered, deliveriesByDay, orderDeliveryOutcome } from './completionRules';
 import { pacificToday } from './sync';
 
 /**
  * Marks orders Delivered by itself when the drivers have completed all of their stops in OptimoRoute (user request
  * 2026-10-08). Runs with the 30-minute job for yesterday's and today's stops. The status is written exactly like the admin's
- * "Update Order Status" does (status + updatedAt), plus deliveredAt and who did it. A failed or rejected stop is only recorded.
+ * "Update Order Status" does (status + updatedAt), plus deliveredAt and who did it. An order with several delivery days becomes
+ * Partially Delivered when some of its days are done (with the result of each day saved on the order for the admin to show),
+ * and Delivered when the last one is. A failed or rejected stop is also recorded.
  *
  *   OPTIMOROUTE_COMPLETION unset or 'off'  nothing happens (the default)
  *   OPTIMOROUTE_COMPLETION=dry             only counts what it would do
@@ -28,6 +30,7 @@ export interface CompletionSummary {
   stopsSucceeded: number;
   stopsProblem: number;
   ordersDelivered: number;
+  ordersPartial: number;
   ordersWithProblem: number;
   error?: string;
 }
@@ -43,7 +46,7 @@ interface StopRow {
 
 export async function runCompletionSync(now: Date = new Date()): Promise<CompletionSummary> {
   const mode = completionMode();
-  const summary: CompletionSummary = { mode, stopsChecked: 0, stopsSucceeded: 0, stopsProblem: 0, ordersDelivered: 0, ordersWithProblem: 0 };
+  const summary: CompletionSummary = { mode, stopsChecked: 0, stopsSucceeded: 0, stopsProblem: 0, ordersDelivered: 0, ordersPartial: 0, ordersWithProblem: 0 };
   if (mode === 'off') return summary;
   try {
     const today = pacificToday(now);
@@ -77,20 +80,40 @@ export async function runCompletionSync(now: Date = new Date()): Promise<Complet
       // in dry mode the stop records were not updated, so read the fresh answers
       const statuses = mine.map((s) => (mode === 'dry' ? details.data?.[s.optimoId as string]?.status ?? s.completion?.status : s.completion?.status));
       const outcome = orderDeliveryOutcome(statuses);
+      // what each delivery day came to (kept on the order: the admin shows it when you hover over the status)
+      const progress = deliveriesByDay(mine.map((s, i) => ({ date: s.date, status: statuses[i], at: s.completion?.at ?? (mode === 'dry' ? details.data?.[s.optimoId as string]?.endUtc : undefined) })));
       if (outcome === 'delivered' && canMarkDelivered(order as { status?: string; paymentStatus?: string })) {
         summary.ordersDelivered++;
         if (mode === 'on') {
           const lastEnd = mine.map((s) => s.completion?.at).filter(Boolean).sort().pop();
           await orders.updateOne(
-            { orderId, status: { $in: ['confirmed', 'preparing', 'ready', 'out_for_delivery'] } },
-            { $set: { status: 'delivered', updatedAt: now, deliveredAt: lastEnd ? new Date(`${lastEnd}Z`) : now, deliveredBy: 'optimoroute' } }
+            { orderId, status: { $in: ['confirmed', 'preparing', 'ready', 'out_for_delivery', 'partially_delivered'] } },
+            { $set: { status: 'delivered', updatedAt: now, deliveredAt: lastEnd ? new Date(`${lastEnd}Z`) : now, deliveredBy: 'optimoroute', 'optimo.deliveries': progress } }
           );
+        }
+      } else if (outcome === 'partial') {
+        if (canMarkPartiallyDelivered(order as { status?: string; paymentStatus?: string })) {
+          summary.ordersPartial++;
+          if (mode === 'on') {
+            await orders.updateOne(
+              { orderId, status: { $in: ['confirmed', 'preparing', 'ready', 'out_for_delivery'] } },
+              { $set: { status: 'partially_delivered', updatedAt: now, partiallyDeliveredAt: now, 'optimo.deliveries': progress } }
+            );
+          }
+        } else if (mode === 'on' && (order as { status?: string }).status === 'partially_delivered') {
+          // already partly delivered: keep the per-day result up to date (a failed day, say)
+          await orders.updateOne({ orderId, status: 'partially_delivered' }, { $set: { 'optimo.deliveries': progress } });
+        }
+        if (statuses.some((s) => s === 'failed' || s === 'rejected')) summary.ordersWithProblem++;
+        if (mode === 'on' && statuses.some((s) => s === 'failed' || s === 'rejected')) {
+          const bad = mine.find((s) => s.completion?.status === 'failed' || s.completion?.status === 'rejected');
+          await orders.updateOne({ orderId }, { $set: { 'optimo.deliveryIssue': { date: bad?.date ?? null, status: bad?.completion?.status ?? 'failed', at: now } } });
         }
       } else if (outcome === 'issue') {
         summary.ordersWithProblem++;
         if (mode === 'on') {
           const bad = mine.find((s) => s.completion?.status === 'failed' || s.completion?.status === 'rejected');
-          await orders.updateOne({ orderId }, { $set: { 'optimo.deliveryIssue': { date: bad?.date ?? null, status: bad?.completion?.status ?? 'failed', at: now } } });
+          await orders.updateOne({ orderId }, { $set: { 'optimo.deliveryIssue': { date: bad?.date ?? null, status: bad?.completion?.status ?? 'failed', at: now }, 'optimo.deliveries': progress } });
         }
       }
     }
