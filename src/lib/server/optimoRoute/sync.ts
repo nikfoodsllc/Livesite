@@ -248,6 +248,8 @@ export interface ReconcileSummary {
   removed: number;
   removeFailed: number;
   stoppedEarly: boolean;
+  /** Orders whose OptimoRoute summary was brought up to date (a shared stop that had been left as in progress) */
+  summariesRefreshed?: number;
 }
 
 /**
@@ -326,7 +328,47 @@ export async function reconcile(options: { now?: Date; budgetMs?: number } = {})
       tally((await releaseOrder(order.orderId, { now, onlyDates: left })).outcomes);
     }
   }
+  // 4. summaries on orders that still say a shared stop is in progress
+  try {
+    summary.summariesRefreshed = (await refreshStaleSummaries()).fixed;
+  } catch (error) {
+    console.error('[optimoroute] summary refresh failed', error instanceof Error ? error.message : String(error));
+  }
   return summary;
+}
+
+/**
+ * A stop shared by two orders of the same customer is created by whichever sync claims it first; the other order's summary then
+ * says "in_progress" and was never refreshed, so the admin's OptimoRoute column missed that day. This rewrites such a summary
+ * entry from the stop record itself (sent / adopted / failed / removed). Entries whose stop is still being made stay as they are.
+ */
+export async function refreshStaleSummaries(options: { dryRun?: boolean; limit?: number } = {}): Promise<{ checked: number; fixed: number }> {
+  const orders = await db.getCollectionForOperations<Record<string, unknown>>('orders');
+  const stops = await stopsCollection();
+  const stale = await orders.find({ 'optimo.stops.result': 'in_progress' }).project({ orderId: 1, optimo: 1 }).limit(options.limit ?? 300).toArray();
+  let fixed = 0;
+  for (const order of stale) {
+    const orderId = String(order.orderId);
+    const current = ((order.optimo as { stops?: Array<{ date?: string; result?: string; orderNo?: string; error?: string }> } | undefined)?.stops ?? []);
+    const docs = await stops.find({ orderIds: orderId }).toArray();
+    let changed = false;
+    const next = current.map((entry) => {
+      if (entry.result !== 'in_progress') return entry;
+      const doc = docs.find((d) => d.date === entry.date);
+      const result = doc?.state === 'sent' ? 'sent' : doc?.state === 'adopted' ? 'adopted' : doc?.state === 'failed' ? 'failed' : doc?.state === 'removed' ? 'removed' : undefined;
+      if (!doc || !result) return entry;
+      changed = true;
+      return { date: entry.date, result, orderNo: doc.optimoOrderNo || entry.orderNo, ...(result === 'failed' && doc.lastError ? { error: String(doc.lastError).slice(0, 200) } : {}) };
+    });
+    if (!changed) continue;
+    fixed++;
+    if (options.dryRun) continue;
+    const relevant = next.filter((e) => e.result !== 'past');
+    const failed = relevant.some((e) => e.result === 'failed' || e.result === 'remove_failed');
+    const state = failed ? 'failed' : relevant.length > 0 && relevant.every((e) => e.result === 'removed') ? 'removed' : 'sent';
+    await orders.updateOne({ orderId }, { $set: { 'optimo.stops': next, 'optimo.state': state } });
+  }
+  return { checked: stale.length, fixed };
 }
 
 export interface DatePreview {
