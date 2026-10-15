@@ -4,9 +4,10 @@
  * removes them before the document goes any further.
  *
  *  - fooditems.preparationType: 'cooked' | 'ready_to_eat', how the kitchen prepares the item.
+ *  - fooditems.sticker: 'yes' | 'no', whether the item's orders get a packing sticker (Kitchen Report).
  */
 export const ADMIN_ONLY_FIELDS: Record<string, readonly string[]> = {
-  fooditems: ['preparationType'],
+  fooditems: ['preparationType', 'sticker'],
 };
 
 /** The same document without the admin-only fields of its collection (the input is not changed). */
