@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/adminAuth';
 import { backfillPartialDelivered } from '@/lib/server/optimoRoute/partialBackfill';
 import { optimoMode } from '@/lib/server/optimoRoute/config';
+import { refreshStaleSummaries } from '@/lib/server/optimoRoute/sync';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -24,9 +25,12 @@ export async function POST(request: NextRequest) {
   const from = typeof body.from === 'string' ? body.from : '';
   const to = typeof body.to === 'string' ? body.to : '';
   try {
-    const data = await backfillPartialDelivered(from, to, body.dryRun !== false);
+    const dryRun = body.dryRun !== false;
+    const data = await backfillPartialDelivered(from, to, dryRun);
     if (data.error) return NextResponse.json({ success: false, error: data.error, data }, { status: 400 });
-    return NextResponse.json({ success: true, data });
+    // also bring the OptimoRoute summaries of orders up to date (a shared stop left as in progress hides a day in the admin column)
+    const summaries = await refreshStaleSummaries({ dryRun });
+    return NextResponse.json({ success: true, data: { ...data, summaries } });
   } catch (error) {
     console.error('[partial-backfill] failed', error instanceof Error ? error.message : error);
     return NextResponse.json({ success: false, error: 'The catch-up failed. Nothing that cannot be repeated was changed.' }, { status: 500 });
