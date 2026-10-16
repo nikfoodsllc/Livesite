@@ -5,6 +5,7 @@ import { getDeliveryDateChangedEmailSubject, getDeliveryDateChangedEmailTemplate
 import { EMAIL_LOGO_CID, EMAIL_LOGO_FILENAME, EMAIL_LOGO_PNG_BASE64 } from '@/lib/emailLogo';
 import { markTestSubject } from '@/lib/emailSubject';
 import { getReplyTo } from '@/lib/replyTo';
+import { isQuoteOrder } from '@/lib/quoteOrder';
 
 /**
  * Sends the "your delivery date has changed" email when an admin presses the button. Same own-small-sender pattern as
@@ -15,6 +16,7 @@ export async function sendDeliveryDateChangedEmail(
   order: Order,
   moves: MovedDelivery[]
 ): Promise<{ success: boolean; error?: string; messageId?: string; provider?: 'resend' | 'mailtrap' }> {
+  if (isQuoteOrder(order)) return { success: false, error: 'This order is a quote: no emails are sent for it' };
   try {
     const to = order.customerInfo?.email;
     if (!to) return { success: false, error: 'The order has no customer email' };

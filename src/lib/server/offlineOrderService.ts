@@ -24,6 +24,7 @@ import { sendPaymentLinkEmail, sendZelleInstructionsEmail } from '@/lib/offlineO
 import { recordPaymentLinkEmailSent, type PaymentLinkEmailRecord, type PaymentLinkViews } from '@/lib/server/paymentLinkTracking';
 import { sendOrderConfirmationEmail } from '@/lib/email';
 import { comboQuantityText } from '@/lib/comboQuantity';
+import { QUOTE_METHOD } from '@/lib/quoteOrder';
 
 const MAX_LINES = 60;
 
@@ -31,6 +32,8 @@ export type OfflinePayment =
   | { mode: 'link' }
   /** The customer pays by Zelle: the order waits unpaid and the customer gets the Zelle instructions by email (no Stripe) */
   | { mode: 'zelle' }
+  /** A quote: saved like a cash order (paid, method 'Quote'), but NO email goes to the customer or to support */
+  | { mode: 'quote' }
   | { mode: 'offline'; /** how it was paid: Cash, Zelle or any text the admin typed (stored as the order's payment method) */ method: string; note?: string };
 
 export interface OfflineOrderInput {
@@ -237,7 +240,7 @@ function stripeClient(): Stripe | null {
 export interface CreatedOfflineOrder {
   orderId: string;
   totalPaid: number;
-  mode: 'link' | 'offline' | 'zelle';
+  mode: 'link' | 'offline' | 'zelle' | 'quote';
   accountCreated: boolean;
   payLink?: string;
   emailSent: boolean;
@@ -283,14 +286,14 @@ async function createNewOfflineOrder(
   if (!phone) return fail(400, 'Phone number must be 10 digits');
   if (!input.address?.street_address || input.address.street_address.trim().length < 5) return fail(400, 'Enter the street address');
   if (!input.address.city || input.address.city.trim().length < 2) return fail(400, 'Enter the city');
-  if (payment?.mode !== 'link' && payment?.mode !== 'offline' && payment?.mode !== 'zelle') return fail(400, 'Choose how the customer pays');
+  if (payment?.mode !== 'link' && payment?.mode !== 'offline' && payment?.mode !== 'zelle' && payment?.mode !== 'quote') return fail(400, 'Choose how the customer pays');
   if (payment.mode === 'offline' && !normalizePaymentMethod(payment.method)) return fail(400, 'Choose how it was paid (Cash, Zelle, or type the method)');
   if (payment.mode === 'offline' && (payment.note ?? '').length > 200) return fail(400, 'The payment note is too long');
 
   if (typeof input.requestId !== 'string' || !/^[A-Za-z0-9-]{16,64}$/.test(input.requestId)) return fail(400, 'Missing request id. Reload the page and try again.');
 
-  // the Platform Fee only covers Stripe's card fee: a Zelle order has none unless the admin says otherwise
-  if (payment.mode === 'zelle' && input.waivePlatformFee === undefined) input = { ...input, waivePlatformFee: true };
+  // the Platform Fee only covers Stripe's card fee: a Zelle order or a quote has none unless the admin says otherwise
+  if ((payment.mode === 'zelle' || payment.mode === 'quote') && input.waivePlatformFee === undefined) input = { ...input, waivePlatformFee: true };
   const prepared = await prepare(input);
   if (!prepared.ok) return prepared;
   const { built, orderItems } = prepared.value;
@@ -339,13 +342,14 @@ async function createNewOfflineOrder(
     ...(input.waivePlatformFee ? { platformFeeWaived: true } : {}),
   };
 
-  if (payment.mode === 'offline') {
+  if (payment.mode === 'offline' || payment.mode === 'quote') {
+    const isQuote = payment.mode === 'quote';
     const paidOrder: Order = {
       ...base,
       status: 'confirmed',
       paymentStatus: 'paid',
-      paymentMethod: normalizePaymentMethod(payment.method)!,
-      offlinePaymentNote: payment.note?.trim() || undefined,
+      paymentMethod: isQuote ? QUOTE_METHOD : normalizePaymentMethod(payment.method)!,
+      offlinePaymentNote: payment.mode === 'offline' ? payment.note?.trim() || undefined : undefined,
       paidAt: new Date(),
     } as Order;
     const saved = await db.create('orders', formatOrderForDatabase(paidOrder));
@@ -356,7 +360,8 @@ async function createNewOfflineOrder(
     await completeRequest(input.requestId, orderId);
     let emailSent = false;
     let emailError: string | undefined;
-    try {
+    // a quote never sends an email, to the customer or to support
+    if (!isQuote) try {
       const sent = await sendOrderConfirmationEmail(paidOrder);
       emailSent = sent.success;
       emailError = sent.success ? undefined : sent.error;
@@ -365,7 +370,7 @@ async function createNewOfflineOrder(
     }
     // cash / paid-another-way orders are confirmed right now: put the delivery stop on the OptimoRoute plan
     await syncOrderSafely(orderId);
-    return { ok: true, order: { orderId, totalPaid: totals.total, mode: 'offline', accountCreated: ensured.accountCreated, emailSent, emailError } };
+    return { ok: true, order: { orderId, totalPaid: totals.total, mode: isQuote ? 'quote' : 'offline', accountCreated: ensured.accountCreated, emailSent, emailError } };
   }
 
   if (payment.mode === 'zelle') {

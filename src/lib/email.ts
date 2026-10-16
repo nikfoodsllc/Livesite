@@ -18,6 +18,7 @@ import {
 // Initialize email analytics (this will be called when the module is imported)
 import '@/lib/emailAnalyticsInit';
 import { EMAIL_LOGO_CID, EMAIL_LOGO_FILENAME, EMAIL_LOGO_PNG_BASE64 } from '@/lib/emailLogo';
+import { isQuoteOrder } from '@/lib/quoteOrder';
 import { markTestSubject } from '@/lib/emailSubject';
 import { getReplyTo } from '@/lib/replyTo';
 
@@ -341,6 +342,11 @@ export async function sendOrderConfirmationEmail(
   order: Order
 ): Promise<{ success: boolean; error?: string; messageId?: string; statusInfo?: EmailStatusInfo }> {
   const functionName = 'sendOrderConfirmationEmail';
+
+  // a quote sends no email at all (customer or support), whoever asks: the webhook, the retry job or the admin's resend button
+  if (isQuoteOrder(order)) {
+    return { success: false, error: 'This order is a quote: no emails are sent for it' };
+  }
 
   // Initialize status info
   const currentStatus: EmailStatusInfo = order.emailStatus || {
