@@ -292,8 +292,8 @@ async function createNewOfflineOrder(
 
   if (typeof input.requestId !== 'string' || !/^[A-Za-z0-9-]{16,64}$/.test(input.requestId)) return fail(400, 'Missing request id. Reload the page and try again.');
 
-  // the Platform Fee only covers Stripe's card fee: a Zelle order has none unless the admin says otherwise
-  if (payment.mode === 'zelle' && input.waivePlatformFee === undefined) input = { ...input, waivePlatformFee: true };
+  // the Platform Fee only covers Stripe's card fee: a Zelle order or a quote has none unless the admin says otherwise
+  if ((payment.mode === 'zelle' || payment.mode === 'quote') && input.waivePlatformFee === undefined) input = { ...input, waivePlatformFee: true };
   const prepared = await prepare(input);
   if (!prepared.ok) return prepared;
   const { built, orderItems } = prepared.value;
