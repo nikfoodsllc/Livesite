@@ -547,6 +547,8 @@ export default function CheckoutPage() {
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   // store credit: what the customer has, whether it is switched on, and what the server last said this checkout uses
   const [creditBalance, setCreditBalance] = useState(0);
+  // the balance has been asked for (the card session waits for it, so it is created with the right amount)
+  const [creditLoaded, setCreditLoaded] = useState(false);
   const [useCredit, setUseCredit] = useState(true);
   const [serverCredit, setServerCredit] = useState<{ applied: number; covered: boolean } | null>(null);
   const paidWithCreditRef = useRef(false);
@@ -969,6 +971,8 @@ export default function CheckoutPage() {
       if (data?.success) setCreditBalance(Math.max(0, Number(data.data?.balance) || 0));
     } catch {
       // checkout works without store credit
+    } finally {
+      setCreditLoaded(true);
     }
   }, [authenticatedFetch]);
 
@@ -991,10 +995,14 @@ export default function CheckoutPage() {
   // once an order is started its credit is fixed
   const creditLocked = Boolean(pendingOrderId);
 
+  // a signed-in customer's card session is only created once their store credit balance is known
+  const creditReady = !authLoading && (!checkoutUserId || creditLoaded);
+
   const canLoadPaymentIntent = useCallback((): boolean => {
     if (!cart?.canCheckout || cart.days.length === 0) return false;
+    if (!creditReady) return false;
     return paymentMethod === 'Credit Card';
-  }, [cart, paymentMethod]);
+  }, [cart, paymentMethod, creditReady]);
 
   /**
    * The server refused the checkout because ordering has closed for some of the items in the cart (flat items and
