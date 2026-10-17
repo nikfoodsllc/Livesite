@@ -10,6 +10,8 @@ import { buildDraftPaymentMetadata, siteFromHeaders } from '@/lib/server/stripeP
 import { findClosedLines } from '@/lib/server/availableDates';
 import { closedLinesMessage, legacyClosedDates } from '@/lib/server/orderCutoff';
 import { saveCheckoutDraft } from '@/lib/server/checkoutDrafts';
+import { creditForCheckout } from '@/lib/server/checkoutCredit';
+import { toDollars } from '@/lib/storeCredit';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 if (!stripeSecretKey) {
@@ -25,6 +27,10 @@ interface PaymentIntentRequest {
   tipPercentage: number;
   currency?: string;
   paymentIntentId?: string;
+  /** Pay with the customer's store credit first */
+  useStoreCredit?: boolean;
+  /** The order already created for this payment (a retry): it keeps the credit it was created with */
+  orderId?: string;
 }
 
 function calculateCheckoutTotal(cart: Cart, tipPercentage: number): number {
@@ -83,6 +89,8 @@ export async function POST(request: NextRequest) {
     const userId = verifyResult.payload.userId;
     const body: PaymentIntentRequest = await request.json();
     const { cart, tipPercentage, currency, paymentIntentId } = body;
+    const useStoreCredit = body.useStoreCredit === true;
+    const pendingOrderId = typeof body.orderId === 'string' ? body.orderId : undefined;
 
     if (!cart || !cart.days || cart.days.length === 0) {
       return NextResponse.json({ success: false, error: 'Cart is empty' }, { status: 400 });
@@ -107,18 +115,36 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const totalPaid = calculateCheckoutTotal(cart, tipPercentage ?? 0);
+
+    if (Math.round(totalPaid * 100) <= 0) {
+      return NextResponse.json({ success: false, error: 'Invalid order total' }, { status: 400 });
+    }
+
+    // store credit pays first; the card is only asked for what is left
+    const credit = await creditForCheckout({ userId, totalDollars: totalPaid, useStoreCredit, orderId: pendingOrderId });
+    const amountCents = credit.cardCents;
+    const creditApplied = toDollars(credit.creditCents);
+    const creditFields = { creditApplied, cardAmount: toDollars(credit.cardCents), balance: toDollars(credit.balanceCents) };
+
+    if (amountCents <= 0) {
+      // the credit pays for everything: there is no card payment. An earlier card session for this checkout is closed.
+      if (paymentIntentId) {
+        try {
+          await stripe.paymentIntents.cancel(paymentIntentId);
+        } catch (cancelError) {
+          console.warn('[payment-intent] could not close the card session that store credit made unnecessary', cancelError instanceof Error ? cancelError.message : cancelError);
+        }
+      }
+      return NextResponse.json({ success: true, data: { coveredByCredit: true, totalAmount: totalPaid, ...creditFields } });
+    }
+
+    // only a card payment needs Stripe: an order the store credit pays in full does not
     if (!stripeSecretKey || stripeSecretKey === 'sk_test_dummy_key_for_build') {
       return NextResponse.json(
         { success: false, error: 'Stripe is not properly configured' },
         { status: 500 }
       );
-    }
-
-    const totalPaid = calculateCheckoutTotal(cart, tipPercentage ?? 0);
-    const amountCents = Math.round(totalPaid * 100);
-
-    if (amountCents <= 0) {
-      return NextResponse.json({ success: false, error: 'Invalid order total' }, { status: 400 });
     }
 
     const customer = await lookupCustomer(userId);
@@ -130,6 +156,8 @@ export async function POST(request: NextRequest) {
       totalPaid,
       site: siteFromHeaders(request.headers),
     });
+    // an empty value clears the key in Stripe when the customer turned the credit off after it was set
+    metadata.storeCreditUsed = credit.creditCents > 0 ? creditApplied.toFixed(2) : '';
 
     if (paymentIntentId) {
       try {
@@ -148,6 +176,7 @@ export async function POST(request: NextRequest) {
             clientSecret: updated.client_secret,
             paymentIntentId: updated.id,
             totalAmount: totalPaid,
+            ...creditFields,
           },
         });
       } catch (updateError) {
@@ -175,6 +204,7 @@ export async function POST(request: NextRequest) {
         clientSecret: paymentIntent.client_secret,
         paymentIntentId: paymentIntent.id,
         totalAmount: totalPaid,
+        ...creditFields,
       },
     });
   } catch (error) {

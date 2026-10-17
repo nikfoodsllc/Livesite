@@ -1,3 +1,4 @@
+import { cardTotalOf } from '@/lib/storeCredit';
 import { Box, Typography, Button } from '@mui/material';
 import { Order } from '@/types/order';
 import {
@@ -261,7 +262,7 @@ export default function OrderCard({
           </Typography>
           {refundedAmount > 0 && (
             <Typography sx={{ fontSize: '12px', color: '#6B7280', mt: 0.25 }}>
-              Paid {formatCurrency(order.totalPaid, order.currency)} · Refunded{' '}
+              Paid {formatCurrency(cardTotalOf(order), order.currency)} · Refunded{' '}
               {formatCurrency(refundedAmount, order.currency)}
             </Typography>
           )}

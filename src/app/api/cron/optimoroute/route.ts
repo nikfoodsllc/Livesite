@@ -5,6 +5,7 @@ import { runAutoPlanning } from '@/lib/server/optimoRoute/planning';
 import { runAutoDispatch } from '@/lib/server/optimoRoute/dispatch';
 import { runCompletionSync } from '@/lib/server/optimoRoute/completion';
 import { runRosterSnapshots } from '@/lib/server/optimoRoute/roster';
+import { runCreditSweeps } from '@/lib/server/storeCreditSweep';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -33,7 +34,12 @@ export async function GET(request: NextRequest) {
     const completion = await runCompletionSync();
     // a copy of today's and tomorrow's roster (drivers and stops in route order) for the Packing Report; read only
     const roster = await runRosterSnapshots();
-    return NextResponse.json({ success: true, data, planning, dispatch, completion, roster });
+    // cancelled or never-paid orders hand their store credit back to the customer
+    const credit = await runCreditSweeps().catch((error) => {
+      console.error('[store-credit] sweep failed', error instanceof Error ? error.message : String(error));
+      return null;
+    });
+    return NextResponse.json({ success: true, data, planning, dispatch, completion, roster, credit });
   } catch (error) {
     console.error('[optimoroute] reconcile failed', error instanceof Error ? error.message : String(error));
     return NextResponse.json({ success: false, error: 'Reconcile failed' }, { status: 500 });

@@ -1,5 +1,6 @@
 'use client';
 
+import { cardTotalOf } from '@/lib/storeCredit';
 import React from 'react';
 import {
   Dialog,
@@ -325,6 +326,16 @@ export default function OrderConfirmationDialog({
                   </Typography>
                 </Box>
               )}
+              {(order.storeCreditUsed ?? 0) > 0 && (
+                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Typography sx={{ fontSize: '14px', color: '#6B7280' }}>
+                    Store credit
+                  </Typography>
+                  <Typography sx={{ fontSize: '14px', fontWeight: 500, color: '#28a745' }}>
+                    -{formatCurrency(order.storeCreditUsed!, order.currency)}
+                  </Typography>
+                </Box>
+              )}
             </Box>
 
             <Divider sx={{ my: 2 }} />
@@ -334,7 +345,7 @@ export default function OrderConfirmationDialog({
                 Total {order.paymentMethod === 'Cash on Delivery' ? 'to Pay' : 'Paid'}
               </Typography>
               <Typography sx={{ fontSize: '15px', fontWeight: 700, color: '#FF9F0D' }}>
-                {formatCurrency(order.totalPaid, order.currency)}
+                {formatCurrency(cardTotalOf(order), order.currency)}
               </Typography>
             </Box>
           </Box>
