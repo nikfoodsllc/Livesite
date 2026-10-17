@@ -17,6 +17,7 @@ import { ensureCustomer, EMAIL_RE, normalizeEmail, normalizePhone, CustomerInput
 import { buildPayLink, hashPaymentToken, newPaymentToken, paymentTokenMatches } from '@/lib/server/paymentLink';
 import { buildOrderDescription, buildOrderPaymentMetadata } from '@/lib/server/stripePaymentInfo';
 import { validateZipcodeServiceabilityServer } from '@/utils/zipcodeValidation';
+import { giveBackLinkOrderCredit } from '@/lib/server/linkOrderCredit';
 import { syncOrderSafely } from '@/lib/server/optimoRoute/sync';
 import { calculateDeliveryDates } from '@/lib/deliveryCalculator';
 import { convertCartToOrderItems, createAddressSnapshot, formatOrderForDatabase, generateOrderId } from '@/lib/orderHelpers';
@@ -488,6 +489,8 @@ export interface OfflineOrderRow {
   linkViews?: { firstAt: string; lastAt: string; count: number };
   deliveryDates: string[];
   offlinePaymentNote?: string;
+  /** Store credit the customer applied on the pay page (the card pays the rest) */
+  storeCreditUsed?: number;
   /** What was ordered, for the expanded view of the admin list */
   details: OrderDetails;
 }
@@ -610,6 +613,7 @@ export async function listOfflineOrders(limit = 40): Promise<OfflineOrderRow[]> 
     ...(latestEmail(o) ? { linkEmail: latestEmail(o) } : {}),
     ...(viewsOf(o) ? { linkViews: viewsOf(o) } : {}),
     offlinePaymentNote: o.offlinePaymentNote,
+    ...(o.storeCreditUsed && o.storeCreditState !== 'released' ? { storeCreditUsed: o.storeCreditUsed } : {}),
     details: describeOrder(o),
   }));
 }
@@ -659,6 +663,8 @@ export async function cancelOfflineOrder(orderId: string, adminId?: string): Pro
     } as never
   );
   if (!update.success) return fail(500, 'The payment was closed but the order could not be updated. Try again.');
+  // store credit the customer applied on the pay page goes back to them
+  await giveBackLinkOrderCredit(orderId, 'The order was cancelled', { resetCardPayment: false });
   return { ok: true };
 }
 
@@ -858,6 +864,8 @@ export async function markOfflinePaid(
     } as never
   );
   if (!update.success) return fail(500, 'Failed to record the payment');
+  // paid another way in full: store credit the customer applied on the pay page goes back to them
+  await giveBackLinkOrderCredit(orderId, 'The order was paid another way', { resetCardPayment: false });
 
   // the order is marked paid first, so Stripe’s "canceled" event for the open payment is ignored
   if (order.stripePaymentIntentId && stripe) {

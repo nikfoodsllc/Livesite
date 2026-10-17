@@ -30,6 +30,7 @@ export const INTERNAL_ORDER_FIELDS = [
   'rescheduleSmsLock',
   'creditEmail',
   'storeCreditReleasedAt',
+  'storeCreditHeldAt',
   'creditShortfall',
   // the OptimoRoute sync record (stops, per-day delivery results, issues): for the team only
   'optimo',

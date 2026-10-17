@@ -1,6 +1,7 @@
 import Stripe from 'stripe';
 import { db } from '@/lib/server/db';
 import { restoreOrderCredit, sweepCancelledOrderCredit } from '@/lib/server/storeCredit';
+import { giveBackLinkOrderCredit } from '@/lib/server/linkOrderCredit';
 
 /** An order that was started but never paid keeps its store credit this long before it is given back. */
 export const PENDING_CREDIT_HOLD_MS = 3 * 60 * 60 * 1000;
@@ -21,7 +22,7 @@ export async function releaseStalePendingCredit(now: Date = new Date(), limit = 
   const staleBefore = new Date(now.getTime() - PENDING_CREDIT_HOLD_MS);
   const found = await db.read<{ orderId: string; stripePaymentIntentId?: string }>(
     'orders',
-    { status: 'pending', paymentStatus: 'unpaid', storeCreditState: 'held', storeCreditUsed: { $gt: 0 }, createdAt: { $lt: staleBefore } } as never,
+    { status: 'pending', paymentStatus: 'unpaid', source: { $ne: 'admin' }, storeCreditState: 'held', storeCreditUsed: { $gt: 0 }, createdAt: { $lt: staleBefore } } as never,
     { limit, projection: { orderId: 1, stripePaymentIntentId: 1 } }
   );
   const rows = found.success && found.data ? found.data : [];
@@ -49,8 +50,32 @@ export async function releaseStalePendingCredit(now: Date = new Date(), limit = 
   return { checked: rows.length, closed, restored };
 }
 
-export async function runCreditSweeps(): Promise<{ cancelled: { checked: number; restored: number }; pending: { checked: number; closed: number; restored: number } }> {
+/**
+ * Credit a customer applied on a pay page and then left: an order an admin entered legitimately waits days for payment, so
+ * the order stays; only the credit goes back (3 hours after it was applied) and the card payment returns to the full total.
+ */
+export async function releaseStaleLinkOrderCredit(now: Date = new Date(), limit = 50): Promise<{ checked: number; released: number }> {
+  const staleBefore = new Date(now.getTime() - PENDING_CREDIT_HOLD_MS);
+  const found = await db.read<{ orderId: string }>(
+    'orders',
+    { source: 'admin', status: { $ne: 'cancelled' }, paymentStatus: 'unpaid', storeCreditState: 'held', storeCreditUsed: { $gt: 0 }, storeCreditHeldAt: { $lt: staleBefore } } as never,
+    { limit, projection: { orderId: 1 } }
+  );
+  const rows = found.success && found.data ? found.data : [];
+  let released = 0;
+  for (const row of rows) {
+    try {
+      if ((await giveBackLinkOrderCredit(row.orderId, 'The credit was not used within 3 hours')) > 0) released += 1;
+    } catch (error) {
+      console.error('[store-credit] could not release stale link order credit', { orderId: row.orderId, message: error instanceof Error ? error.message : String(error) });
+    }
+  }
+  return { checked: rows.length, released };
+}
+
+export async function runCreditSweeps(): Promise<{ cancelled: { checked: number; restored: number }; pending: { checked: number; closed: number; restored: number }; links: { checked: number; released: number } }> {
   const pending = await releaseStalePendingCredit();
+  const links = await releaseStaleLinkOrderCredit();
   const cancelled = await sweepCancelledOrderCredit();
-  return { cancelled, pending };
+  return { cancelled, pending, links };
 }
