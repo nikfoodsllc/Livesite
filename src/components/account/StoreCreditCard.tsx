@@ -93,15 +93,6 @@ export default function StoreCreditCard() {
               )}
             </Box>
           ))}
-                  </Box>
-                )}
-              </Box>
-              <Typography sx={{ fontSize: '14px', fontWeight: 600, color: row.amount >= 0 ? '#28a745' : '#374151', whiteSpace: 'nowrap' }}>
-                {row.amount >= 0 ? '+' : '-'}
-                {money(row.amount)}
-              </Typography>
-            </Box>
-          ))}
         </Box>
       </Collapse>
     </Box>
