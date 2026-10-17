@@ -132,7 +132,8 @@ export async function payLinkOrderWithCredit(orderId: string): Promise<LinkCredi
     { orderId, source: 'admin', paymentStatus: 'unpaid', status: { $ne: 'cancelled' }, storeCreditState: 'held' } as never,
     {
       $set: { paymentStatus: 'paid', status: 'confirmed', paymentMethod: 'Store Credit', storeCreditState: 'applied', paidAt: new Date(), updatedAt: new Date() },
-      $unset: { paymentLinkTokenHash: '', paymentLinkToken: '', zellePending: '' },
+      // the link keeps working (it now shows "Payment received", like after a card payment); only the saved copy of the secret goes
+      $unset: { paymentLinkToken: '', zellePending: '' },
     } as never
   );
   if (!paid.success) return fail(500, 'Could not place the order. Please try again.');
