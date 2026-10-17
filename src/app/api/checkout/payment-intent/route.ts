@@ -115,13 +115,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!stripeSecretKey || stripeSecretKey === 'sk_test_dummy_key_for_build') {
-      return NextResponse.json(
-        { success: false, error: 'Stripe is not properly configured' },
-        { status: 500 }
-      );
-    }
-
     const totalPaid = calculateCheckoutTotal(cart, tipPercentage ?? 0);
 
     if (Math.round(totalPaid * 100) <= 0) {
@@ -144,6 +137,14 @@ export async function POST(request: NextRequest) {
         }
       }
       return NextResponse.json({ success: true, data: { coveredByCredit: true, totalAmount: totalPaid, ...creditFields } });
+    }
+
+    // only a card payment needs Stripe: an order the store credit pays in full does not
+    if (!stripeSecretKey || stripeSecretKey === 'sk_test_dummy_key_for_build') {
+      return NextResponse.json(
+        { success: false, error: 'Stripe is not properly configured' },
+        { status: 500 }
+      );
     }
 
     const customer = await lookupCustomer(userId);
