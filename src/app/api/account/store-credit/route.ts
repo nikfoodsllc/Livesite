@@ -5,7 +5,7 @@ import { toDollars } from '@/lib/storeCredit';
 
 export const dynamic = 'force-dynamic';
 
-/** GET /api/account/store-credit: the logged in customer's store credit balance and history (no admin names or notes). */
+/** GET /api/account/store-credit: the logged in customer's store credit balance and history (no admin names or notes; credit given for items lists them). */
 export async function GET(request: NextRequest) {
   const header = request.headers.get('authorization');
   if (!header || !header.startsWith('Bearer ')) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
@@ -18,7 +18,14 @@ export async function GET(request: NextRequest) {
     success: true,
     data: {
       balance: toDollars(balanceCents),
-      history: ledger.map((r) => ({ at: r.at, amount: toDollars(r.cents), type: r.type, orderId: r.orderId })),
+      history: ledger.map((r) => ({
+        at: r.at,
+        amount: toDollars(r.cents),
+        type: r.type,
+        orderId: r.orderId,
+        // what the credit was for (credit given for items of an order)
+        ...(r.items && r.items.length > 0 ? { items: r.items.map((i) => ({ name: i.name, quantity: i.quantity, amount: toDollars(i.cents) })) } : {}),
+      })),
     },
   });
 }
