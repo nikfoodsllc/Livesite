@@ -9,6 +9,7 @@ interface HistoryRow {
   amount: number;
   type: 'issued' | 'used' | 'restored' | 'adjusted';
   orderId?: string;
+  items?: Array<{ name: string; quantity: number; amount: number }>;
 }
 
 const money = (n: number) => `$${Math.abs(n).toFixed(2)}`;
@@ -64,12 +65,25 @@ export default function StoreCreditCard() {
         <Box sx={{ mt: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
           {history.map((row, index) => (
             <Box key={`${row.at}-${index}`} sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
-              <Box sx={{ minWidth: 0 }}>
+              <Box sx={{ minWidth: 0, flex: 1 }}>
                 <Typography sx={{ fontSize: '14px', color: '#374151' }}>{LABEL[row.type]}</Typography>
                 <Typography sx={{ fontSize: '12px', color: '#6B7280' }}>
                   {new Date(row.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                   {row.orderId ? ` · ${row.orderId}` : ''}
                 </Typography>
+                {/* what the credit was for, with each item's amount (item price plus the tax on it) */}
+                {row.items && row.items.length > 0 && (
+                  <Box sx={{ mt: 0.5, display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+                    {row.items.map((item, i) => (
+                      <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                        <Typography sx={{ fontSize: '13px', color: '#374151', minWidth: 0, overflowWrap: 'anywhere' }}>
+                          {item.quantity} × {item.name}
+                        </Typography>
+                        <Typography sx={{ fontSize: '13px', color: '#374151', whiteSpace: 'nowrap' }}>{money(item.amount)}</Typography>
+                      </Box>
+                    ))}
+                  </Box>
+                )}
               </Box>
               <Typography sx={{ fontSize: '14px', fontWeight: 600, color: row.amount >= 0 ? '#28a745' : '#374151', whiteSpace: 'nowrap' }}>
                 {row.amount >= 0 ? '+' : '-'}
