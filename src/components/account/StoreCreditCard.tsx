@@ -64,24 +64,35 @@ export default function StoreCreditCard() {
       <Collapse in={open} unmountOnExit>
         <Box sx={{ mt: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
           {history.map((row, index) => (
-            <Box key={`${row.at}-${index}`} sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
-              <Box sx={{ minWidth: 0, flex: 1 }}>
-                <Typography sx={{ fontSize: '14px', color: '#374151' }}>{LABEL[row.type]}</Typography>
-                <Typography sx={{ fontSize: '12px', color: '#6B7280' }}>
-                  {new Date(row.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                  {row.orderId ? ` · ${row.orderId}` : ''}
+            <Box key={`${row.at}-${index}`}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography sx={{ fontSize: '14px', color: '#374151' }}>{LABEL[row.type]}</Typography>
+                  <Typography sx={{ fontSize: '12px', color: '#6B7280' }}>
+                    {new Date(row.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    {row.orderId ? ` · ${row.orderId}` : ''}
+                  </Typography>
+                </Box>
+                <Typography sx={{ fontSize: '14px', fontWeight: 600, color: row.amount >= 0 ? '#28a745' : '#374151', whiteSpace: 'nowrap' }}>
+                  {row.amount >= 0 ? '+' : '-'}
+                  {money(row.amount)}
                 </Typography>
-                {/* what the credit was for, with each item's amount (item price plus the tax on it) */}
-                {row.items && row.items.length > 0 && (
-                  <Box sx={{ mt: 0.5, display: 'flex', flexDirection: 'column', gap: 0.25 }}>
-                    {row.items.map((item, i) => (
-                      <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
-                        <Typography sx={{ fontSize: '13px', color: '#374151', minWidth: 0, overflowWrap: 'anywhere' }}>
-                          {item.quantity} × {item.name}
-                        </Typography>
-                        <Typography sx={{ fontSize: '13px', color: '#374151', whiteSpace: 'nowrap' }}>{money(item.amount)}</Typography>
-                      </Box>
-                    ))}
+              </Box>
+              {/* what the credit was for, with each item's amount (item price plus the tax on it), under the whole row */}
+              {row.items && row.items.length > 0 && (
+                <Box sx={{ mt: 0.5, pl: 1.5, display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+                  {row.items.map((item, i) => (
+                    <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                      <Typography sx={{ fontSize: '13px', color: '#374151', minWidth: 0, overflowWrap: 'anywhere' }}>
+                        {item.quantity} × {item.name}
+                      </Typography>
+                      <Typography sx={{ fontSize: '13px', color: '#374151', whiteSpace: 'nowrap' }}>{money(item.amount)}</Typography>
+                    </Box>
+                  ))}
+                </Box>
+              )}
+            </Box>
+          ))}
                   </Box>
                 )}
               </Box>
