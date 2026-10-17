@@ -96,6 +96,7 @@ export function buildOrderPaymentMetadata(
     discount: order.discount ? money(order.discount.amount) : undefined,
     discountCode: order.discount?.code,
     total: money(order.totalPaid),
+    storeCreditUsed: order.storeCreditUsed ? money(order.storeCreditUsed) : undefined,
     site,
   });
   // An empty value tells Stripe to remove the draft marker set when the checkout page loaded

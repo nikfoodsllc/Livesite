@@ -1,6 +1,7 @@
 import Stripe from 'stripe';
 import { db } from '@/lib/server/db';
 import { releaseOrder } from '@/lib/server/optimoRoute/sync';
+import { restoreOrderCredit } from '@/lib/server/storeCredit';
 import type { Order } from '@/types/order';
 
 export type DeleteResult = { ok: true; paidByCard: boolean; optimoRemoved: number } | { ok: false; status: number; error: string };
@@ -50,6 +51,16 @@ export async function deleteOrderAsAdmin(orderId: string, adminId: string): Prom
   } catch (error) {
     console.error('[order-delete] OptimoRoute release failed', { orderId, message: error instanceof Error ? error.message : String(error) });
     return fail(502, 'Could not update OptimoRoute. Nothing was deleted. Try again in a moment.');
+  }
+
+  // store credit the order used goes back to the customer before the order disappears
+  if (order.storeCreditUsed) {
+    try {
+      await restoreOrderCredit(orderId, 'The order was deleted');
+    } catch (creditError) {
+      console.error('[order-delete] could not give the store credit back', { orderId, message: creditError instanceof Error ? creditError.message : String(creditError) });
+      return fail(500, 'Could not give the customer their store credit back. Nothing was deleted. Try again.');
+    }
   }
 
   const archived = await db.create('deletedOrders', { orderId, deletedAt: new Date(), deletedBy: adminId, order } as never);

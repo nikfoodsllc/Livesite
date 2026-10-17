@@ -29,6 +29,7 @@ import DeliveryAddressDisplay from '@/components/checkout/DeliveryAddressDisplay
 import DeliveryInstructionsSection from '@/components/checkout/DeliveryInstructionsSection';
 import AddressSelectionDialog from '@/components/checkout/AddressSelectionDialog';
 import CheckoutOrderSummary from '@/components/checkout/CheckoutOrderSummary';
+import StoreCreditSection from '@/components/checkout/StoreCreditSection';
 import { PaymentMethod } from '@/types/order';
 import { Cart } from '@/types/cart';
 import { IAddress } from '@/types/auth';
@@ -38,6 +39,7 @@ import { closedItemsNotice, parseClosedItems } from '@/lib/closedDaysNotice';
 import { calculateDeliveryDates, type DayDeliveryInfo } from '@/lib/deliveryCalculator';
 import { DEFAULT_MIN_CART_VALUE } from '@/lib/cartLogic';
 import { reportPaymentError } from '@/lib/checkout/reportPaymentError';
+import { planCreditUse, toCents, toDollars } from '@/lib/storeCredit';
 
 /**
  * Interface for error summary items
@@ -118,6 +120,13 @@ interface CheckoutFormContentProps {
   onPaymentSubmittingChange: (value: boolean) => void;
   cardDetailsComplete: boolean;
   onCardDetailsChange: (complete: boolean) => void;
+  /** Store credit the customer has (dollars), whether it is switched on, how much this order uses, and whether it pays for everything */
+  creditBalance: number;
+  useCredit: boolean;
+  onUseCreditChange: (value: boolean) => void;
+  creditApplied: number;
+  coveredByCredit: boolean;
+  creditLocked: boolean;
 }
 
 function CheckoutFormContent({
@@ -159,8 +168,13 @@ function CheckoutFormContent({
   isPaymentSubmitting,
   onPaymentSubmittingChange,
   cardDetailsComplete,
-  onCardDetailsChange
-
+  onCardDetailsChange,
+  creditBalance,
+  useCredit,
+  onUseCreditChange,
+  creditApplied,
+  coveredByCredit,
+  creditLocked,
 }: CheckoutFormContentProps) {
   const calculateTotals = () => {
     const subtotal = cart.subtotal;
@@ -264,6 +278,17 @@ function CheckoutFormContent({
           onMethodChange={onPaymentMethodChange}
         /> */}
 
+        {/* Store credit: only when the customer has some */}
+        {creditBalance > 0 && (
+          <StoreCreditSection
+            balance={creditBalance}
+            applied={creditApplied}
+            checked={useCredit}
+            onChange={onUseCreditChange}
+            locked={creditLocked}
+          />
+        )}
+
         {/* Stripe payment details — inline below payment method */}
         {canShowPaymentDetails && (
           <>
@@ -336,7 +361,7 @@ function CheckoutFormContent({
             disabled={
               isBusy ||
               !cart.canCheckout ||
-              (paymentMethod === 'Credit Card' && !cardDetailsComplete)
+              (paymentMethod === 'Credit Card' && !cardDetailsComplete && !coveredByCredit)
             }
             startIcon={
               isBusy ? (
@@ -364,7 +389,9 @@ function CheckoutFormContent({
               ? 'Processing…'
               : isInitializingPayment
                 ? 'Preparing payment…'
-                : `Pay $${totals.total.toFixed(2)}`}
+                : coveredByCredit
+                  ? 'Place order'
+                  : `Pay $${Math.max(0, totals.total - creditApplied).toFixed(2)}`}
           </Button>
           <Box
             sx={{
@@ -396,6 +423,7 @@ function CheckoutFormContent({
           total={totals.total}
           deliveryCalculations={deliveryCalculations}
           discountCode={cart.appliedCoupon?.code}
+          storeCredit={creditApplied}
         />
 
         {/* Place Order Button (Desktop) */}
@@ -413,7 +441,7 @@ function CheckoutFormContent({
           disabled={
             isBusy ||
             !cart.canCheckout ||
-            (paymentMethod === 'Credit Card' && !cardDetailsComplete)
+            (paymentMethod === 'Credit Card' && !cardDetailsComplete && !coveredByCredit)
           }
           startIcon={
             isBusy ? (
@@ -443,7 +471,9 @@ function CheckoutFormContent({
             ? 'Processing…'
             : isInitializingPayment
               ? 'Preparing payment…'
-              : `Pay $${totals.total.toFixed(2)}`}
+              : coveredByCredit
+                ? 'Place order'
+                : `Pay $${Math.max(0, totals.total - creditApplied).toFixed(2)}`}
         </Button>
         <Box
           sx={{
@@ -515,6 +545,11 @@ export default function CheckoutPage() {
   const [paymentClientSecret, setPaymentClientSecret] = useState<string | null>(null);
   const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null);
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
+  // store credit: what the customer has, whether it is switched on, and what the server last said this checkout uses
+  const [creditBalance, setCreditBalance] = useState(0);
+  const [useCredit, setUseCredit] = useState(true);
+  const [serverCredit, setServerCredit] = useState<{ applied: number; covered: boolean } | null>(null);
+  const paidWithCreditRef = useRef(false);
   const [isInitializingPayment, setIsInitializingPayment] = useState(false);
   const [isPaymentSubmitting, setIsPaymentSubmitting] = useState(false);
 
@@ -926,6 +961,36 @@ export default function CheckoutPage() {
     setError(message);
   };
 
+  const loadCreditBalance = useCallback(async () => {
+    try {
+      const response = await authenticatedFetch('/api/account/store-credit');
+      if (!response.ok) return;
+      const data = await response.json();
+      if (data?.success) setCreditBalance(Math.max(0, Number(data.data?.balance) || 0));
+    } catch {
+      // checkout works without store credit
+    }
+  }, [authenticatedFetch]);
+
+  useEffect(() => {
+    if (checkoutUserId) void loadCreditBalance();
+  }, [checkoutUserId, loadCreditBalance]);
+
+  // What the credit pays for this total (the server decides for real; this is what is shown until it answers)
+  const creditTotalDollars = cart
+    ? cart.subtotal +
+      cart.platformFee +
+      cart.deliveryFee +
+      cart.tax +
+      (cart.subtotal * tipPercentage) / 100 -
+      (cart.appliedCoupon?.discountAmount || 0)
+    : 0;
+  const localCredit = useCredit && creditBalance > 0 ? planCreditUse(toCents(creditTotalDollars), toCents(creditBalance)) : null;
+  const creditApplied = useCredit && creditBalance > 0 ? (serverCredit ? serverCredit.applied : localCredit ? toDollars(localCredit.creditCents) : 0) : 0;
+  const coveredByCredit = useCredit && creditBalance > 0 && (serverCredit ? serverCredit.covered : Boolean(localCredit && localCredit.cardCents === 0 && localCredit.creditCents > 0));
+  // once an order is started its credit is fixed
+  const creditLocked = Boolean(pendingOrderId);
+
   const canLoadPaymentIntent = useCallback((): boolean => {
     if (!cart?.canCheckout || cart.days.length === 0) return false;
     return paymentMethod === 'Credit Card';
@@ -971,6 +1036,8 @@ export default function CheckoutPage() {
           tipPercentage,
           currency: 'usd',
           paymentIntentId: paymentIntentId ?? undefined,
+          useStoreCredit: useCredit && creditBalance > 0,
+          orderId: pendingOrderId ?? undefined,
         }),
       });
 
@@ -988,6 +1055,14 @@ export default function CheckoutPage() {
       }
 
       const { clientSecret, paymentIntentId: intentId } = data.data;
+      setServerCredit({ applied: Number(data.data.creditApplied) || 0, covered: data.data.coveredByCredit === true });
+
+      if (data.data.coveredByCredit === true) {
+        // the store credit pays for everything: no card form
+        setPaymentIntentId(null);
+        setPaymentClientSecret(null);
+        return true;
+      }
 
       if (!clientSecret || !intentId) {
         setError('Missing payment session from server');
@@ -1015,7 +1090,10 @@ export default function CheckoutPage() {
     handleClosedDays,
     paymentIntentId,
     paymentMethod,
+    pendingOrderId,
     tipPercentage,
+    useCredit,
+    creditBalance,
   ]);
 
   const createPendingOrder = useCallback(async (): Promise<string | null> => {
@@ -1037,6 +1115,7 @@ export default function CheckoutPage() {
         deliveryInstructions: cleanInstructionsText(deliveryInstructions),
         // only ever sent when the customer ticked the box themselves (an existing agreement is never changed here)
         smsOptIn: smsChecked ? true : undefined,
+        useStoreCredit: useCredit && creditBalance > 0,
       };
       sentInstructionsRef.current = cleanInstructionsText(deliveryInstructions);
 
@@ -1051,6 +1130,13 @@ export default function CheckoutPage() {
       if (!response.ok || !data.success) {
         // ordering closed for a day in the cart: stay here, remove it, show the banner (not a payment error)
         if (await handleClosedDays(response.status, data)) return null;
+        // the credit changed since the page loaded (used in another checkout, say): show the new balance, stay here
+        if (response.status === 409 && data?.code === 'CREDIT_CHANGED') {
+          setError(data.error || 'Your store credit changed. Please check the total and try again.');
+          setServerCredit(null);
+          await loadCreditBalance();
+          return null;
+        }
         const errorMessage = data.error || 'Failed to create order';
         reportPaymentError({
           stage: 'create_order',
@@ -1062,6 +1148,13 @@ export default function CheckoutPage() {
       }
 
       const { orderId, clientSecret } = data.data;
+
+      // the store credit paid for the whole order: it is already placed and paid, nothing to confirm with the card
+      if (data.data.paidWithCredit === true && orderId) {
+        paidWithCreditRef.current = true;
+        setPendingOrderId(orderId);
+        return orderId;
+      }
 
       if (!clientSecret || !orderId) {
         router.push(
@@ -1098,6 +1191,9 @@ export default function CheckoutPage() {
     phone,
     router,
     tipPercentage,
+    useCredit,
+    creditBalance,
+    loadCreditBalance,
   ]);
 
   // Delivery instructions start from the ones saved on the selected address, once per address (what the customer types is kept)
@@ -1120,7 +1216,7 @@ export default function CheckoutPage() {
     let cancelled = false;
     const timer = setTimeout(() => {
       void (async () => {
-        if (cancelled || paymentClientSecret) return;
+        if (cancelled || paymentClientSecret || serverCredit?.covered) return;
         await initializePaymentIntent();
       })();
     }, 300);
@@ -1129,14 +1225,14 @@ export default function CheckoutPage() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [canLoadPaymentIntent, initializePaymentIntent, paymentClientSecret]);
+  }, [canLoadPaymentIntent, initializePaymentIntent, paymentClientSecret, serverCredit?.covered]);
 
   // Refresh payment intent when tip or cart total changes
-  const paymentAmountKey = `${tipPercentage}-${cart?.subtotal}-${cart?.platformFee}-${cart?.deliveryFee}-${cart?.tax}-${cart?.appliedCoupon?.discountAmount ?? 0}`;
+  const paymentAmountKey = `${tipPercentage}-${cart?.subtotal}-${cart?.platformFee}-${cart?.deliveryFee}-${cart?.tax}-${cart?.appliedCoupon?.discountAmount ?? 0}-${useCredit ? creditBalance : 0}`;
   const paymentAmountKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!canLoadPaymentIntent() || !paymentClientSecret) return;
+    if (!canLoadPaymentIntent() || (!paymentClientSecret && !serverCredit?.covered)) return;
 
     if (paymentAmountKeyRef.current === null) {
       paymentAmountKeyRef.current = paymentAmountKey;
@@ -1164,7 +1260,14 @@ export default function CheckoutPage() {
     initializePaymentIntent,
     paymentAmountKey,
     paymentClientSecret,
+    serverCredit?.covered,
   ]);
+
+  // Turning the credit on or off: the server works out the new amounts (until it answers, the page shows its own sum)
+  const handleUseCreditChange = (value: boolean) => {
+    setUseCredit(value);
+    setServerCredit(null);
+  };
 
   const handlePlaceOrder = async (): Promise<void> => {
     setError('');
@@ -1215,15 +1318,17 @@ export default function CheckoutPage() {
 
     // Apple Pay only opens when the payment form is submitted straight away in the tap: do this BEFORE any network call
     // (creating the order, checking the days). Cards do not care, which is why only Apple Pay failed with 'Unable to show Apple Pay'.
+    // (Store credit paying for everything: there is no card form.)
+    paidWithCreditRef.current = false;
     let formSubmitted = false;
-    if (paymentClientSecret && paymentFormRef.current) {
+    if (!coveredByCredit && paymentClientSecret && paymentFormRef.current) {
       formSubmitted = await paymentFormRef.current.submitForm();
       if (!formSubmitted) throw new Error('Payment details need attention');
     }
 
     let orderIdForPayment = pendingOrderId;
 
-    if (!paymentClientSecret) {
+    if (!paymentClientSecret && !coveredByCredit) {
       const ready = await initializePaymentIntent();
       if (!ready) throw new Error('Payment session not ready');
       await new Promise((resolve) => setTimeout(resolve, 300));
@@ -1232,6 +1337,12 @@ export default function CheckoutPage() {
     if (!orderIdForPayment) {
       orderIdForPayment = await createPendingOrder();
       if (!orderIdForPayment) throw new Error('Order not created');
+    }
+
+    // paid in full with store credit: the order is already placed
+    if (paidWithCreditRef.current) {
+      await handlePaymentSuccess(orderIdForPayment);
+      return;
     }
 
     if (!paymentFormRef.current) {
@@ -1396,6 +1507,12 @@ export default function CheckoutPage() {
             onPaymentSubmittingChange={setIsPaymentSubmitting}
             cardDetailsComplete={cardDetailsComplete}
              onCardDetailsChange={setCardDetailsComplete}
+            creditBalance={creditBalance}
+            useCredit={useCredit}
+            onUseCreditChange={handleUseCreditChange}
+            creditApplied={creditApplied}
+            coveredByCredit={coveredByCredit}
+            creditLocked={creditLocked}
           />
         </Box>
       </Container>

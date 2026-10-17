@@ -1,3 +1,4 @@
+import { cardTotalOf } from '@/lib/storeCredit';
 import {
   Dialog,
   DialogTitle,
@@ -308,6 +309,15 @@ export default function OrderDetailsDialog({ open, order, onClose }: OrderDetail
               </Box>
             )}
 
+            {hasAmount(order.storeCreditUsed) && (
+              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Typography sx={{ fontSize: '14px', color: '#374151' }}>Store credit</Typography>
+                <Typography sx={{ fontSize: '14px', color: '#28a745' }}>
+                  -{formatCurrency(order.storeCreditUsed!, order.currency)}
+                </Typography>
+              </Box>
+            )}
+
           </Box>
 
           <Divider sx={{ my: 2 }} />
@@ -318,7 +328,7 @@ export default function OrderDetailsDialog({ open, order, onClose }: OrderDetail
               Total
             </Typography>
             <Typography sx={{ fontSize: '18px', fontWeight: 700, color: '#111827' }}>
-              {formatCurrency(order.totalPaid, order.currency)}
+              {formatCurrency(cardTotalOf(order), order.currency)}
             </Typography>
           </Box>
 
