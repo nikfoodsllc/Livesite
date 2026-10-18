@@ -1,3 +1,4 @@
+import { daysAfterCredits, hasItemsLeft } from '@/lib/creditedItems';
 import type { Order, OrderDay } from '@/types/order';
 
 /**
@@ -22,9 +23,13 @@ export function dayOf(value: Date | string | undefined | null): string {
   return /^\d{4}-\d{2}-\d{2}/.test(text) ? text.slice(0, 10) : '';
 }
 
-/** An order that should be on the route: paid and not cancelled (a partial refund keeps it; a full refund marks it refunded). */
-export function isRouteOrder(order: Pick<Order, 'status' | 'paymentStatus'>): boolean {
-  return order.paymentStatus === 'paid' && order.status !== 'cancelled';
+/**
+ * An order that should be on the route: paid, not cancelled, and with something still to deliver (a partial refund keeps it;
+ * a full refund marks it refunded; an order whose items were all given back as store credit has nothing left to deliver).
+ */
+export function isRouteOrder(order: Pick<Order, 'status' | 'paymentStatus'> & Partial<Pick<Order, 'items' | 'creditsIssued'>>): boolean {
+  if (order.paymentStatus !== 'paid' || order.status === 'cancelled') return false;
+  return order.items ? hasItemsLeft({ items: order.items, creditsIssued: order.creditsIssued }) : true;
 }
 
 /** The address as one line, like the sheet: "street, city, WA 98109, USA". Our street is usually that already. */
@@ -48,9 +53,10 @@ export interface DeliveryDay {
 }
 
 /** The days an order is delivered on: the delivery date after cart clubbing, grouped. */
-export function deliveryDaysOf(order: Pick<Order, 'items'>): DeliveryDay[] {
+export function deliveryDaysOf(order: Pick<Order, 'items'> & Partial<Pick<Order, 'creditsIssued'>>): DeliveryDay[] {
   const byDate = new Map<string, DeliveryDay>();
-  for (const day of (order.items ?? []) as OrderDay[]) {
+  // a day whose items were all given back as store credit is not delivered
+  for (const day of daysAfterCredits({ items: order.items, creditsIssued: order.creditsIssued })) {
     const date = dayOf(day.actualDeliveryDate) || dayOf(day.deliveryDate);
     if (!date) continue;
     const entry = byDate.get(date) ?? { date, menuDays: [] };

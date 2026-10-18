@@ -4,6 +4,8 @@ import { db } from '@/lib/server/db';
 import type { Order } from '@/types/order';
 import { issueItemCredit, type CreditSelection } from '@/lib/server/storeCreditIssue';
 import { sendStoreCreditEmail } from '@/lib/storeCreditEmail';
+import { deliveryDaysOf } from '@/lib/server/optimoRoute/stops';
+import { syncAfterCredit } from '@/lib/server/optimoRoute/sync';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,8 +29,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const items = Array.isArray(body.items) ? (body.items as CreditSelection[]) : [];
   const note = typeof body.note === 'string' ? body.note : undefined;
 
+  // the days the order is delivered on before this credit, to see afterwards which days have nothing left
+  const beforeRead = await db.readOne<Order>('orders', { orderId } as never);
+  const datesBefore = beforeRead.success && beforeRead.data ? deliveryDaysOf(beforeRead.data).map((d) => d.date) : [];
+
   const result = await issueItemCredit(orderId, items, note, auth.adminId, body.includeTax === true, body.includeFee === true, body.entireOrder === true);
   if (!result.ok) return NextResponse.json({ success: false, error: result.error }, { status: result.status });
+
+  // the credited items are not delivered: take the order (or the days with nothing left) off the OptimoRoute stops
+  await syncAfterCredit(orderId, datesBefore);
 
   // tell the customer (best effort: the credit stands either way)
   let email: { sent: boolean; error?: string } = { sent: false };

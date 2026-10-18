@@ -239,6 +239,32 @@ export async function syncOrderSafely(orderId: string, waitMs = 9000): Promise<v
   }
 }
 
+/**
+ * Store credit was just given for items of an order: those items are not delivered, so the order leaves the route entirely when
+ * nothing is left, or leaves the stops of the days that have nothing left. `datesBefore` are the delivery days it had before the
+ * credit. Never throws; the reconcile job finishes anything this misses.
+ */
+export async function syncAfterCredit(orderId: string, datesBefore: string[], waitMs = 9000): Promise<void> {
+  if (optimoMode() === 'off') return;
+  try {
+    const work = (async () => {
+      const found = await db.readOne<Order>('orders', { orderId } as never);
+      const order = found.success ? found.data : null;
+      if (!order) return;
+      if (!isRouteOrder(order)) {
+        await releaseOrder(orderId);
+        return;
+      }
+      const now = new Set(deliveryDaysOf(order).map((d) => d.date));
+      const left = datesBefore.filter((d) => !now.has(d));
+      if (left.length > 0) await releaseOrder(orderId, { onlyDates: left });
+    })();
+    await Promise.race([work, new Promise((resolve) => setTimeout(resolve, waitMs))]);
+  } catch (error) {
+    console.error('[optimoroute] could not update the route after a credit', { orderId, message: error instanceof Error ? error.message : String(error) });
+  }
+}
+
 export interface ReconcileSummary {
   mode: string;
   ordersChecked: number;
