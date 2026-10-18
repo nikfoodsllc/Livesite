@@ -1,6 +1,6 @@
 import { db } from '@/lib/server/db';
 import type { Order } from '@/types/order';
-import { creditForItemCents, toDollars } from '@/lib/storeCredit';
+import { creditForFeeCents, creditForItemCents, toDollars } from '@/lib/storeCredit';
 import { addCredit } from '@/lib/server/storeCredit';
 import { isQuoteOrder } from '@/lib/quoteOrder';
 
@@ -17,6 +17,10 @@ export interface CreditIssued {
   at: Date | string;
   by: string;
   note?: string;
+  /** Whether the 10.3% tax on the items was credited too */
+  includeTax?: boolean;
+  /** Platform Fee and its tax credited with this one, in dollars (at most once per order) */
+  fee?: number;
   amount: number;
   items: Array<{ line: number; item: number; name: string; quantity: number; amount: number }>;
 }
@@ -41,10 +45,10 @@ export function creditedQuantities(order: Pick<Order, 'creditsIssued'>): Map<str
 
 /**
  * Admin gives a customer store credit for specific items of a paid order: the item's price (eco container and portion
- * included) x quantity, plus the 10.3% tax on it. The Platform Fee, the tax on it and the tip are never credited.
+ * included) x quantity, plus the 10.3% tax on it only when the admin chooses to (withheld by default). The Platform Fee, the tax on it and the tip are never credited.
  * Each item can only be credited up to the quantity ordered, across all requests.
  */
-export async function issueItemCredit(orderId: string, selections: CreditSelection[], note: string | undefined, adminId: string): Promise<IssueResult> {
+export async function issueItemCredit(orderId: string, selections: CreditSelection[], note: string | undefined, adminId: string, includeTax = false, includeFee = false): Promise<IssueResult> {
   if (!Array.isArray(selections) || selections.length === 0) return fail(400, 'Pick at least one item.');
   if (selections.length > MAX_CREDIT_ITEMS_PER_REQUEST) return fail(400, 'Too many items in one go.');
 
@@ -69,11 +73,17 @@ export async function issueItemCredit(orderId: string, selections: CreditSelecti
     if (left === 0) return fail(409, `${dayItem.food?.name ?? 'This item'} has already been credited in full.`);
     const wanted = sel.quantity === undefined ? left : Math.floor(Number(sel.quantity));
     if (!(wanted >= 1) || wanted > left) return fail(400, `${dayItem.food?.name ?? 'This item'}: only ${left} left to credit.`);
-    picked.set(key, { line, item, name: dayItem.food?.name ?? 'Item', quantity: wanted, cents: creditForItemCents(dayItem.price, wanted) });
+    picked.set(key, { line, item, name: dayItem.food?.name ?? 'Item', quantity: wanted, cents: creditForItemCents(dayItem.price, wanted, includeTax) });
   }
 
   const items = [...picked.values()];
-  const totalCents = items.reduce((n, i) => n + i.cents, 0);
+  let feeCents = 0;
+  if (includeFee) {
+    if ((order.creditsIssued ?? []).some((c) => (c.fee ?? 0) > 0)) return fail(409, 'The Platform Fee was already credited on this order.');
+    feeCents = order.platformFeeWaived ? 0 : creditForFeeCents(order.platformFee);
+    if (!(feeCents > 0)) return fail(409, 'This order has no Platform Fee to credit.');
+  }
+  const totalCents = items.reduce((n, i) => n + i.cents, 0) + feeCents;
   if (!(totalCents > 0)) return fail(400, 'Nothing to credit.');
 
   const cleanNote = typeof note === 'string' ? note.trim().slice(0, 200) : '';
@@ -81,6 +91,8 @@ export async function issueItemCredit(orderId: string, selections: CreditSelecti
     at: new Date(),
     by: adminId,
     ...(cleanNote ? { note: cleanNote } : {}),
+    includeTax,
+    ...(feeCents > 0 ? { fee: toDollars(feeCents) } : {}),
     amount: toDollars(totalCents),
     items: items.map((i) => ({ line: i.line, item: i.item, name: i.name, quantity: i.quantity, amount: toDollars(i.cents) })),
   };
@@ -106,7 +118,10 @@ export async function issueItemCredit(orderId: string, selections: CreditSelecti
       orderId,
       reason: cleanNote || undefined,
       by: adminId,
-      items: items.map((i) => ({ line: i.line, item: i.item, name: i.name, quantity: i.quantity, cents: i.cents })),
+      items: [
+        ...items.map((i) => ({ line: i.line, item: i.item, name: i.name, quantity: i.quantity, cents: i.cents })),
+        ...(feeCents > 0 ? [{ line: -1, item: -1, name: 'Platform Fee (with tax)', quantity: 1, cents: feeCents }] : []),
+      ],
     });
   } catch (error) {
     // the order says credit was given but the balance did not change: take the record back so it can be tried again

@@ -166,9 +166,10 @@ export interface Order {
   storeCreditReleasedAt?: Date | string;
   storeCreditHeldAt?: Date | string; // pay-link orders: when the customer applied credit on the pay page (business only)
   creditShortfall?: number; // dollars of store credit that could not be taken again when a retried payment succeeded (business only)
-  creditsIssued?: Array<{ at: Date | string; by: string; note?: string; amount: number; items: Array<{ line: number; item: number; name: string; quantity: number; amount: number }> }>; // Store credit an admin gave for items of this order
+  creditsIssued?: Array<{ at: Date | string; by: string; note?: string; includeTax?: boolean; fee?: number; amount: number; items: Array<{ line: number; item: number; name: string; quantity: number; amount: number }> }>; // Store credit an admin gave for items of this order
   creditEmail?: { sentAt: Date | string; messageId?: string }; // Last email telling the customer about credit (business only)
   refundedAmount?: number; // Total refunded so far, in dollars (a partial refund keeps the order active)
+  stripeRefunds?: Array<{ id: string; amount: number; at: string; reason?: string; note?: string; status?: string }>; // Refunds made in Stripe with the note written on each (business only)
   refundedAt?: Date | string; // When the latest refund was recorded
   stripeFee?: number; // What Stripe charged us for this payment, in dollars (business only, never sent to customers)
   stripeNet?: number; // Amount that reached our balance after Stripe's fee, in dollars (business only)
