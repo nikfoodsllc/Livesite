@@ -11,6 +11,8 @@ export interface CreditSelection {
   item: number;
   /** How many of that item to credit (default: all that are still left) */
   quantity?: number;
+  /** Admin override of what this item is credited, in dollars (at most the item's price with its tax) */
+  amount?: number;
 }
 
 export interface CreditIssued {
@@ -85,7 +87,15 @@ export async function issueItemCredit(orderId: string, selections: CreditSelecti
     if (left === 0) return fail(409, `${dayItem.food?.name ?? 'This item'} has already been credited in full.`);
     const wanted = sel.quantity === undefined ? left : Math.floor(Number(sel.quantity));
     if (!(wanted >= 1) || wanted > left) return fail(400, `${dayItem.food?.name ?? 'This item'}: only ${left} left to credit.`);
-    picked.set(key, { line, item, name: dayItem.food?.name ?? 'Item', quantity: wanted, cents: creditForItemCents(dayItem.price, wanted, includeTax) });
+    let cents = creditForItemCents(dayItem.price, wanted, includeTax);
+    if (!entireOrder && sel.amount !== undefined && sel.amount !== null) {
+      const override = toCents(Number(sel.amount));
+      const most = creditForItemCents(dayItem.price, wanted, true);
+      if (!Number.isFinite(override) || override <= 0) return fail(400, `${dayItem.food?.name ?? 'This item'}: enter an amount above zero.`);
+      if (override > most) return fail(400, `${dayItem.food?.name ?? 'This item'}: the most that can be credited is $${toDollars(most).toFixed(2)}.`);
+      cents = override;
+    }
+    picked.set(key, { line, item, name: dayItem.food?.name ?? 'Item', quantity: wanted, cents });
   }
 
   const items = [...picked.values()];
@@ -98,6 +108,12 @@ export async function issueItemCredit(orderId: string, selections: CreditSelecti
   }
   const tipDone = (order.creditsIssued ?? []).some((c) => (c.tip ?? 0) > 0);
   const tipCents = entireOrder && !tipDone ? toCents(order.tip ?? 0) : 0;
+  if (entireOrder && (order.creditsIssued ?? []).length === 0 && items.length > 0) {
+    // nothing was credited before: the credit is exactly what the customer paid, so the last item absorbs the rounding of the taxes
+    const itemsTarget = toCents(order.totalPaid) - feeCents - tipCents;
+    const diff = itemsTarget - items.reduce((n, i) => n + i.cents, 0);
+    if (itemsTarget > 0 && Math.abs(diff) <= 100) items[items.length - 1].cents += diff;
+  }
   const totalCents = items.reduce((n, i) => n + i.cents, 0) + feeCents + tipCents;
   if (!(totalCents > 0)) return fail(400, 'Nothing to credit.');
 
