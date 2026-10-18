@@ -7,6 +7,7 @@ import Stripe from 'stripe';
 import { paymentMethodLabelFromCharge, resolvePaymentMethodLabel } from '@/lib/server/paymentMethodLabel';
 import { paymentErrorFromIntent } from '@/lib/server/stripePaymentInfo';
 import { refundFromCharge } from '@/lib/server/refundInfo';
+import { fetchRefundNotes } from '@/lib/server/refundNotes';
 import { annotatePaymentIntent } from '@/lib/server/stripePaymentNote';
 import { fetchChargeFee } from '@/lib/server/stripeFee';
 import { syncOrderSafely } from '@/lib/server/optimoRoute/sync';
@@ -467,10 +468,12 @@ export async function POST(request: NextRequest) {
         // partial refund (e.g. one missing item) leaves it paid and active.
         const refund = refundFromCharge(charge);
         const now = new Date();
+        const refundNotes = await fetchRefundNotes(stripe, charge.id);
         const updateResult = await db.updateOne('orders',
           { orderId: order.orderId },
           {
             $set: {
+              ...(refundNotes.length > 0 ? { stripeRefunds: refundNotes } : {}),
               refundedAmount: refund.refundedAmount,
               refundedAt: now,
               ...(refund.fullyRefunded ? { paymentStatus: 'refunded', status: 'cancelled' } : {}),

@@ -20,6 +20,12 @@ export function creditForItemCents(unitPrice: number, quantity: number, includeT
   return includeTax ? base + Math.round(base * TAX_RATE) : base;
 }
 
+/** What crediting the Platform Fee is worth: the fee plus the 10.3% tax charged on it. */
+export function creditForFeeCents(platformFee: number): number {
+  const base = toCents(platformFee);
+  return base > 0 ? base + Math.round(base * TAX_RATE) : 0;
+}
+
 export interface CreditPlan {
   /** Credit used on this order */
   creditCents: number;
