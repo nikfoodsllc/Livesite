@@ -20,6 +20,13 @@ const LABEL: Record<HistoryRow['type'], string> = {
   adjusted: 'Adjustment',
 };
 
+const TONE: Record<HistoryRow['type'], { bg: string; fg: string }> = {
+  issued: { bg: '#DCFCE7', fg: '#166534' },
+  used: { bg: '#E0F2FE', fg: '#075985' },
+  restored: { bg: '#FEF3C7', fg: '#92400E' },
+  adjusted: { bg: '#F3F4F6', fg: '#374151' },
+};
+
 /** The customer's store credit: the balance, and what happened to it. Not shown when they never had any. */
 export default function StoreCreditCard() {
   const { authenticatedFetch } = useApiClient();
@@ -62,31 +69,31 @@ export default function StoreCreditCard() {
         )}
       </Box>
       <Collapse in={open} unmountOnExit>
-        <Box sx={{ mt: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
+        <Box sx={{ mt: 1.5, display: 'flex', flexDirection: 'column', gap: 1.25 }}>
           {history.map((row, index) => (
-            <Box key={`${row.at}-${index}`}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+            <Box key={`${row.at}-${index}`} sx={{ border: '1px solid #EDEDED', borderRadius: '10px', p: 1.5 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 2 }}>
                 <Box sx={{ minWidth: 0 }}>
-                  <Typography sx={{ fontSize: '14px', color: '#374151' }}>{LABEL[row.type]}</Typography>
+                  <Box sx={{ display: 'inline-block', px: 1, py: 0.25, borderRadius: '6px', bgcolor: TONE[row.type].bg, color: TONE[row.type].fg, fontSize: '12px', fontWeight: 700 }}>{LABEL[row.type]}</Box>
+                  {row.orderId && <Typography sx={{ fontSize: '13px', fontWeight: 600, color: '#111827', mt: 0.75, overflowWrap: 'anywhere' }}>Order {row.orderId}</Typography>}
                   <Typography sx={{ fontSize: '12px', color: '#6B7280' }}>
                     {new Date(row.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                    {row.orderId ? ` · ${row.orderId}` : ''}
                   </Typography>
                 </Box>
-                <Typography sx={{ fontSize: '14px', fontWeight: 600, color: row.amount >= 0 ? '#28a745' : '#374151', whiteSpace: 'nowrap' }}>
+                <Typography sx={{ fontSize: '17px', fontWeight: 700, color: row.amount >= 0 ? '#166534' : '#374151', whiteSpace: 'nowrap' }}>
                   {row.amount >= 0 ? '+' : '-'}
                   {money(row.amount)}
                 </Typography>
               </Box>
-              {/* what the credit was for, with each item's amount (item price plus the tax on it), under the whole row */}
               {row.items && row.items.length > 0 && (
-                <Box sx={{ mt: 0.5, pl: 1.5, display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+                <Box sx={{ mt: 1, bgcolor: '#F9FAFB', borderRadius: '8px', px: 1.25, py: 0.5 }}>
                   {row.items.map((item, i) => (
-                    <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
-                      <Typography sx={{ fontSize: '13px', color: '#374151', minWidth: 0, overflowWrap: 'anywhere' }}>
-                        {item.quantity} × {item.name}
+                    <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, py: 0.5, borderTop: i === 0 ? 'none' : '1px solid #EEF0F3' }}>
+                      <Typography sx={{ fontSize: '13px', color: '#111827', minWidth: 0, overflowWrap: 'anywhere' }}>
+                        {item.name}
+                        {item.quantity > 1 ? <span style={{ color: '#6B7280' }}> × {item.quantity}</span> : null}
                       </Typography>
-                      <Typography sx={{ fontSize: '13px', color: '#374151', whiteSpace: 'nowrap' }}>{money(item.amount)}</Typography>
+                      <Typography sx={{ fontSize: '13px', fontWeight: 600, color: '#111827', whiteSpace: 'nowrap' }}>{money(item.amount)}</Typography>
                     </Box>
                   ))}
                 </Box>
