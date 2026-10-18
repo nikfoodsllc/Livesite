@@ -1,4 +1,5 @@
 import { cardTotalOf } from '@/lib/storeCredit';
+import CreditNotice, { paidByCreditOnly, usedCredit } from './CreditNotice';
 import {
   Dialog,
   DialogTitle,
@@ -267,6 +268,7 @@ export default function OrderDetailsDialog({ open, order, onClose }: OrderDetail
         <Divider sx={{ my: 3 }} />
 
         <RefundNotice order={order} />
+        <CreditNotice order={order} showUsed={false} />
 
         {/* Order Summary */}
         <Box>
@@ -309,15 +311,6 @@ export default function OrderDetailsDialog({ open, order, onClose }: OrderDetail
               </Box>
             )}
 
-            {hasAmount(order.storeCreditUsed) && (
-              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Typography sx={{ fontSize: '14px', color: '#374151' }}>Store credit</Typography>
-                <Typography sx={{ fontSize: '14px', color: '#28a745' }}>
-                  -{formatCurrency(order.storeCreditUsed!, order.currency)}
-                </Typography>
-              </Box>
-            )}
-
           </Box>
 
           <Divider sx={{ my: 2 }} />
@@ -328,18 +321,20 @@ export default function OrderDetailsDialog({ open, order, onClose }: OrderDetail
               Total
             </Typography>
             <Typography sx={{ fontSize: '18px', fontWeight: 700, color: '#111827' }}>
-              {formatCurrency(cardTotalOf(order), order.currency)}
+              {formatCurrency(usedCredit(order) ? order.totalPaid : cardTotalOf(order), order.currency)}
             </Typography>
           </Box>
-
-          {/* Store credit an admin gave for items of this order */}
-          {(order.creditsIssued ?? []).length > 0 && (
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-              <Typography sx={{ fontSize: '14px', color: '#166534' }}>Store credit received</Typography>
-              <Typography sx={{ fontSize: '14px', fontWeight: 600, color: '#166534' }}>
-                {formatCurrency((order.creditsIssued ?? []).reduce((sum, c) => sum + (c.amount || 0), 0), order.currency)}
-              </Typography>
-            </Box>
+          {usedCredit(order) && (
+            <>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                <Typography sx={{ fontSize: '14px', color: '#166534' }}>Store credit</Typography>
+                <Typography sx={{ fontSize: '14px', color: '#166534' }}>-{formatCurrency(order.storeCreditUsed ?? 0, order.currency)}</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+                <Typography sx={{ fontSize: '14px', fontWeight: 600, color: '#111827' }}>{paidByCreditOnly(order) ? 'Paid with store credit' : 'Paid by card'}</Typography>
+                <Typography sx={{ fontSize: '14px', fontWeight: 600, color: '#111827' }}>{formatCurrency(cardTotalOf(order), order.currency)}</Typography>
+              </Box>
+            </>
           )}
 
           {/* Refund and the new total */}

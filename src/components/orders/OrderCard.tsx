@@ -12,6 +12,7 @@ import {
 import StatusBadge from './StatusBadge';
 import OrderDaySection from './OrderDaySection';
 import RefundNotice from './RefundNotice';
+import CreditNotice, { paidByCreditOnly, usedCredit } from './CreditNotice';
 import { getNetTotal, getRefundedAmount } from '@/lib/orderRefunds';
 
 interface OrderCardProps {
@@ -136,6 +137,9 @@ export default function OrderCard({
       {/* Refund tile (full or partial refund) */}
       <RefundNotice order={order} />
 
+      {/* Store credit: paid with it, and credit added for this order */}
+      <CreditNotice order={order} />
+
       {/* Footer Section */}
       <Box
         sx={{
@@ -258,8 +262,13 @@ export default function OrderCard({
               color: '#111827',
             }}
           >
-            Total Paid: {formatCurrency(getNetTotal(order), order.currency)}
+            {usedCredit(order) && refundedAmount <= 0 ? 'Total' : 'Total Paid'}: {formatCurrency(usedCredit(order) && refundedAmount <= 0 ? order.totalPaid : getNetTotal(order), order.currency)}
           </Typography>
+          {usedCredit(order) && refundedAmount <= 0 && (
+            <Typography sx={{ fontSize: '12px', color: '#166534', mt: 0.25 }}>
+              {paidByCreditOnly(order) ? 'Paid with store credit' : `Store credit ${formatCurrency(order.storeCreditUsed ?? 0, order.currency)} · Card ${formatCurrency(cardTotalOf(order), order.currency)}`}
+            </Typography>
+          )}
           {refundedAmount > 0 && (
             <Typography sx={{ fontSize: '12px', color: '#6B7280', mt: 0.25 }}>
               Paid {formatCurrency(cardTotalOf(order), order.currency)} · Refunded{' '}
