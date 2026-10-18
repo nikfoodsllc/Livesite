@@ -7,7 +7,8 @@ import { cleanInstructions } from '@/lib/server/deliveryInstructions';
 import { validateZipcodeServiceabilityServer } from '@/utils/zipcodeValidation';
 import { comboQuantityText } from '@/lib/comboQuantity';
 import { getBalanceCents } from '@/lib/server/storeCredit';
-import { planCreditUse, toCents, toDollars } from '@/lib/storeCredit';
+import { toCents, toDollars } from '@/lib/storeCredit';
+import { planLinkOrderCredit } from '@/lib/server/linkOrderCredit';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,7 +41,7 @@ async function creditInfo(order: Order): Promise<{ used: number; available: numb
   if (!order.user) return undefined;
   const used = order.storeCreditState === 'held' ? order.storeCreditUsed ?? 0 : 0;
   const balance = await getBalanceCents(String(order.user));
-  const available = used > 0 ? 0 : toDollars(planCreditUse(toCents(order.totalPaid), balance).creditCents);
+  const available = used > 0 ? 0 : toDollars(planLinkOrderCredit(order, balance).creditCents);
   if (used <= 0 && available <= 0) return undefined;
   return { used, available, covered: used > 0 && toCents(used) >= toCents(order.totalPaid) };
 }

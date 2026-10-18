@@ -11,6 +11,7 @@ import { customerDeliveryProgress } from '@/lib/deliveryProgress';
 export const INTERNAL_ORDER_FIELDS = [
   'stripeFee',
   'stripeRefunds',
+  'preCreditTotals',
   'stripeNet',
   'paymentError',
   'paymentAttempts',

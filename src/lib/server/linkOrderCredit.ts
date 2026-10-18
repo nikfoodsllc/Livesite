@@ -1,7 +1,7 @@
 import Stripe from 'stripe';
 import { db } from '@/lib/server/db';
 import type { Order } from '@/types/order';
-import { planCreditUse, toCents, toDollars } from '@/lib/storeCredit';
+import { planCreditForOrder, planCreditUse, toCents, toDollars, type CreditedTotals } from '@/lib/storeCredit';
 import { addCredit, getBalanceCents, restoreOrderCredit, spendCredit } from '@/lib/server/storeCredit';
 import { sendOrderConfirmationEmail } from '@/lib/email';
 import { syncOrderSafely } from '@/lib/server/optimoRoute/sync';
@@ -18,6 +18,18 @@ export type LinkCreditResult =
   | { ok: false; status: number; error: string };
 
 const fail = (status: number, error: string): LinkCreditResult => ({ ok: false, status, error });
+
+/**
+ * What the store credit would pay on this order and the Platform Fee, tax and total that go with it: the fee is charged only on
+ * the part that goes through the card (planCreditForOrder). An order with a discount keeps its whole fee.
+ */
+export function planLinkOrderCredit(order: Order, balanceCents: number): CreditedTotals {
+  if ((order.discount?.amount ?? 0) > 0) {
+    const old = planCreditUse(toCents(order.totalPaid), balanceCents);
+    return { ...old, platformFee: order.platformFee, tax: order.taxes, total: order.totalPaid };
+  }
+  return planCreditForOrder({ subtotal: order.subtotal, deliveryFee: order.deliveryFee, tip: order.tip, waiveFee: order.platformFeeWaived === true, balanceCents });
+}
 
 function stripeClient(): Stripe | null {
   const key = process.env.STRIPE_SECRET_KEY;
@@ -45,7 +57,7 @@ export async function applyCreditToLinkOrder(orderId: string): Promise<LinkCredi
     return { ok: true, used: order.storeCreditUsed ?? 0, covered: toCents(order.storeCreditUsed ?? 0) >= toCents(order.totalPaid) };
   }
 
-  const plan = planCreditUse(toCents(order.totalPaid), await getBalanceCents(userId));
+  const plan = planLinkOrderCredit(order, await getBalanceCents(userId));
   if (plan.creditCents <= 0) return fail(409, 'There is no store credit to use.');
 
   if (!(await spendCredit({ userId, cents: plan.creditCents, orderId, reason: `Order ${orderId}` }))) {
@@ -61,7 +73,19 @@ export async function applyCreditToLinkOrder(orderId: string): Promise<LinkCredi
       status: { $ne: 'cancelled' },
       $or: [{ storeCreditUsed: { $exists: false } }, { storeCreditUsed: 0 }],
     } as never,
-    { $set: { storeCreditUsed: toDollars(plan.creditCents), storeCreditState: 'held', storeCreditHeldAt: new Date(), updatedAt: new Date() } } as never,
+    {
+      $set: {
+        storeCreditUsed: toDollars(plan.creditCents),
+        storeCreditState: 'held',
+        storeCreditHeldAt: new Date(),
+        // the fee and its tax follow the card part only; the figures from before are kept so they come back if the credit is given back
+        preCreditTotals: { platformFee: order.platformFee, taxes: order.taxes, totalPaid: order.totalPaid },
+        platformFee: plan.platformFee,
+        taxes: plan.tax,
+        totalPaid: plan.total,
+        updatedAt: new Date(),
+      },
+    } as never,
     { returnDocument: 'after' }
   );
   if (!claimed) {
@@ -96,13 +120,22 @@ export async function giveBackLinkOrderCredit(orderId: string, reason: string, o
   if (!order || !order.storeCreditUsed || order.storeCreditState !== 'held') return 0;
   const cents = await restoreOrderCredit(orderId, reason);
   if (cents <= 0) return 0;
-  await db.updateOne('orders', { orderId } as never, { $unset: { storeCreditUsed: '', storeCreditState: '', storeCreditHeldAt: '', storeCreditReleasedAt: '' }, $set: { updatedAt: new Date() } } as never);
+  // the fee, tax and total the order had before the credit was applied come back with it
+  const before = order.preCreditTotals;
+  await db.updateOne(
+    'orders',
+    { orderId } as never,
+    {
+      $unset: { storeCreditUsed: '', storeCreditState: '', storeCreditHeldAt: '', storeCreditReleasedAt: '', preCreditTotals: '' },
+      $set: { updatedAt: new Date(), ...(before ? { platformFee: before.platformFee, taxes: before.taxes, totalPaid: before.totalPaid } : {}) },
+    } as never
+  );
   if (opts.resetCardPayment !== false && order.stripePaymentIntentId) {
     const stripe = stripeClient();
     try {
       const pi = stripe ? await stripe.paymentIntents.retrieve(order.stripePaymentIntentId) : null;
       if (stripe && pi && pi.status !== 'canceled' && pi.status !== 'succeeded' && pi.status !== 'processing') {
-        await stripe.paymentIntents.update(pi.id, { amount: toCents(order.totalPaid), metadata: { storeCreditUsed: '' } });
+        await stripe.paymentIntents.update(pi.id, { amount: toCents(before ? before.totalPaid : order.totalPaid), metadata: { storeCreditUsed: '' } });
       }
     } catch (error) {
       console.error('[link-credit] could not put the card payment back to the full total', { orderId, message: error instanceof Error ? error.message : String(error) });

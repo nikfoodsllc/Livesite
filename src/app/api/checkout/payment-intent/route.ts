@@ -115,17 +115,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const totalPaid = calculateCheckoutTotal(cart, tipPercentage ?? 0);
-
-    if (Math.round(totalPaid * 100) <= 0) {
+    if (Math.round(calculateCheckoutTotal(cart, tipPercentage ?? 0) * 100) <= 0) {
       return NextResponse.json({ success: false, error: 'Invalid order total' }, { status: 400 });
     }
 
-    // store credit pays first; the card is only asked for what is left
-    const credit = await creditForCheckout({ userId, totalDollars: totalPaid, useStoreCredit, orderId: pendingOrderId });
+    // store credit pays first; the card is only asked for what is left, and the Platform Fee follows the card part only
+    const credit = await creditForCheckout({
+      userId,
+      cart,
+      tipAmount: calculateTipAmount(cart.subtotal, tipPercentage ?? 0),
+      discount: cart.appliedCoupon?.discountAmount || 0,
+      useStoreCredit,
+      orderId: pendingOrderId,
+    });
+    const totalPaid = credit.total;
     const amountCents = credit.cardCents;
     const creditApplied = toDollars(credit.creditCents);
-    const creditFields = { creditApplied, cardAmount: toDollars(credit.cardCents), balance: toDollars(credit.balanceCents) };
+    const creditFields = { creditApplied, cardAmount: toDollars(credit.cardCents), balance: toDollars(credit.balanceCents), platformFee: credit.platformFee, tax: credit.tax, total: credit.total };
 
     if (amountCents <= 0) {
       // the credit pays for everything: there is no card payment. An earlier card session for this checkout is closed.

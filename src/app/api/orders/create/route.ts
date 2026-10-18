@@ -210,20 +210,18 @@ export async function POST(request: NextRequest) {
 
     // Calculate total (cart already has calculated values)
     const discount = cart.appliedCoupon?.discountAmount || 0;
-    const totalPaid = Number(
-      (
-        cart.subtotal +
-        cart.platformFee +
-        cart.deliveryFee +
-        cart.tax +
-        tipAmount -
-        discount
-      ).toFixed(2)
-    );
 
     // Store credit pays first. It is taken off the balance right now (one atomic update that only works while the balance
     // covers it), so a second checkout at the same moment cannot spend it again.
-    const credit = await creditForCheckout({ userId, totalDollars: totalPaid, useStoreCredit: body.useStoreCredit === true });
+    const credit = await creditForCheckout({
+      userId,
+      cart,
+      tipAmount,
+      discount,
+      useStoreCredit: body.useStoreCredit === true,
+    });
+    // with credit the Platform Fee (and the tax on it) follow only the part that goes through the card
+    const totalPaid = credit.total;
     if (credit.creditCents > 0) {
       const taken = await spendCredit({ userId, cents: credit.creditCents, orderId, reason: `Order ${orderId}` });
       if (!taken) {
@@ -249,9 +247,9 @@ export async function POST(request: NextRequest) {
       address: addressSnapshot,
       customerInfo: customer,
       subtotal: cart.subtotal,
-      platformFee: cart.platformFee,
+      platformFee: credit.platformFee,
       deliveryFee: cart.deliveryFee,
-      taxes: cart.tax,
+      taxes: credit.tax,
       tip: tipAmount,
       discount: cart.appliedCoupon
         ? {
