@@ -53,8 +53,8 @@ export default function OrderDetailsDialog({ open, order, onClose }: OrderDetail
           borderBottom: '1px solid #E5E7EB',
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <Typography sx={{ fontSize: '20px', fontWeight: 700, color: '#111827' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', columnGap: 2, rowGap: 0.5, minWidth: 0 }}>
+          <Typography sx={{ fontSize: '20px', fontWeight: 700, color: '#111827', overflowWrap: 'anywhere' }}>
             Order #{order.orderId}
           </Typography>
           <StatusBadge status={order.status} paymentStatus={order.paymentStatus} size="medium" deliveryProgress={order.deliveryProgress} />
@@ -330,10 +330,12 @@ export default function OrderDetailsDialog({ open, order, onClose }: OrderDetail
                 <Typography sx={{ fontSize: '14px', color: '#166534' }}>Store credit</Typography>
                 <Typography sx={{ fontSize: '14px', color: '#166534' }}>-{formatCurrency(order.storeCreditUsed ?? 0, order.currency)}</Typography>
               </Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-                <Typography sx={{ fontSize: '14px', fontWeight: 600, color: '#111827' }}>{paidByCreditOnly(order) ? 'Paid with store credit' : 'Paid by card'}</Typography>
-                <Typography sx={{ fontSize: '14px', fontWeight: 600, color: '#111827' }}>{formatCurrency(cardTotalOf(order), order.currency)}</Typography>
-              </Box>
+              {!paidByCreditOnly(order) && (
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+                  <Typography sx={{ fontSize: '14px', fontWeight: 600, color: '#111827' }}>Paid by card</Typography>
+                  <Typography sx={{ fontSize: '14px', fontWeight: 600, color: '#111827' }}>{formatCurrency(cardTotalOf(order), order.currency)}</Typography>
+                </Box>
+              )}
             </>
           )}
 
