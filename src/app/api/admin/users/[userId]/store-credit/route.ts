@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { ObjectId } from 'mongodb';
+import { db } from '@/lib/server/db';
 import { requireAdminWithId } from '@/lib/adminAuth';
 import { addCredit, getBalanceCents, getLedger, spendCredit } from '@/lib/server/storeCredit';
 import { toCents, toDollars } from '@/lib/storeCredit';
@@ -13,12 +15,39 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if ('error' in auth) return auth.error;
   const { userId } = await params;
   if (!/^[a-f0-9]{24}$/i.test(userId)) return NextResponse.json({ success: false, error: 'Not a valid customer.' }, { status: 400 });
-  const [balanceCents, ledger] = await Promise.all([getBalanceCents(userId), getLedger(userId, 100)]);
+  const [balanceCents, ledger] = await Promise.all([getBalanceCents(userId), getLedger(userId, 200)]);
+
+  // the order each row belongs to (when it was placed and what it came to) and the name of the admin who made the change
+  const orderIds = [...new Set(ledger.map((r) => r.orderId).filter((id): id is string => !!id))];
+  const orders = orderIds.length
+    ? await db.read<{ orderId: string; createdAt?: Date; totalPaid?: number; status?: string }>('orders', { orderId: { $in: orderIds } } as never, { projection: { orderId: 1, createdAt: 1, totalPaid: 1, status: 1 } })
+    : { success: true, data: [] };
+  const orderById = new Map((orders.success && orders.data ? orders.data : []).map((o) => [o.orderId, o]));
+  const adminIds = [...new Set(ledger.map((r) => r.by).filter((id): id is string => !!id && ObjectId.isValid(id)))];
+  const admins = adminIds.length
+    ? await db.read<{ _id: ObjectId; name?: string; email?: string }>('users', { _id: { $in: adminIds.map((id) => new ObjectId(id)) } } as never, { projection: { name: 1, email: 1 } })
+    : { success: true, data: [] };
+  const adminById = new Map((admins.success && admins.data ? admins.data : []).map((a) => [String(a._id), a.name || a.email || '']));
+
   return NextResponse.json({
     success: true,
     data: {
       balance: toDollars(balanceCents),
-      history: ledger.map((r) => ({ at: r.at, amount: toDollars(r.cents), type: r.type, orderId: r.orderId, reason: r.reason, by: r.by, balanceAfter: r.balanceAfterCents === undefined ? undefined : toDollars(r.balanceAfterCents) })),
+      history: ledger.map((r) => {
+        const order = r.orderId ? orderById.get(r.orderId) : undefined;
+        return {
+          at: r.at,
+          amount: toDollars(r.cents),
+          type: r.type,
+          orderId: r.orderId,
+          reason: r.reason,
+          by: r.by,
+          byName: r.by ? adminById.get(r.by) || '' : '',
+          items: (r.items ?? []).map((i) => ({ name: i.name, quantity: i.quantity, amount: toDollars(i.cents) })),
+          order: order ? { placedAt: order.createdAt, total: order.totalPaid, status: order.status } : undefined,
+          balanceAfter: r.balanceAfterCents === undefined ? undefined : toDollars(r.balanceAfterCents),
+        };
+      }),
     },
   });
 }
