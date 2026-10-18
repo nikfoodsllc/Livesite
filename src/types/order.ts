@@ -165,6 +165,7 @@ export interface Order {
   storeCreditState?: 'held' | 'applied' | 'released'; // held while the card payment is open, applied once paid, released when given back
   storeCreditReleasedAt?: Date | string;
   storeCreditHeldAt?: Date | string; // pay-link orders: when the customer applied credit on the pay page (business only)
+  preCreditTotals?: { platformFee: number; taxes: number; totalPaid: number }; // link orders: fee, tax and total from before store credit was applied (business only)
   creditShortfall?: number; // dollars of store credit that could not be taken again when a retried payment succeeded (business only)
   creditsIssued?: Array<{ at: Date | string; by: string; note?: string; includeTax?: boolean; fee?: number; amount: number; items: Array<{ line: number; item: number; name: string; quantity: number; amount: number }> }>; // Store credit an admin gave for items of this order
   creditEmail?: { sentAt: Date | string; messageId?: string }; // Last email telling the customer about credit (business only)

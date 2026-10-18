@@ -39,7 +39,7 @@ import { closedItemsNotice, parseClosedItems } from '@/lib/closedDaysNotice';
 import { calculateDeliveryDates, type DayDeliveryInfo } from '@/lib/deliveryCalculator';
 import { DEFAULT_MIN_CART_VALUE } from '@/lib/cartLogic';
 import { reportPaymentError } from '@/lib/checkout/reportPaymentError';
-import { planCreditUse, toCents, toDollars } from '@/lib/storeCredit';
+import { planCreditForOrder, toCents, toDollars } from '@/lib/storeCredit';
 
 /**
  * Interface for error summary items
@@ -127,6 +127,8 @@ interface CheckoutFormContentProps {
   creditApplied: number;
   coveredByCredit: boolean;
   creditLocked: boolean;
+  /** Platform Fee, tax and total once the store credit is applied (the fee follows only the card part) */
+  creditedTotals: { platformFee: number; tax: number; total: number } | null;
 }
 
 function CheckoutFormContent({
@@ -175,12 +177,13 @@ function CheckoutFormContent({
   creditApplied,
   coveredByCredit,
   creditLocked,
+  creditedTotals,
 }: CheckoutFormContentProps) {
   const calculateTotals = () => {
     const subtotal = cart.subtotal;
-    const platformFee = cart.platformFee;
+    const platformFee = creditedTotals ? creditedTotals.platformFee : cart.platformFee;
     const deliveryFee = cart.deliveryFee;
-    const tax = cart.tax;
+    const tax = creditedTotals ? creditedTotals.tax : cart.tax;
     const tip = (subtotal * tipPercentage) / 100;
     const discount = cart.appliedCoupon?.discountAmount || 0;
     const total = subtotal + platformFee + deliveryFee + tax + tip - discount;
@@ -550,7 +553,7 @@ export default function CheckoutPage() {
   // the balance has been asked for (the card session waits for it, so it is created with the right amount)
   const [creditLoaded, setCreditLoaded] = useState(false);
   const [useCredit, setUseCredit] = useState(true);
-  const [serverCredit, setServerCredit] = useState<{ applied: number; covered: boolean } | null>(null);
+  const [serverCredit, setServerCredit] = useState<{ applied: number; covered: boolean; platformFee?: number; tax?: number; total?: number } | null>(null);
   const paidWithCreditRef = useRef(false);
   const [isInitializingPayment, setIsInitializingPayment] = useState(false);
   const [isPaymentSubmitting, setIsPaymentSubmitting] = useState(false);
@@ -981,16 +984,20 @@ export default function CheckoutPage() {
   }, [checkoutUserId, loadCreditBalance]);
 
   // What the credit pays for this total (the server decides for real; this is what is shown until it answers)
-  const creditTotalDollars = cart
-    ? cart.subtotal +
-      cart.platformFee +
-      cart.deliveryFee +
-      cart.tax +
-      (cart.subtotal * tipPercentage) / 100 -
-      (cart.appliedCoupon?.discountAmount || 0)
-    : 0;
-  const localCredit = useCredit && creditBalance > 0 ? planCreditUse(toCents(creditTotalDollars), toCents(creditBalance)) : null;
+  const localCredit =
+    useCredit && creditBalance > 0 && cart && !(cart.appliedCoupon?.discountAmount)
+      ? planCreditForOrder({ subtotal: cart.subtotal, deliveryFee: cart.deliveryFee, tip: (cart.subtotal * tipPercentage) / 100, balanceCents: toCents(creditBalance) })
+      : null;
   const creditApplied = useCredit && creditBalance > 0 ? (serverCredit ? serverCredit.applied : localCredit ? toDollars(localCredit.creditCents) : 0) : 0;
+  // the Platform Fee and its tax follow only the part that goes through the card (once an order exists its own figures are shown)
+  const creditedTotals =
+    useCredit && creditBalance > 0 && creditApplied > 0
+      ? pendingOrderId && serverCredit && serverCredit.platformFee !== undefined && serverCredit.tax !== undefined && serverCredit.total !== undefined
+        ? { platformFee: serverCredit.platformFee, tax: serverCredit.tax, total: serverCredit.total }
+        : localCredit
+          ? { platformFee: localCredit.platformFee, tax: localCredit.tax, total: localCredit.total }
+          : null
+      : null;
   const coveredByCredit = useCredit && creditBalance > 0 && (serverCredit ? serverCredit.covered : Boolean(localCredit && localCredit.cardCents === 0 && localCredit.creditCents > 0));
   // once an order is started its credit is fixed
   const creditLocked = Boolean(pendingOrderId);
@@ -1063,7 +1070,13 @@ export default function CheckoutPage() {
       }
 
       const { clientSecret, paymentIntentId: intentId } = data.data;
-      setServerCredit({ applied: Number(data.data.creditApplied) || 0, covered: data.data.coveredByCredit === true });
+      setServerCredit({
+        applied: Number(data.data.creditApplied) || 0,
+        covered: data.data.coveredByCredit === true,
+        platformFee: typeof data.data.platformFee === 'number' ? data.data.platformFee : undefined,
+        tax: typeof data.data.tax === 'number' ? data.data.tax : undefined,
+        total: typeof data.data.total === 'number' ? data.data.total : undefined,
+      });
 
       if (data.data.coveredByCredit === true) {
         // the store credit pays for everything: no card form
@@ -1521,6 +1534,7 @@ export default function CheckoutPage() {
             creditApplied={creditApplied}
             coveredByCredit={coveredByCredit}
             creditLocked={creditLocked}
+            creditedTotals={creditedTotals}
           />
         </Box>
       </Container>
