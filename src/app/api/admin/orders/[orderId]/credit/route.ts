@@ -18,7 +18,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { orderId: raw } = await params;
   const orderId = decodeURIComponent(raw);
 
-  let body: { items?: unknown; note?: unknown; includeTax?: unknown; includeFee?: unknown } = {};
+  let body: { items?: unknown; note?: unknown; includeTax?: unknown; includeFee?: unknown; entireOrder?: unknown } = {};
   try {
     body = await request.json();
   } catch {
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const items = Array.isArray(body.items) ? (body.items as CreditSelection[]) : [];
   const note = typeof body.note === 'string' ? body.note : undefined;
 
-  const result = await issueItemCredit(orderId, items, note, auth.adminId, body.includeTax === true, body.includeFee === true);
+  const result = await issueItemCredit(orderId, items, note, auth.adminId, body.includeTax === true, body.includeFee === true, body.entireOrder === true);
   if (!result.ok) return NextResponse.json({ success: false, error: result.error }, { status: result.status });
 
   // tell the customer (best effort: the credit stands either way)
@@ -40,6 +40,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         items: [
           ...result.issued.items.map((i) => ({ name: i.name, quantity: i.quantity, amount: i.amount })),
           ...(result.issued.fee ? [{ name: 'Platform Fee (with tax)', quantity: 1, amount: result.issued.fee }] : []),
+          ...(result.issued.tip ? [{ name: 'Tip', quantity: 1, amount: result.issued.tip }] : []),
         ],
         balance: result.balance,
         note: result.issued.note,
