@@ -23,8 +23,8 @@ function escapeHtml(value: string): string {
 
 const money = (n: number) => `$${(Math.round(n * 100) / 100).toFixed(2)}`;
 
-export function getStoreCreditEmailSubject(_order: Pick<Order, 'orderId'>, amount: number): string {
-  return `Store Credit ${money(amount)} NikFoods`;
+export function getStoreCreditEmailSubject(order: Pick<Order, 'orderId'>, amount: number): string {
+  return `Store Credit ${money(amount)} NikFoods - Order #${String(order.orderId ?? '').replace(/^#/, '')}`;
 }
 
 const C = {
