@@ -17,6 +17,8 @@ export interface CreditIssued {
   at: Date | string;
   by: string;
   note?: string;
+  /** Whether the 10.3% tax on the items was credited too */
+  includeTax?: boolean;
   amount: number;
   items: Array<{ line: number; item: number; name: string; quantity: number; amount: number }>;
 }
@@ -41,10 +43,10 @@ export function creditedQuantities(order: Pick<Order, 'creditsIssued'>): Map<str
 
 /**
  * Admin gives a customer store credit for specific items of a paid order: the item's price (eco container and portion
- * included) x quantity, plus the 10.3% tax on it. The Platform Fee, the tax on it and the tip are never credited.
+ * included) x quantity, plus the 10.3% tax on it only when the admin chooses to (withheld by default). The Platform Fee, the tax on it and the tip are never credited.
  * Each item can only be credited up to the quantity ordered, across all requests.
  */
-export async function issueItemCredit(orderId: string, selections: CreditSelection[], note: string | undefined, adminId: string): Promise<IssueResult> {
+export async function issueItemCredit(orderId: string, selections: CreditSelection[], note: string | undefined, adminId: string, includeTax = false): Promise<IssueResult> {
   if (!Array.isArray(selections) || selections.length === 0) return fail(400, 'Pick at least one item.');
   if (selections.length > MAX_CREDIT_ITEMS_PER_REQUEST) return fail(400, 'Too many items in one go.');
 
@@ -69,7 +71,7 @@ export async function issueItemCredit(orderId: string, selections: CreditSelecti
     if (left === 0) return fail(409, `${dayItem.food?.name ?? 'This item'} has already been credited in full.`);
     const wanted = sel.quantity === undefined ? left : Math.floor(Number(sel.quantity));
     if (!(wanted >= 1) || wanted > left) return fail(400, `${dayItem.food?.name ?? 'This item'}: only ${left} left to credit.`);
-    picked.set(key, { line, item, name: dayItem.food?.name ?? 'Item', quantity: wanted, cents: creditForItemCents(dayItem.price, wanted) });
+    picked.set(key, { line, item, name: dayItem.food?.name ?? 'Item', quantity: wanted, cents: creditForItemCents(dayItem.price, wanted, includeTax) });
   }
 
   const items = [...picked.values()];
@@ -81,6 +83,7 @@ export async function issueItemCredit(orderId: string, selections: CreditSelecti
     at: new Date(),
     by: adminId,
     ...(cleanNote ? { note: cleanNote } : {}),
+    includeTax,
     amount: toDollars(totalCents),
     items: items.map((i) => ({ line: i.line, item: i.item, name: i.name, quantity: i.quantity, amount: toDollars(i.cents) })),
   };

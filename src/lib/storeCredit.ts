@@ -12,12 +12,12 @@ export const toDollars = (cents: number): number => Math.round(cents) / 100;
 
 /**
  * What a credited item is worth: its price (portion and eco container included, as stored on the order line)
- * times the quantity, plus the 10.3% tax charged on it. The Platform Fee, the tax on that fee and the tip are
+ * times the quantity, plus (unless withheld) the 10.3% tax charged on it. The Platform Fee, the tax on that fee and the tip are
  * never credited.
  */
-export function creditForItemCents(unitPrice: number, quantity: number): number {
+export function creditForItemCents(unitPrice: number, quantity: number, includeTax = true): number {
   const base = toCents(unitPrice) * Math.max(0, Math.floor(Number(quantity) || 0));
-  return base + Math.round(base * TAX_RATE);
+  return includeTax ? base + Math.round(base * TAX_RATE) : base;
 }
 
 export interface CreditPlan {
