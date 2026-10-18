@@ -1,6 +1,6 @@
 import { db } from '@/lib/server/db';
 import type { Order } from '@/types/order';
-import { creditForFeeCents, creditForItemCents, toDollars } from '@/lib/storeCredit';
+import { creditForFeeCents, creditForItemCents, toCents, toDollars } from '@/lib/storeCredit';
 import { addCredit } from '@/lib/server/storeCredit';
 import { isQuoteOrder } from '@/lib/quoteOrder';
 
@@ -21,6 +21,10 @@ export interface CreditIssued {
   includeTax?: boolean;
   /** Platform Fee and its tax credited with this one, in dollars (at most once per order) */
   fee?: number;
+  /** The tip credited (only when the whole order was credited), in dollars */
+  tip?: number;
+  /** True when the whole order was credited in one go */
+  entireOrder?: boolean;
   amount: number;
   items: Array<{ line: number; item: number; name: string; quantity: number; amount: number }>;
 }
@@ -48,9 +52,11 @@ export function creditedQuantities(order: Pick<Order, 'creditsIssued'>): Map<str
  * included) x quantity, plus the 10.3% tax on it only when the admin chooses to (withheld by default). The Platform Fee, the tax on it and the tip are never credited.
  * Each item can only be credited up to the quantity ordered, across all requests.
  */
-export async function issueItemCredit(orderId: string, selections: CreditSelection[], note: string | undefined, adminId: string, includeTax = false, includeFee = false): Promise<IssueResult> {
-  if (!Array.isArray(selections) || selections.length === 0) return fail(400, 'Pick at least one item.');
-  if (selections.length > MAX_CREDIT_ITEMS_PER_REQUEST) return fail(400, 'Too many items in one go.');
+export async function issueItemCredit(orderId: string, selections: CreditSelection[], note: string | undefined, adminId: string, includeTax = false, includeFee = false, entireOrder = false): Promise<IssueResult> {
+  if (!entireOrder) {
+    if (!Array.isArray(selections) || selections.length === 0) return fail(400, 'Pick at least one item.');
+    if (selections.length > MAX_CREDIT_ITEMS_PER_REQUEST) return fail(400, 'Too many items in one go.');
+  }
 
   const found = await db.readOne<Order>('orders', { orderId } as never);
   const order = found.success ? found.data : null;
@@ -61,6 +67,12 @@ export async function issueItemCredit(orderId: string, selections: CreditSelecti
   if (isQuoteOrder(order)) return fail(409, 'A quote was never charged, so there is nothing to credit.');
 
   const already = creditedQuantities(order);
+  if (entireOrder) {
+    // everything still left on the order: every item with its tax, the Platform Fee with its tax, and the tip
+    includeTax = true;
+    selections = [];
+    (order.items ?? []).forEach((day, line) => (day.items ?? []).forEach((it, item) => { if ((it.quantity ?? 0) - (already.get(`${line}:${item}`) ?? 0) > 0) selections.push({ line, item }); }));
+  }
   const picked = new Map<string, { line: number; item: number; name: string; quantity: number; cents: number }>();
   for (const sel of selections) {
     const line = Number(sel?.line);
@@ -78,12 +90,15 @@ export async function issueItemCredit(orderId: string, selections: CreditSelecti
 
   const items = [...picked.values()];
   let feeCents = 0;
-  if (includeFee) {
-    if ((order.creditsIssued ?? []).some((c) => (c.fee ?? 0) > 0)) return fail(409, 'The Platform Fee was already credited on this order.');
-    feeCents = order.platformFeeWaived ? 0 : creditForFeeCents(order.platformFee);
-    if (!(feeCents > 0)) return fail(409, 'This order has no Platform Fee to credit.');
+  const feeDone = (order.creditsIssued ?? []).some((c) => (c.fee ?? 0) > 0);
+  if (includeFee || entireOrder) {
+    if (feeDone && !entireOrder) return fail(409, 'The Platform Fee was already credited on this order.');
+    feeCents = order.platformFeeWaived || feeDone ? 0 : creditForFeeCents(order.platformFee);
+    if (!(feeCents > 0) && !entireOrder) return fail(409, 'This order has no Platform Fee to credit.');
   }
-  const totalCents = items.reduce((n, i) => n + i.cents, 0) + feeCents;
+  const tipDone = (order.creditsIssued ?? []).some((c) => (c.tip ?? 0) > 0);
+  const tipCents = entireOrder && !tipDone ? toCents(order.tip ?? 0) : 0;
+  const totalCents = items.reduce((n, i) => n + i.cents, 0) + feeCents + tipCents;
   if (!(totalCents > 0)) return fail(400, 'Nothing to credit.');
 
   const cleanNote = typeof note === 'string' ? note.trim().slice(0, 200) : '';
@@ -93,6 +108,8 @@ export async function issueItemCredit(orderId: string, selections: CreditSelecti
     ...(cleanNote ? { note: cleanNote } : {}),
     includeTax,
     ...(feeCents > 0 ? { fee: toDollars(feeCents) } : {}),
+    ...(tipCents > 0 ? { tip: toDollars(tipCents) } : {}),
+    ...(entireOrder ? { entireOrder: true } : {}),
     amount: toDollars(totalCents),
     items: items.map((i) => ({ line: i.line, item: i.item, name: i.name, quantity: i.quantity, amount: toDollars(i.cents) })),
   };
@@ -121,6 +138,7 @@ export async function issueItemCredit(orderId: string, selections: CreditSelecti
       items: [
         ...items.map((i) => ({ line: i.line, item: i.item, name: i.name, quantity: i.quantity, cents: i.cents })),
         ...(feeCents > 0 ? [{ line: -1, item: -1, name: 'Platform Fee (with tax)', quantity: 1, cents: feeCents }] : []),
+        ...(tipCents > 0 ? [{ line: -1, item: -1, name: 'Tip', quantity: 1, cents: tipCents }] : []),
       ],
     });
   } catch (error) {
