@@ -167,14 +167,15 @@ async function recordOnOrder(orderId: string, outcomes: StopOutcome[], now: Date
 }
 
 /** Takes an order (cancelled, refunded) off its stops; a stop with no live order left is removed from OptimoRoute. */
-export async function releaseOrder(orderId: string, options: { now?: Date; onlyDates?: string[] } = {}): Promise<{ mode: string; outcomes: StopOutcome[] }> {
+export async function releaseOrder(orderId: string, options: { now?: Date; onlyDates?: string[]; includePast?: boolean } = {}): Promise<{ mode: string; outcomes: StopOutcome[] }> {
   const mode = optimoMode();
   if (mode === 'off') return { mode, outcomes: [] };
   const now = options.now ?? new Date();
   const today = pacificToday(now);
   const stops = await stopsCollection();
   // onlyDates: take the order off just those days (a delivery date moved), not off every stop it has
-  const dateFilter = options.onlyDates ? { $gte: today, $in: options.onlyDates } : { $gte: today };
+  // includePast: also stops of days that have gone by (an order deleted for good, even after it was delivered)
+  const dateFilter = options.onlyDates ? (options.includePast ? { $in: options.onlyDates } : { $gte: today, $in: options.onlyDates }) : options.includePast ? { $exists: true } : { $gte: today };
   const docs = await stops.find({ orderIds: orderId, date: dateFilter, state: { $in: ['sent', 'adopted', 'failed', 'new', 'remove_failed'] } }).toArray();
   const outcomes: StopOutcome[] = [];
   for (const doc of docs) {
