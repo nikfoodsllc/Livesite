@@ -2,6 +2,7 @@ import Stripe from 'stripe';
 import { db } from '@/lib/server/db';
 import { pacificToday, releaseOrder } from '@/lib/server/optimoRoute/sync';
 import { restoreOrderCredit } from '@/lib/server/storeCredit';
+import { removeOrderFromPackingRuns } from '@/lib/server/packingCleanup';
 import { isQuoteOrder } from '@/lib/quoteOrder';
 import type { Order } from '@/types/order';
 
@@ -69,6 +70,9 @@ export async function deleteOrderAsAdmin(orderId: string, adminId: string): Prom
     }
   }
 
+  // the customer's stop leaves the saved packing times too (the packing reports read the orders themselves, so the order is gone from them as soon as it is deleted)
+  const packing = await removeOrderFromPackingRuns(order);
+
   const archived = await db.create('deletedOrders', { orderId, deletedAt: new Date(), deletedBy: adminId, order } as never);
   if (!archived.success) return fail(500, 'Could not keep a copy of the order, so nothing was deleted. Try again.');
 
@@ -76,6 +80,6 @@ export async function deleteOrderAsAdmin(orderId: string, adminId: string): Prom
   if (!removed.success) return fail(500, 'The order could not be deleted. Try again.');
   if (!removed.deletedCount) return fail(404, 'The order was already deleted');
 
-  console.log('[order-delete] deleted', { orderId, by: adminId, paidByCard, optimoRemoved });
+  console.log('[order-delete] deleted', { orderId, by: adminId, paidByCard, optimoRemoved, packingStopsRemoved: packing.removed });
   return { ok: true, paidByCard, optimoRemoved };
 }
