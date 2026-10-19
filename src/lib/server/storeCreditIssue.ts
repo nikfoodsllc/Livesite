@@ -19,6 +19,8 @@ export interface CreditIssued {
   at: Date | string;
   by: string;
   note?: string;
+  /** Only admins see this */
+  internalNote?: string;
   /** Whether the 10.3% tax on the items was credited too */
   includeTax?: boolean;
   /** Platform Fee and its tax credited with this one, in dollars (at most once per order) */
@@ -54,7 +56,7 @@ export function creditedQuantities(order: Pick<Order, 'creditsIssued'>): Map<str
  * included) x quantity, plus the 10.3% tax on it only when the admin chooses to (withheld by default). The Platform Fee, the tax on it and the tip are never credited.
  * Each item can only be credited up to the quantity ordered, across all requests.
  */
-export async function issueItemCredit(orderId: string, selections: CreditSelection[], note: string | undefined, adminId: string, includeTax = false, includeFee = false, entireOrder = false): Promise<IssueResult> {
+export async function issueItemCredit(orderId: string, selections: CreditSelection[], note: string | undefined, adminId: string, includeTax = false, includeFee = false, entireOrder = false, internalNote?: string): Promise<IssueResult> {
   if (!entireOrder) {
     if (!Array.isArray(selections) || selections.length === 0) return fail(400, 'Pick at least one item.');
     if (selections.length > MAX_CREDIT_ITEMS_PER_REQUEST) return fail(400, 'Too many items in one go.');
@@ -118,10 +120,12 @@ export async function issueItemCredit(orderId: string, selections: CreditSelecti
   if (!(totalCents > 0)) return fail(400, 'Nothing to credit.');
 
   const cleanNote = typeof note === 'string' ? note.trim().slice(0, 200) : '';
+  const cleanInternal = typeof internalNote === 'string' ? internalNote.trim().slice(0, 300) : '';
   const issued: CreditIssued = {
     at: new Date(),
     by: adminId,
     ...(cleanNote ? { note: cleanNote } : {}),
+    ...(cleanInternal ? { internalNote: cleanInternal } : {}),
     includeTax,
     ...(feeCents > 0 ? { fee: toDollars(feeCents) } : {}),
     ...(tipCents > 0 ? { tip: toDollars(tipCents) } : {}),
@@ -150,6 +154,7 @@ export async function issueItemCredit(orderId: string, selections: CreditSelecti
       type: 'issued',
       orderId,
       reason: cleanNote || undefined,
+      internalNote: cleanInternal || undefined,
       by: adminId,
       items: [
         ...items.map((i) => ({ line: i.line, item: i.item, name: i.name, quantity: i.quantity, cents: i.cents })),

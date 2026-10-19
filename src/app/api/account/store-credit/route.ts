@@ -23,6 +23,8 @@ export async function GET(request: NextRequest) {
         amount: toDollars(r.cents),
         type: r.type,
         orderId: r.orderId,
+        // the note the admin wrote for the customer (credit given for items; never the internal note or an admin's reason for an adjustment)
+        ...(r.type === 'issued' && r.reason ? { note: r.reason } : {}),
         // what the credit was for (credit given for items of an order)
         ...(r.items && r.items.length > 0 ? { items: r.items.map((i) => ({ name: i.name, quantity: i.quantity, amount: toDollars(i.cents) })) } : {}),
       })),
