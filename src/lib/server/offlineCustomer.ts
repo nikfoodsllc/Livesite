@@ -132,7 +132,7 @@ export async function ensureCustomer(customer: CustomerInput, address: OfflineAd
   let accountCreated = false;
   if (existing.data) {
     if (existing.data.role !== 'USER') {
-      return { error: 'That email belongs to a staff account. Use the customer’s own email address.' };
+      return { error: 'The email provided is already in use.' };
     }
     userId = existing.data._id.toString();
     // an account that has no phone yet gets the number entered for this order (an existing number is never replaced)
