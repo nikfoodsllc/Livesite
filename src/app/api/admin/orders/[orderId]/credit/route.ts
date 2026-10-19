@@ -4,6 +4,7 @@ import { db } from '@/lib/server/db';
 import type { Order } from '@/types/order';
 import { issueItemCredit, type CreditSelection } from '@/lib/server/storeCreditIssue';
 import { sendStoreCreditEmail } from '@/lib/storeCreditEmail';
+import { toCents } from '@/lib/storeCredit';
 import { deliveryDaysOf } from '@/lib/server/optimoRoute/stops';
 import { syncAfterCredit } from '@/lib/server/optimoRoute/sync';
 
@@ -44,7 +45,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   try {
     const found = await db.readOne<Order>('orders', { orderId } as never);
     if (found.success && found.data) {
+      // the whole order is credited when the "entire order" button was used, or everything credited so far adds up to what was paid
+      const creditedSoFar = (found.data.creditsIssued ?? []).reduce((n, c) => n + toCents(c.amount || 0), 0);
+      const full = result.issued.entireOrder === true || (toCents(found.data.totalPaid) > 0 && creditedSoFar >= toCents(found.data.totalPaid));
       const sent = await sendStoreCreditEmail(found.data, {
+        full,
+        orderTotal: found.data.totalPaid,
         amount: result.issued.amount,
         items: [
           ...result.issued.items.map((i) => ({ name: i.name, quantity: i.quantity, amount: i.amount })),

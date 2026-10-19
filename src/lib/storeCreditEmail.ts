@@ -20,7 +20,7 @@ export async function sendStoreCreditEmail(
     const to = order.customerInfo?.email;
     if (!to) return { success: false, error: 'The order has no customer email' };
 
-    const subject = markTestSubject(getStoreCreditEmailSubject(order, credit.amount));
+    const subject = markTestSubject(getStoreCreditEmailSubject(order, credit.amount, credit.full === true));
     // support gets an identical copy (a separate email, not a Bcc, so opening it cannot mark the customer's email as opened)
     const copies = (process.env.ORDER_CONFIRMATION_BCC_EMAIL || 'support@nikfoods.com')
       .split(',')
