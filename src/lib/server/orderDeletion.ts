@@ -1,7 +1,9 @@
 import Stripe from 'stripe';
 import { db } from '@/lib/server/db';
-import { releaseOrder } from '@/lib/server/optimoRoute/sync';
+import { pacificToday, releaseOrder } from '@/lib/server/optimoRoute/sync';
 import { restoreOrderCredit } from '@/lib/server/storeCredit';
+import { removeOrderFromPackingRuns } from '@/lib/server/packingCleanup';
+import { isQuoteOrder } from '@/lib/quoteOrder';
 import type { Order } from '@/types/order';
 
 export type DeleteResult = { ok: true; paidByCard: boolean; optimoRemoved: number } | { ok: false; status: number; error: string };
@@ -44,8 +46,13 @@ export async function deleteOrderAsAdmin(orderId: string, adminId: string): Prom
 
   let optimoRemoved = 0;
   try {
-    const released = await releaseOrder(orderId);
-    const stuck = released.outcomes.filter((o) => o.result === 'remove_failed');
+    // a quote order is taken off OptimoRoute whenever it is deleted, also after its day went by (even when it was delivered)
+    const released = await releaseOrder(orderId, { includePast: isQuoteOrder(order) });
+    // a stop of a day that has not gone by must come off before the order goes; one of a past day that OptimoRoute refuses to delete is only logged
+    const today = pacificToday();
+    const stuck = released.outcomes.filter((o) => o.result === 'remove_failed' && o.date >= today);
+    const stuckPast = released.outcomes.filter((o) => o.result === 'remove_failed' && o.date < today);
+    if (stuckPast.length > 0) console.warn('[order-delete] OptimoRoute would not delete the stop of a past day', { orderId, days: stuckPast.map((o) => o.date) });
     if (stuck.length > 0) return fail(502, 'Could not remove the delivery stop from OptimoRoute. Nothing was deleted. Try again in a moment.');
     optimoRemoved = released.outcomes.filter((o) => o.result === 'removed').length;
   } catch (error) {
@@ -63,6 +70,9 @@ export async function deleteOrderAsAdmin(orderId: string, adminId: string): Prom
     }
   }
 
+  // the customer's stop leaves the saved packing times too (the packing reports read the orders themselves, so the order is gone from them as soon as it is deleted)
+  const packing = await removeOrderFromPackingRuns(order);
+
   const archived = await db.create('deletedOrders', { orderId, deletedAt: new Date(), deletedBy: adminId, order } as never);
   if (!archived.success) return fail(500, 'Could not keep a copy of the order, so nothing was deleted. Try again.');
 
@@ -70,6 +80,6 @@ export async function deleteOrderAsAdmin(orderId: string, adminId: string): Prom
   if (!removed.success) return fail(500, 'The order could not be deleted. Try again.');
   if (!removed.deletedCount) return fail(404, 'The order was already deleted');
 
-  console.log('[order-delete] deleted', { orderId, by: adminId, paidByCard, optimoRemoved });
+  console.log('[order-delete] deleted', { orderId, by: adminId, paidByCard, optimoRemoved, packingStopsRemoved: packing.removed });
   return { ok: true, paidByCard, optimoRemoved };
 }
