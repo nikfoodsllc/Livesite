@@ -21,7 +21,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { orderId: raw } = await params;
   const orderId = decodeURIComponent(raw);
 
-  let body: { items?: unknown; note?: unknown; includeTax?: unknown; includeFee?: unknown; entireOrder?: unknown } = {};
+  let body: { items?: unknown; note?: unknown; includeTax?: unknown; includeFee?: unknown; entireOrder?: unknown; internalNote?: unknown } = {};
   try {
     body = await request.json();
   } catch {
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const beforeRead = await db.readOne<Order>('orders', { orderId } as never);
   const datesBefore = beforeRead.success && beforeRead.data ? deliveryDaysOf(beforeRead.data).map((d) => d.date) : [];
 
-  const result = await issueItemCredit(orderId, items, note, auth.adminId, body.includeTax === true, body.includeFee === true, body.entireOrder === true);
+  const result = await issueItemCredit(orderId, items, note, auth.adminId, body.includeTax === true, body.includeFee === true, body.entireOrder === true, typeof body.internalNote === 'string' ? body.internalNote : undefined);
   if (!result.ok) return NextResponse.json({ success: false, error: result.error }, { status: result.status });
 
   // the credited items are not delivered: take the order (or the days with nothing left) off the OptimoRoute stops

@@ -41,6 +41,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           type: r.type,
           orderId: r.orderId,
           reason: r.reason,
+          internalNote: r.internalNote,
           by: r.by,
           byName: r.by ? adminById.get(r.by) || '' : '',
           items: (r.items ?? []).map((i) => ({ name: i.name, quantity: i.quantity, amount: toDollars(i.cents) })),

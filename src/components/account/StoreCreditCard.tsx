@@ -9,6 +9,7 @@ interface HistoryRow {
   amount: number;
   type: 'issued' | 'used' | 'restored' | 'adjusted';
   orderId?: string;
+  note?: string;
   items?: Array<{ name: string; quantity: number; amount: number }>;
 }
 
@@ -85,6 +86,7 @@ export default function StoreCreditCard() {
                   {money(row.amount)}
                 </Typography>
               </Box>
+              {row.note && <Typography sx={{ mt: 1, fontSize: '13px', color: '#374151', fontStyle: 'italic', overflowWrap: 'anywhere' }}>{row.note}</Typography>}
               {row.items && row.items.length > 0 && (
                 <Box sx={{ mt: 1, bgcolor: '#F9FAFB', borderRadius: '8px', px: 1.25, py: 0.5 }}>
                   {row.items.map((item, i) => (

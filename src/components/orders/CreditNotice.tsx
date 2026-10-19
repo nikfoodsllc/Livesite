@@ -20,7 +20,7 @@ export default function CreditNotice({ order, showUsed = true }: { order: Order;
   const used = showUsed && usedCredit(order);
   if (!used && issued.length === 0) return null;
 
-  const tile = (key: string, title: string, amount: string, lines: Array<{ text: string; amount: number }>) => (
+  const tile = (key: string, title: string, amount: string, lines: Array<{ text: string; amount: number }>, note?: string) => (
     <Box key={key} role="note" sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '10px', p: { xs: 1.5, sm: 2 }, mb: 1.5 }}>
       <Box aria-hidden sx={{ width: 32, height: 32, borderRadius: '50%', backgroundColor: '#DCFCE7', color: '#166534', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
         <IconCoin size={18} />
@@ -30,6 +30,7 @@ export default function CreditNotice({ order, showUsed = true }: { order: Order;
           <Typography sx={{ fontSize: '14px', fontWeight: 700, color: '#14532D' }}>{title}</Typography>
           <Typography sx={{ fontSize: '14px', fontWeight: 700, color: '#14532D', whiteSpace: 'nowrap' }}>{amount}</Typography>
         </Box>
+        {note && <Typography sx={{ fontSize: '13px', color: '#14532D', fontStyle: 'italic', mt: 0.5, overflowWrap: 'anywhere' }}>{note}</Typography>}
         {lines.map((l, i) => (
           <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, mt: 0.25 }}>
             <Typography sx={{ fontSize: '13px', color: '#166534', minWidth: 0, overflowWrap: 'anywhere' }}>{l.text}</Typography>
@@ -58,7 +59,8 @@ export default function CreditNotice({ order, showUsed = true }: { order: Order;
             ...c.items.map((it) => ({ text: it.quantity > 1 ? `${it.name} × ${it.quantity}` : it.name, amount: it.amount })),
             ...(c.fee ? [{ text: 'Platform Fee', amount: c.fee }] : []),
             ...(c.tip ? [{ text: 'Tip', amount: c.tip }] : []),
-          ]
+          ],
+          c.note
         )
       )}
     </Box>

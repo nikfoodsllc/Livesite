@@ -22,6 +22,8 @@ export interface LedgerRow {
   type: CreditLedgerType;
   orderId?: string;
   reason?: string;
+  /** Only admins see this: why the credit was given (the customer's own note is `reason`) */
+  internalNote?: string;
   /** Admin who issued or adjusted it */
   by?: string;
   /** Items the credit was issued for */
@@ -71,6 +73,7 @@ export async function addCredit(input: {
   type: 'issued' | 'adjusted' | 'restored';
   orderId?: string;
   reason?: string;
+  internalNote?: string;
   by?: string;
   items?: LedgerRow['items'];
 }): Promise<number> {
@@ -84,7 +87,7 @@ export async function addCredit(input: {
     { upsert: true, returnDocument: 'after' }
   );
   const balanceAfterCents = Math.round(updated?.balanceCents ?? cents);
-  await writeLedger({ userId: input.userId, cents, type: input.type, orderId: input.orderId, reason: input.reason, by: input.by, items: input.items, balanceAfterCents, at: new Date() });
+  await writeLedger({ userId: input.userId, cents, type: input.type, orderId: input.orderId, reason: input.reason, ...(input.internalNote ? { internalNote: input.internalNote } : {}), by: input.by, items: input.items, balanceAfterCents, at: new Date() });
   return balanceAfterCents;
 }
 

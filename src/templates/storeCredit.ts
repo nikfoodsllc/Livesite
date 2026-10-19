@@ -139,7 +139,7 @@ export function getStoreCreditEmailTemplate(order: Order, credit: CreditEmailDat
           ? `<tr><td style="padding:8px 0 0;border-top:1px solid ${C.line};font-size:15px;font-weight:800;color:${C.text};">Total credited</td><td align="right" style="padding:8px 0 0 12px;border-top:1px solid ${C.line};font-size:15px;font-weight:800;color:${C.text};white-space:nowrap;">${money(credit.amount)}</td></tr>`
           : ''
       }</table>
-      ${credit.note ? `<div style="font-size:13px;line-height:19px;color:${C.muted};margin-top:6px;">${escapeHtml(credit.note)}</div>` : ''}
+      ${credit.note ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid ${C.line};font-size:11px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:${C.brandText};">Note from NikFoods</div><div style="font-size:14px;line-height:20px;color:${C.body};margin-top:3px;">${escapeHtml(credit.note)}</div>` : ''}
     </td></tr></table>
   </td></tr>
 

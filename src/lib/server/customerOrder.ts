@@ -49,8 +49,9 @@ export function toCustomerOrder<T extends object>(order: T): Omit<T, (typeof INT
   // credit an admin gave for items: the customer sees what and how much, not which admin
   if (Array.isArray(copy.creditsIssued)) {
     copy.creditsIssued = (copy.creditsIssued as Array<Record<string, unknown>>).map((entry) => {
-      const { by: _by, ...rest } = entry;
+      const { by: _by, internalNote: _internal, ...rest } = entry;
       void _by;
+      void _internal;
       return rest;
     });
   }
