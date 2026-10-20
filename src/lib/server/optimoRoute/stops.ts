@@ -27,10 +27,19 @@ export function dayOf(value: Date | string | undefined | null): string {
  * An order that should be on the route: paid, not cancelled, and with something still to deliver (a partial refund keeps it;
  * a full refund marks it refunded; an order whose items were all given back as store credit has nothing left to deliver).
  */
-export function isRouteOrder(order: Pick<Order, 'status' | 'paymentStatus'> & Partial<Pick<Order, 'items' | 'creditsIssued'>>): boolean {
-  if (order.paymentStatus !== 'paid' || order.status === 'cancelled') return false;
+export function isRouteOrder(order: Pick<Order, 'status' | 'paymentStatus'> & Partial<Pick<Order, 'items' | 'creditsIssued' | 'countBeforePayment'>>): boolean {
+  if (order.status === 'cancelled') return false;
+  // an admin can have an unpaid order counted from the start (Create Order: "count it before it is paid"); a failed or refunded payment never counts
+  const countedEarly = order.countBeforePayment === true && order.paymentStatus !== 'failed' && order.paymentStatus !== 'refunded';
+  if (order.paymentStatus !== 'paid' && !countedEarly) return false;
   return order.items ? hasItemsLeft({ items: order.items, creditsIssued: order.creditsIssued }) : true;
 }
+
+/** The orders that go on the route, as a database condition (the same rule as isRouteOrder, before the items are looked at). */
+export const ROUTE_ORDER_PAYMENT_CLAUSES = [
+  { paymentStatus: 'paid' },
+  { countBeforePayment: true, paymentStatus: { $nin: ['failed', 'refunded'] } },
+];
 
 /** The address as one line, like the sheet: "street, city, WA 98109, USA". Our street is usually that already. */
 export function addressLine(order: Pick<Order, 'address'>): string {
