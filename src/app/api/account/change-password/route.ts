@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revokeAllDeviceKeysSafely } from '@/lib/server/deviceLogin';
 import { db } from '@/lib/server/db';
 import { jwtHandler } from '@/lib/jwt';
 import { comparePassword, hashPassword } from '@/lib/password';
@@ -72,6 +73,8 @@ export async function POST(request: NextRequest) {
     );
     // The stored refresh token goes: other devices must sign in again once their short login runs out
     await db.delete('refreshtokens', { user: user._id as any });
+    // phones with Face ID sign-in must use the new password once
+    await revokeAllDeviceKeysSafely(String(user._id));
 
     return NextResponse.json({ success: true, message: 'Password changed' }, { status: 200 });
   } catch (error) {
