@@ -591,23 +591,32 @@ export default function FoodDetailsDialog({
           <IconX size={20} />
         </IconButton>
 
-        {/* Food Image */}
+        {/* Food Image: the whole photo is shown (contain) over a soft blurred copy of itself, so any photo shape fills the strip without being cropped */}
         <Box
           sx={{
             position: 'relative',
             width: '100%',
-            height: { xs: 120, sm: 140 },
+            height: { xs: 240, sm: 300 },
             flexShrink: 0,
             overflow: 'hidden',
+            backgroundColor: '#f3f4f6',
           }}
         >
           <Image
             src={foodItem.url}
+            alt=""
+            aria-hidden
+            fill
+            sizes="700px"
+            style={{ objectFit: 'cover', filter: 'blur(24px) saturate(1.1)', transform: 'scale(1.15)', opacity: 0.85 }}
+          />
+          <Image
+            src={foodItem.url}
             alt={foodItem.name}
             fill
-            style={{
-              objectFit: 'cover',
-            }}
+            priority
+            sizes="(max-width: 600px) 100vw, 700px"
+            style={{ objectFit: 'contain' }}
           />
         </Box>
 
