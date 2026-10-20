@@ -123,6 +123,17 @@ export function buildOptimoOrder(order: Order, date: string): OptimoOrderPayload
   };
 }
 
+/** The details of a stop that can change after it was sent (the address and its notes), the way buildOptimoOrder writes them. */
+export function stopDetailsOf(order: Order) {
+  return {
+    address: addressLine(order),
+    locationName: clean(order.customerInfo?.name),
+    apartment: clean(order.address?.apartment),
+    gate: clean(order.address?.entrance),
+    instruction: clean(order.address?.floor),
+  };
+}
+
 export interface ExistingOptimoOrder {
   orderNo?: string;
   id?: string;

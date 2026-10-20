@@ -1,8 +1,8 @@
 import { db } from '@/lib/server/db';
 import type { Order } from '@/types/order';
 import { optimoMode } from './config';
-import { createStop, deleteStop, searchOrdersForDate } from './client';
-import { ROUTE_ORDER_PAYMENT_CLAUSES, buildOptimoOrder, deliveryDaysOf, findExistingStop, isRouteOrder, stopKeyFor, type ExistingOptimoOrder } from './stops';
+import { createStop, deleteStop, searchOrdersForDate, updateStopDetails } from './client';
+import { ROUTE_ORDER_PAYMENT_CLAUSES, buildOptimoOrder, deliveryDaysOf, findExistingStop, isRouteOrder, stopDetailsOf, stopKeyFor, type ExistingOptimoOrder } from './stops';
 
 /**
  * Keeps OptimoRoute in step with confirmed orders.
@@ -40,7 +40,7 @@ export interface StopDoc {
 export interface StopOutcome {
   date: string;
   stopKey: string;
-  result: 'sent' | 'adopted' | 'already' | 'in_progress' | 'failed' | 'would_create' | 'would_adopt' | 'past' | 'removed' | 'remove_failed' | 'kept' | 'would_remove';
+  result: 'sent' | 'adopted' | 'already' | 'in_progress' | 'failed' | 'would_create' | 'would_adopt' | 'past' | 'removed' | 'remove_failed' | 'kept' | 'would_remove' | 'updated' | 'would_update';
   orderNo?: string;
   error?: string;
 }
@@ -227,6 +227,66 @@ export async function moveOrderStops(orderId: string, leftDates: string[], optio
   return { mode, removed, added };
 }
 
+/**
+ * An order's delivery address changed. Each upcoming stop of the order is changed IN PLACE in OptimoRoute (same stop, so a route it
+ * is already on is kept) and its record gets the new key. When that is not possible the order is taken off the old stop and a new
+ * stop is made: the stop is shared with another live order of the customer, a stop for the new address already exists that day,
+ * or OptimoRoute refused the update. Never throws; a stop that could not be fixed shows as failed and the 30-minute check tries again.
+ */
+export async function updateOrderStopsAddress(orderId: string, options: { now?: Date } = {}): Promise<{ mode: string; outcomes: StopOutcome[] }> {
+  const mode = optimoMode();
+  if (mode === 'off') return { mode, outcomes: [] };
+  const now = options.now ?? new Date();
+  const found = await db.readOne<Order>('orders', { orderId } as never);
+  const order = found.success ? found.data : null;
+  if (!order || !isRouteOrder(order)) return { mode, outcomes: [] };
+  const today = pacificToday(now);
+  const current = new Set(deliveryDaysOf(order).map((d) => d.date));
+  const stops = await stopsCollection();
+  const docs = await stops.find({ orderIds: orderId, date: { $gte: today }, state: { $in: ['sent', 'adopted'] } }).toArray();
+  const outcomes: StopOutcome[] = [];
+  const recreate: string[] = [];
+
+  for (const doc of docs) {
+    if (!current.has(doc.date)) continue; // a moved date is handled by the date change
+    const newKey = stopKeyFor(order, doc.date);
+    if (doc.stopKey === newKey) continue; // the address on the stop is already the order's
+    let sharedLive = 0;
+    const others = doc.orderIds.filter((id) => id !== orderId);
+    if (others.length > 0) {
+      const read = await db.read<Order>('orders', { orderId: { $in: others } } as never);
+      sharedLive = (read.success ? read.data ?? [] : []).filter((o: Order) => isRouteOrder(o)).length;
+    }
+    const taken = await stops.findOne({ stopKey: newKey, state: { $in: ['sent', 'adopted', 'creating', 'new'] } });
+    if (sharedLive > 0 || taken) {
+      recreate.push(doc.date);
+      continue;
+    }
+    if (mode === 'dry') {
+      outcomes.push({ date: doc.date, stopKey: newKey, result: 'would_update', orderNo: doc.optimoOrderNo });
+      continue;
+    }
+    const updated = await updateStopDetails({ id: doc.optimoId, orderNo: doc.optimoOrderNo || undefined }, stopDetailsOf(order));
+    if (updated.ok) {
+      await stops.updateOne({ stopKey: doc.stopKey }, { $set: { stopKey: newKey, updatedAt: now }, $unset: { lastError: '' } });
+      outcomes.push({ date: doc.date, stopKey: newKey, result: 'updated', orderNo: doc.optimoOrderNo });
+    } else {
+      recreate.push(doc.date); // could not change it: try taking it off and making a new stop
+    }
+  }
+
+  if (recreate.length > 0) {
+    const removed = (await releaseOrder(orderId, { now, onlyDates: recreate })).outcomes;
+    outcomes.push(...removed.filter((o) => o.result === 'remove_failed' || o.result === 'would_remove'));
+  }
+  // stops for the new address that are still missing (after a take-off, or an earlier failure)
+  const added = (await syncOrder(orderId, { now })).outcomes;
+  const seen = new Set(outcomes.map((o) => o.date + o.result));
+  for (const o of added) if (o.result !== 'already' && o.result !== 'past' && !seen.has(o.date + o.result)) outcomes.push(o);
+  if (mode === 'on' && outcomes.length > 0) await recordOnOrder(orderId, outcomes.map((o) => (o.result === 'updated' ? { ...o, result: 'sent' as const } : o)), now);
+  return { mode, outcomes };
+}
+
 /** For payment handlers: never throws, and gives up waiting after a few seconds (the reconcile job finishes the rest). */
 export async function syncOrderSafely(orderId: string, waitMs = 9000): Promise<void> {
   if (optimoMode() === 'off') return;
@@ -352,6 +412,18 @@ export async function reconcile(options: { now?: Date; budgetMs?: number } = {})
         break;
       }
       tally((await releaseOrder(order.orderId, { now, onlyDates: left })).outcomes);
+    }
+    // 3b. a stop still shows the old address (an admin changed the order's address and the update did not go through)
+    for (const order of orderList) {
+      if (!isRouteOrder(order)) continue;
+      const current = new Set(deliveryDaysOf(order).map((d) => d.date));
+      const stale = live.some((s) => s.state !== 'remove_failed' && s.orderIds.includes(order.orderId) && current.has(s.date) && s.stopKey !== stopKeyFor(order, s.date));
+      if (!stale) continue;
+      if (Date.now() - started > budget) {
+        summary.stoppedEarly = true;
+        break;
+      }
+      tally((await updateOrderStopsAddress(order.orderId, { now })).outcomes);
     }
   }
   // 4. summaries on orders that still say a shared stop is in progress
