@@ -187,6 +187,8 @@ export interface CompletionInfo {
   status?: string;
   /** When the driver finished the stop (UTC, 'YYYY-MM-DDTHH:MM:SS') */
   endUtc?: string;
+  /** OptimoRoute's live tracking page for this stop (what the customer's tracking link opens) */
+  trackingUrl?: string;
 }
 
 /** What drivers reported for stops, by OptimoRoute order id (read only; up to 20 ids per call). */
@@ -194,13 +196,21 @@ export async function completionDetails(ids: string[]): Promise<OptimoResult<Rec
   const out: Record<string, CompletionInfo> = {};
   for (let i = 0; i < ids.length; i += 20) {
     const chunk = ids.slice(i, i + 20);
-    const result = await call<{ orders?: Array<{ success?: boolean; id?: string; data?: { status?: string; endTime?: { utcTime?: string } } }> }>('get_completion_details', { orders: chunk.map((id) => ({ id })) });
+    const result = await call<{ orders?: Array<{ success?: boolean; id?: string; data?: { status?: string; endTime?: { utcTime?: string }; tracking_url?: string } }> }>('get_completion_details', { orders: chunk.map((id) => ({ id })) });
     if (!result.ok) return { ok: false, code: result.code, message: result.message };
     for (const o of result.data?.orders ?? []) {
-      if (o.success && o.id) out[o.id] = { status: o.data?.status, endUtc: o.data?.endTime?.utcTime };
+      if (o.success && o.id) out[o.id] = { status: o.data?.status, endUtc: o.data?.endTime?.utcTime, ...(o.data?.tracking_url ? { trackingUrl: o.data.tracking_url } : {}) };
     }
   }
   return { ok: true, data: out };
+}
+
+/** The planned and live arrival of one stop, by OptimoRoute order id (read only). liveArrival is null until routes were sent to drivers. */
+export async function stopSchedule(id: string): Promise<OptimoResult<{ liveArrival: string | null; plannedArrival?: string }>> {
+  const result = await call<{ orders?: Array<{ scheduleInformation?: { arrivalTimeDt?: string; liveEstimate?: { arrivalTimeDt?: string | null } | null } }> }>('search_orders', { orders: [{ id }], includeScheduleInformation: true });
+  if (!result.ok) return { ok: false, code: result.code, message: result.message };
+  const info = result.data?.orders?.[0]?.scheduleInformation;
+  return { ok: true, data: { liveArrival: info?.liveEstimate?.arrivalTimeDt ?? null, plannedArrival: info?.arrivalTimeDt } };
 }
 
 /** The drivers and their stops, in route order, of one day (read only). */

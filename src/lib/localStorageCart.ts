@@ -5,6 +5,8 @@ import { generateAvailableDatesFromAPI } from './dayAvailabilityClient';
 import { getPSTDateString } from './timezone';
 
 const CART_STORAGE_KEY = 'nikfoods_guest_cart';
+/** where the cross-device sync remembers what it last matched (cleared together with the cart, see cartSync.ts) */
+export const CART_SYNC_MARKER_KEY = 'nikfoods_cart_sync';
 const CART_VERSION = '2.0';
 
 function newLineId(): string {
@@ -158,6 +160,25 @@ export function getCart(): LocalCart {
   }
 }
 
+let changeListener: (() => void) | null = null;
+
+/** Called after every real change of the cart (used to keep the cart in step across devices). */
+export function setCartChangeListener(listener: (() => void) | null): void {
+  changeListener = listener;
+}
+
+/** Replaces this device's cart with one from the server, without counting it as a change made here. */
+export function replaceCartQuietly(cart: LocalCart): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  try {
+    localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
+  } catch (error) {
+    console.error('Error saving cart to localStorage:', error);
+  }
+}
+
 function saveCart(cart: LocalCart): void {
   if (typeof window === 'undefined') {
     return;
@@ -169,7 +190,9 @@ function saveCart(cart: LocalCart): void {
     localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
   } catch (error) {
     console.error('Error saving cart to localStorage:', error);
+    return;
   }
+  changeListener?.();
 }
 
 function calculateUnitPrice(foodItem: FoodItem, customizations: CartCustomizations): number {
@@ -402,6 +425,7 @@ export function clearCart(): void {
 
   try {
     localStorage.removeItem(CART_STORAGE_KEY);
+    localStorage.removeItem(CART_SYNC_MARKER_KEY);
   } catch (error) {
     console.error('Error clearing cart:', error);
   }

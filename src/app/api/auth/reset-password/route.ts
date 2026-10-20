@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revokeAllDeviceKeysSafely } from '@/lib/server/deviceLogin';
 import { db } from '@/lib/server/db';
 import { hashPassword } from '@/lib/password';
 import { sendPasswordResetConfirmation } from '@/lib/email';
@@ -96,6 +97,8 @@ export async function POST(request: NextRequest) {
 
     // Hash new password
     const hashedPassword = await hashPassword(password);
+    // phones with Face ID sign-in must use the new password once
+    await revokeAllDeviceKeysSafely(String(user._id));
 
     // Update user password
     await db.updateOne(

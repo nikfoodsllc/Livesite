@@ -26,6 +26,7 @@ import { addCredit, spendCredit } from '@/lib/server/storeCredit';
 import { toDollars } from '@/lib/storeCredit';
 import { sendOrderConfirmationEmail } from '@/lib/email';
 import { syncOrderSafely } from '@/lib/server/optimoRoute/sync';
+import { clearUserCartSafely } from '@/lib/server/userCart';
 import { markDraftConverted } from '@/lib/server/checkoutDrafts';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
@@ -315,6 +316,7 @@ export async function POST(request: NextRequest) {
         console.error(`[orders/create] confirmation email threw for ${orderId}`, emailError);
       }
       await syncOrderSafely(orderId);
+      await clearUserCartSafely(userId);
 
       return NextResponse.json({
         success: true,
