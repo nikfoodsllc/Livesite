@@ -193,6 +193,7 @@ export interface Order {
   paymentFailedEmailStatus?: EmailStatusInfo; // Track payment failed email status
   /** For a Partially Delivered order: each delivery day and whether it is delivered (added when the order is sent to the customer; no failure details) */
   deliveryProgress?: Array<{ date: string; delivered: boolean }>;
+  addressChanges?: Array<{ at: Date | string; by: { id: string; name?: string }; changes: Record<string, [string, string]> }>; // An admin changed the delivery address (business only)
   reschedules?: Array<{ at: Date | string; by: { id: string; name?: string }; newDate?: string; changes: Array<{ line: number; item: number; name: string; foodId?: string; quantity: number; menuDate: string; fromDeliveryDate: string; toDate: string }> }>; // An admin moved item delivery dates (business only)
   rescheduleEmail?: { sentAt: Date | string; by: { id: string; name?: string }; messageId?: string; count: number }; // The customer was told about it (business only)
   createdAt?: Date | string;
