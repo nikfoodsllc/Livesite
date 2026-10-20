@@ -12,6 +12,7 @@ import { annotatePaymentIntent } from '@/lib/server/stripePaymentNote';
 import { fetchChargeFee } from '@/lib/server/stripeFee';
 import { syncOrderSafely } from '@/lib/server/optimoRoute/sync';
 import { notifyOrderSafely } from '@/lib/server/push/orderPush';
+import { clearUserCartSafely } from '@/lib/server/userCart';
 import { markOrderCreditApplied, reapplyReleasedCredit, restoreOrderCredit } from '@/lib/server/storeCredit';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
@@ -158,6 +159,8 @@ export async function POST(request: NextRequest) {
 
         // The app's "Order confirmed" notification (once per order, even though two Stripe events arrive; does nothing unless PUSH is on)
         await notifyOrderSafely(order.orderId, 'confirmed');
+        // the paid cart is gone on every device the customer is signed in on
+        await clearUserCartSafely(order.user ? String(order.user) : null);
 
         // Put the delivery stop on the OptimoRoute plan (does nothing unless OPTIMOROUTE_SYNC is on; never fails the payment)
         await syncOrderSafely(order.orderId);
@@ -238,6 +241,8 @@ export async function POST(request: NextRequest) {
         }
 
         await notifyOrderSafely(order.orderId, 'confirmed');
+        // the paid cart is gone on every device the customer is signed in on
+        await clearUserCartSafely(order.user ? String(order.user) : null);
 
         // The same stop as in payment_intent.succeeded; only the first of the two events creates it (a short wait here)
         await syncOrderSafely(order.orderId, 4000);
