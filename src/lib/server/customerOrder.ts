@@ -52,6 +52,11 @@ export function toCustomerOrder<T extends object>(order: T): Omit<T, (typeof INT
       const { by: _by, internalNote: _internal, ...rest } = entry;
       void _by;
       void _internal;
+      // a full credit shows only the total: the Platform Fee and tip amounts are not sent to the customer
+      if (rest.entireOrder) {
+        delete rest.fee;
+        delete rest.tip;
+      }
       return rest;
     });
   }
