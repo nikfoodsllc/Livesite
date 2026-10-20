@@ -51,6 +51,11 @@ export interface OfflineOrderInput {
   requestId: string;
   /** Editing: the unpaid link order this one replaces. When the new order is saved, the old one is cancelled and its link stops working. */
   replacesOrderId?: string;
+  /**
+   * An order waiting for payment (pay link or Zelle) that is counted from the start: it shows in the kitchen, packing and delivery
+   * reports and goes to OptimoRoute now, not only after it is paid. Ignored for orders that are paid when they are made.
+   */
+  countBeforePayment?: boolean;
 }
 
 export type ServiceFailure = { ok: false; status: number; error: string; problems?: string[]; code?: string; closedItems?: unknown };
@@ -341,6 +346,7 @@ async function createNewOfflineOrder(
     source: 'admin',
     createdByAdmin: context.adminId,
     ...(input.waivePlatformFee ? { platformFeeWaived: true } : {}),
+    ...(input.countBeforePayment === true && (payment.mode === 'link' || payment.mode === 'zelle') ? { countBeforePayment: true } : {}),
   };
 
   if (payment.mode === 'offline' || payment.mode === 'quote') {
@@ -383,6 +389,8 @@ async function createNewOfflineOrder(
       return fail(500, 'Failed to save the order');
     }
     await completeRequest(input.requestId, orderId);
+    // counted before payment: the delivery stop goes on the OptimoRoute plan now (the reports read the order itself)
+    if (zelleOrder.countBeforePayment) await syncOrderSafely(orderId);
     const zelleEmail = await sendZelleInstructionsEmail(zelleOrder, ensured.accountCreated);
     if (zelleEmail.success) {
       await db.updateOne('orders', { orderId } as never, { $set: { paymentLinkSentAt: new Date() } } as never);
@@ -423,6 +431,8 @@ async function createNewOfflineOrder(
     return fail(500, 'Failed to save the order');
   }
   await completeRequest(input.requestId, orderId);
+  // counted before payment: the delivery stop goes on the OptimoRoute plan now (the reports read the order itself)
+  if (pendingOrder.countBeforePayment) await syncOrderSafely(orderId);
 
   const payLink = buildPayLink(orderId, token);
   const emailResult = await sendPaymentLinkEmail(pendingOrder, payLink, ensured.accountCreated);
@@ -482,6 +492,8 @@ export interface OfflineOrderRow {
   payKind: 'link' | 'zelle' | 'offline';
   /** Still waiting for the customer to pay the link */
   awaitingPayment: boolean;
+  /** Counted in the reports and sent to OptimoRoute before it is paid */
+  countBeforePayment?: boolean;
   linkSentAt?: string;
   /** What the email provider reported about the latest pay-link email */
   linkEmail?: { status: string; sentAt?: string; deliveredAt?: string; bounceReason?: string; opened?: { firstAt: string; lastAt: string; count: number } };
@@ -608,6 +620,7 @@ export async function listOfflineOrders(limit = 40): Promise<OfflineOrderRow[]> 
     linkOrder: Boolean(o.stripePaymentIntentId),
     payKind: o.zellePending ? 'zelle' : o.stripePaymentIntentId ? 'link' : 'offline',
     awaitingPayment: (Boolean(o.stripePaymentIntentId) || Boolean(o.zellePending)) && o.paymentStatus !== 'paid' && o.status !== 'cancelled',
+    ...(o.countBeforePayment ? { countBeforePayment: true } : {}),
     linkSentAt: o.paymentLinkSentAt ? (o.paymentLinkSentAt instanceof Date ? o.paymentLinkSentAt.toISOString() : String(o.paymentLinkSentAt)) : undefined,
     deliveryDates: Array.from(new Set((o.items ?? []).map((d) => String(d.actualDeliveryDate ?? d.deliveryDate).slice(0, 10)))).sort(),
     ...(latestEmail(o) ? { linkEmail: latestEmail(o) } : {}),
@@ -665,6 +678,8 @@ export async function cancelOfflineOrder(orderId: string, adminId?: string): Pro
   if (!update.success) return fail(500, 'The payment was closed but the order could not be updated. Try again.');
   // store credit the customer applied on the pay page goes back to them
   await giveBackLinkOrderCredit(orderId, 'The order was cancelled', { resetCardPayment: false });
+  // an order that was counted before payment had a stop on the OptimoRoute plan: take it off at once (the 30-minute check would too)
+  if (order.countBeforePayment) await syncOrderSafely(orderId);
   return { ok: true };
 }
 
@@ -695,6 +710,8 @@ export interface EditableOrder {
   discount: number;
   /** How the order is paid, so the replacement starts on the same choice */
   payKind: 'link' | 'zelle';
+  /** Counted in the reports and OptimoRoute before it is paid, so the replacement starts on the same choice */
+  countBeforePayment: boolean;
 }
 
 /** The order laid out the way the Create Order form holds it, so an admin can change it and submit it as a replacement. */
@@ -757,6 +774,7 @@ export async function getOrderForEdit(orderId: string): Promise<{ ok: true; orde
       waivePlatformFee: Boolean((o as unknown as { platformFeeWaived?: boolean }).platformFeeWaived),
       discount: o.discount?.amount ?? 0,
       payKind: o.zellePending ? 'zelle' : 'link',
+      countBeforePayment: o.countBeforePayment === true,
     },
   };
 }

@@ -2,7 +2,7 @@ import { db } from '@/lib/server/db';
 import type { Order } from '@/types/order';
 import { optimoMode } from './config';
 import { createStop, deleteStop, searchOrdersForDate } from './client';
-import { buildOptimoOrder, deliveryDaysOf, findExistingStop, isRouteOrder, stopKeyFor, type ExistingOptimoOrder } from './stops';
+import { ROUTE_ORDER_PAYMENT_CLAUSES, buildOptimoOrder, deliveryDaysOf, findExistingStop, isRouteOrder, stopKeyFor, type ExistingOptimoOrder } from './stops';
 
 /**
  * Keeps OptimoRoute in step with confirmed orders.
@@ -307,9 +307,8 @@ export async function reconcile(options: { now?: Date; budgetMs?: number } = {})
 
   // 1. paid orders with an upcoming delivery day whose stop is not sent yet
   const read = await db.read<Order>('orders', {
-    paymentStatus: 'paid',
     status: { $ne: 'cancelled' },
-    $or: [{ 'items.deliveryDate': { $gte: today } }, { 'items.actualDeliveryDate': { $gte: today } }],
+    $and: [{ $or: ROUTE_ORDER_PAYMENT_CLAUSES }, { $or: [{ 'items.deliveryDate': { $gte: today } }, { 'items.actualDeliveryDate': { $gte: today } }] }],
   } as never, { limit: 500 } as never);
   const orders = (read.success ? read.data ?? [] : []) as Order[];
   const wanted = orders.map((o) => ({ order: o, keys: deliveryDaysOf(o).filter((d) => d.date >= today).map((d) => stopKeyFor(o, d.date)) })).filter((x) => x.keys.length > 0);
@@ -420,9 +419,8 @@ export interface DatePreview {
  */
 export async function previewDate(date: string): Promise<DatePreview | { error: string }> {
   const read = await db.read<Order>('orders', {
-    paymentStatus: 'paid',
     status: { $ne: 'cancelled' },
-    $or: [{ 'items.deliveryDate': date }, { 'items.actualDeliveryDate': date }],
+    $and: [{ $or: ROUTE_ORDER_PAYMENT_CLAUSES }, { $or: [{ 'items.deliveryDate': date }, { 'items.actualDeliveryDate': date }] }],
   } as never, { limit: 500 } as never);
   const orders = ((read.success ? read.data ?? [] : []) as Order[]).filter((o) => deliveryDaysOf(o).some((d) => d.date === date));
   const byKey = new Map<string, Order>();

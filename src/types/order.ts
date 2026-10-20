@@ -184,6 +184,8 @@ export interface Order {
   paymentLinkSentAt?: Date | string; // When the pay link (or the Zelle instructions) was last emailed
   /** Admin-entered order the customer pays by Zelle: unpaid until an admin marks it paid (no Stripe payment behind it) */
   zellePending?: boolean;
+  /** Admin-entered order that counts in the kitchen, packing and delivery reports and goes to OptimoRoute even though it is not paid yet */
+  countBeforePayment?: boolean;
   offlinePaymentNote?: string; // How an order was paid outside the website (cash, Zelle, ...)
   platformFeeWaived?: boolean; // The admin dropped the Platform Fee on this order
   paidAt?: Date | string; // When payment was recorded (offline orders)
