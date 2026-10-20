@@ -11,6 +11,7 @@ import { fetchRefundNotes } from '@/lib/server/refundNotes';
 import { annotatePaymentIntent } from '@/lib/server/stripePaymentNote';
 import { fetchChargeFee } from '@/lib/server/stripeFee';
 import { syncOrderSafely } from '@/lib/server/optimoRoute/sync';
+import { notifyOrderSafely } from '@/lib/server/push/orderPush';
 import { markOrderCreditApplied, reapplyReleasedCredit, restoreOrderCredit } from '@/lib/server/storeCredit';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
@@ -155,6 +156,9 @@ export async function POST(request: NextRequest) {
           console.error(`[Webhook] Exception sending confirmation email for order: ${order.orderId}:`, emailError);
         }
 
+        // The app's "Order confirmed" notification (once per order, even though two Stripe events arrive; does nothing unless PUSH is on)
+        await notifyOrderSafely(order.orderId, 'confirmed');
+
         // Put the delivery stop on the OptimoRoute plan (does nothing unless OPTIMOROUTE_SYNC is on; never fails the payment)
         await syncOrderSafely(order.orderId);
 
@@ -232,6 +236,8 @@ export async function POST(request: NextRequest) {
           console.error(`[Webhook] Exception sending confirmation email for order: ${order.orderId}:`, emailError);
           // Email failure should not break webhook processing - continue with normal flow
         }
+
+        await notifyOrderSafely(order.orderId, 'confirmed');
 
         // The same stop as in payment_intent.succeeded; only the first of the two events creates it (a short wait here)
         await syncOrderSafely(order.orderId, 4000);
@@ -342,6 +348,9 @@ export async function POST(request: NextRequest) {
           console.log(`[Webhook] Not sending the payment failed email for admin-entered order: ${order.orderId}`);
           break;
         }
+
+        // the app tells the customer too (once per order)
+        await notifyOrderSafely(order.orderId, 'payment_failed');
 
         if (order.paymentFailedEmailStatus?.status === 'sent') {
           console.log(`[Webhook] Payment failed email already sent for order: ${order.orderId}`);

@@ -4,6 +4,7 @@ import { db } from '@/lib/server/db';
 import { findClosedLines } from '@/lib/server/availableDates';
 import { isTestSite } from '@/lib/siteUrl';
 import { sendCartReminderEmail } from '@/lib/cartReminderEmail';
+import { tryCartReminderPush } from '@/lib/server/push/reminderPush';
 import type { CheckoutDraft } from '@/lib/server/checkoutDrafts';
 import type { ReminderEmailRecord } from '@/lib/server/cartReminderTracking';
 
@@ -118,6 +119,16 @@ export async function claimAndSendReminder(collection: DraftCollection, d: Remin
     } as never
   );
   if (claimed.modifiedCount === 0) return { status: 'not_claimed' };
+  // a customer who has the app and chose to get reminders there is reminded by notification INSTEAD of by email
+  // (not when an admin pressed Email: that is an email on purpose)
+  if (!by && (await tryCartReminderPush(d))) {
+    const at = new Date();
+    await collection.updateOne(
+      { _id: d._id } as never,
+      { $set: { 'reminderEmail.status': 'push', 'reminderEmail.channel': 'push', 'reminderEmail.sentAt': at, reminderPushSentAt: at }, $unset: { 'reminderEmail.error': '' } } as never
+    );
+    return { status: 'sent' };
+  }
   const sent = await sendCartReminderEmail(d.customer!.email!, {
     name: d.customer?.name,
     items: d.items as never,
