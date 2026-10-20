@@ -69,6 +69,31 @@ export async function createStop(payload: OptimoOrderPayload): Promise<OptimoRes
   return { ok: result.ok, code: result.code, message: result.message, data: result.data };
 }
 
+/**
+ * Changes the address details of a stop that is already in OptimoRoute (same stop, so a route it is on is kept). Found by
+ * OptimoRoute id, or by our order number when that is all we know. Empty text clears a field. Verified live: UPDATE by
+ * orderNo and by id both work, and storeInvalid is not allowed in an update.
+ */
+export async function updateStopDetails(
+  ref: { id?: string; orderNo?: string },
+  details: { address: string; locationName: string; apartment: string; gate: string; instruction: string }
+): Promise<OptimoResult<undefined>> {
+  const target = ref.id ? { id: ref.id } : ref.orderNo ? { orderNo: ref.orderNo } : null;
+  if (!target) return { ok: false, code: 'NO_REF', message: 'No OptimoRoute id or order number to update' };
+  const order = {
+    operation: 'UPDATE',
+    ...target,
+    location: { address: details.address, locationName: details.locationName },
+    customField2: details.apartment,
+    customField3: details.gate,
+    customFields: { delivery_instruction: details.instruction },
+  };
+  const result = await call<{ orders?: Array<{ success?: boolean; code?: string; message?: string }> }>('create_or_update_orders', { orders: [order] });
+  const first = result.data?.orders?.[0];
+  if (result.ok && first && first.success === false) return { ok: false, code: first.code, message: first.message };
+  return { ok: result.ok, code: result.code ?? first?.code, message: result.message ?? first?.message };
+}
+
 /** Removes a stop by OptimoRoute id (or by order number when we only know that). Never forces: a stop in a running plan is refused. */
 export async function deleteStop(ref: { id?: string; orderNo?: string }): Promise<OptimoResult<undefined>> {
   const target = ref.id ? { id: ref.id } : ref.orderNo ? { orderNo: ref.orderNo } : null;
