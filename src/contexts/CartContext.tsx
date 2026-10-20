@@ -29,6 +29,8 @@ import {
 } from '@/lib/zipcodeCache';
 import { normalizeCartSelectedAddress } from '@/lib/normalizeCartAddress';
 import { useApiClient } from '@/hooks/useApiClient';
+import { useAuth } from '@/contexts/AuthContext';
+import { setCartSyncSession, syncCartNow } from '@/lib/cartSync';
 
 interface CartContextType {
   cart: Cart | null;
@@ -165,6 +167,7 @@ async function convertLocalCartToCart(
 
 export const CartProvider = ({ children }: { children: ReactNode }) => {
   const { authenticatedFetch } = useApiClient();
+  const { user: signedInUser } = useAuth();
   const [cart, setCart] = useState<Cart | null>(null);
   const [summary, setSummary] = useState<CartSummary | null>(null);
   // True until first load finishes so pages (e.g. checkout) don't treat "cart not yet hydrated" as empty.
@@ -510,6 +513,21 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
    * Refreshes the cart (alias for fetchCart)
    */
   const refreshCart = () => fetchCart();
+
+  // A signed-in customer's cart is also saved on the server, so it is the same on the website and in the app: compare when
+  // they sign in and whenever the page or app is shown again; when the saved cart replaced this device's, show it.
+  const signedInUserId = signedInUser?.id;
+  useEffect(() => {
+    setCartSyncSession(signedInUserId ? { userId: signedInUserId } : null, () => {
+      void fetchCart();
+    });
+    if (!signedInUserId) return;
+    const onVisible = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') syncCartNow();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [signedInUserId, fetchCart]);
 
   // Load selected address/zipcode from localStorage on mount
   // This effect runs once and prepares all location data before cart is fetched

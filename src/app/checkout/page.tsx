@@ -35,6 +35,7 @@ import { Cart } from '@/types/cart';
 import { IAddress } from '@/types/auth';
 import { ZipcodeConfig } from '@/types/zipcode';
 import * as localCart from '@/lib/localStorageCart';
+import { emptyCartEverywhere } from '@/lib/cartSync';
 import { closedItemsNotice, parseClosedItems } from '@/lib/closedDaysNotice';
 import { calculateDeliveryDates, type DayDeliveryInfo } from '@/lib/deliveryCalculator';
 import { DEFAULT_MIN_CART_VALUE } from '@/lib/cartLogic';
@@ -957,7 +958,7 @@ export default function CheckoutPage() {
   const handlePaymentSuccess = async (orderId: string) => {
     await pollOrderStatus(orderId);
     setOrderCompleted(true);
-    localCart.clearCart();
+    await emptyCartEverywhere();
     await refreshCart();
     router.push(`/checkout/success?orderId=${orderId}`);
   };
