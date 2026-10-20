@@ -2,7 +2,7 @@ import { Box, Typography } from '@mui/material';
 import { IconCoin } from '@tabler/icons-react';
 import { Order } from '@/types/order';
 import { formatCurrency } from '@/lib/orderHelpers';
-import { cardTotalOf, toCents } from '@/lib/storeCredit';
+import { cardTotalOf, isFullyCredited, toCents } from '@/lib/storeCredit';
 
 const dayText = (value: Date | string) =>
   new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' });
@@ -17,6 +17,7 @@ export const usedCredit = (order: Pick<Order, 'storeCreditUsed' | 'storeCreditSt
 /** Green tiles on an order: paid with store credit, and store credit added for the order (what, and how much). */
 export default function CreditNotice({ order, showUsed = true }: { order: Order; showUsed?: boolean }) {
   const issued = order.creditsIssued ?? [];
+  const fullyCredited = isFullyCredited(order);
   const used = showUsed && usedCredit(order);
   if (!used && issued.length === 0) return null;
 
@@ -56,7 +57,7 @@ export default function CreditNotice({ order, showUsed = true }: { order: Order;
           `Store credit added · ${dayText(c.at)}`,
           `+${formatCurrency(c.amount, order.currency)}`,
           // a full credit shows only the total: the breakdown (items, Platform Fee, tip) stays with NikFoods
-          c.entireOrder
+          fullyCredited
             ? []
             : [
                 ...c.items.map((it) => ({ text: it.quantity > 1 ? `${it.name} × ${it.quantity}` : it.name, amount: it.amount })),

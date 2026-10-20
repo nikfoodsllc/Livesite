@@ -1,4 +1,5 @@
 import { customerDeliveryProgress } from '@/lib/deliveryProgress';
+import { isFullyCredited } from '@/lib/storeCredit';
 
 /**
  * Orders as customers may see them.
@@ -48,12 +49,13 @@ export function toCustomerOrder<T extends object>(order: T): Omit<T, (typeof INT
   for (const field of INTERNAL_ORDER_FIELDS) delete copy[field];
   // credit an admin gave for items: the customer sees what and how much, not which admin
   if (Array.isArray(copy.creditsIssued)) {
+    const fullyCredited = isFullyCredited(copy as Parameters<typeof isFullyCredited>[0]);
     copy.creditsIssued = (copy.creditsIssued as Array<Record<string, unknown>>).map((entry) => {
       const { by: _by, internalNote: _internal, ...rest } = entry;
       void _by;
       void _internal;
       // a full credit shows only the total: the Platform Fee and tip amounts are not sent to the customer
-      if (rest.entireOrder) {
+      if (fullyCredited) {
         delete rest.fee;
         delete rest.tip;
       }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { jwtHandler } from '@/lib/jwt';
 import { getBalanceCents, getLedger } from '@/lib/server/storeCredit';
-import { toCents, toDollars } from '@/lib/storeCredit';
+import { isFullyCredited, toDollars } from '@/lib/storeCredit';
 import { db } from '@/lib/server/db';
 import type { Order } from '@/types/order';
 
@@ -18,12 +18,12 @@ export async function GET(request: NextRequest) {
   const [balanceCents, ledger] = await Promise.all([getBalanceCents(userId), getLedger(userId, 50)]);
 
   // a full-order credit shows only its total: the items, Platform Fee and tip that made it up stay with NikFoods
-  const fullCredits = new Set<string>();
+  const fullOrders = new Set<string>();
   const issuedOrderIds = Array.from(new Set(ledger.filter((r) => r.type === 'issued' && r.orderId).map((r) => String(r.orderId))));
   if (issuedOrderIds.length > 0) {
     const found = await db.read<Order>('orders', { orderId: { $in: issuedOrderIds }, user: userId } as never);
     for (const o of found.success && found.data ? found.data : []) {
-      for (const c of o.creditsIssued ?? []) if (c.entireOrder) fullCredits.add(`${o.orderId}:${toCents(c.amount)}`);
+      if (isFullyCredited(o)) fullOrders.add(String(o.orderId));
     }
   }
   return NextResponse.json({
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
         // the note the admin wrote for the customer (credit given for items; never the internal note or an admin's reason for an adjustment)
         ...(r.type === 'issued' && r.reason ? { note: r.reason } : {}),
         // what the credit was for (credit given for items of an order)
-        ...(r.items && r.items.length > 0 && !(r.type === 'issued' && fullCredits.has(`${r.orderId}:${r.cents}`)) ? { items: r.items.map((i) => ({ name: i.name, quantity: i.quantity, amount: toDollars(i.cents) })) } : {}),
+        ...(r.items && r.items.length > 0 && !(r.type === 'issued' && r.orderId && fullOrders.has(String(r.orderId))) ? { items: r.items.map((i) => ({ name: i.name, quantity: i.quantity, amount: toDollars(i.cents) })) } : {}),
       })),
     },
   });

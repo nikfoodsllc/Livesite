@@ -11,6 +11,17 @@ export const toCents = (dollars: number): number => Math.round((Number(dollars) 
 export const toDollars = (cents: number): number => Math.round(cents) / 100;
 
 /**
+ * The whole order was credited (the "entire order" button, or everything credited so far adds up to what was paid). The customer
+ * then sees only the total: the items, Platform Fee, tax and tip that made it up stay with NikFoods.
+ */
+export function isFullyCredited(order: { totalPaid?: number; creditsIssued?: Array<{ amount?: number; entireOrder?: boolean }> }): boolean {
+  const credits = order.creditsIssued ?? [];
+  if (credits.some((c) => c.entireOrder)) return true;
+  const total = toCents(order.totalPaid ?? 0);
+  return total > 0 && credits.reduce((n, c) => n + toCents(c.amount ?? 0), 0) >= total;
+}
+
+/**
  * What a credited item is worth: its price (portion and eco container included, as stored on the order line)
  * times the quantity, plus (unless withheld) the 10.3% tax charged on it. The Platform Fee, the tax on that fee and the tip are
  * never credited.
