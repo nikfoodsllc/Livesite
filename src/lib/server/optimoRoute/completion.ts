@@ -1,3 +1,4 @@
+import { notifyOrderSafely } from '@/lib/server/push/orderPush';
 import { db } from '@/lib/server/db';
 import { addDays } from '@/lib/orderReschedule';
 import { optimoMode } from './config';
@@ -72,6 +73,8 @@ export async function runCompletionSync(now: Date = new Date()): Promise<Complet
       if (info.status === 'failed' || info.status === 'rejected') summary.stopsProblem++;
       if (mode === 'on') await stops.updateOne({ stopKey: stop.stopKey }, { $set: { completion: { status: info.status, at: info.endUtc ?? null } } });
       if (finished) for (const id of stop.orderIds ?? []) touchedOrders.add(id);
+      // the driver is on the way to this stop: tell the customer once (the app's "Out for delivery"; every later check does nothing)
+      if (mode === 'on' && info.status === 'on_route') for (const id of stop.orderIds ?? []) await notifyOrderSafely(id, 'on_the_way', { date: stop.date });
     }
     for (const orderId of touchedOrders) {
       const order = await orders.findOne({ orderId }, { projection: { status: 1, paymentStatus: 1 } });
@@ -80,6 +83,9 @@ export async function runCompletionSync(now: Date = new Date()): Promise<Complet
       // in dry mode the stop records were not updated, so read the fresh answers
       const statuses = mine.map((s) => (mode === 'dry' ? details.data?.[s.optimoId as string]?.status ?? s.completion?.status : s.completion?.status));
       const outcome = orderDeliveryOutcome(statuses);
+      const orderBefore = order as { status?: string; paymentStatus?: string };
+      // days that were delivered are told to the customer below (only when the order really moves to a delivered state)
+      const tellDelivered = (outcome === 'delivered' && canMarkDelivered(orderBefore)) || (outcome === 'partial' && (canMarkPartiallyDelivered(orderBefore) || orderBefore.status === 'partially_delivered'));
       // what each delivery day came to (kept on the order: the admin shows it when you hover over the status)
       const progress = deliveriesByDay(mine.map((s, i) => ({ date: s.date, status: statuses[i], at: s.completion?.at ?? (mode === 'dry' ? details.data?.[s.optimoId as string]?.endUtc : undefined) })));
       if (outcome === 'delivered' && canMarkDelivered(order as { status?: string; paymentStatus?: string })) {
@@ -116,6 +122,8 @@ export async function runCompletionSync(now: Date = new Date()): Promise<Complet
           await orders.updateOne({ orderId }, { $set: { 'optimo.deliveryIssue': { date: bad?.date ?? null, status: bad?.completion?.status ?? 'failed', at: now }, 'optimo.deliveries': progress } });
         }
       }
+      // "Delivered": one message per delivery day that came to its door (a repeat check does nothing)
+      if (mode === 'on' && tellDelivered) for (const day of progress) if (day.status === 'delivered') await notifyOrderSafely(orderId, 'delivered', { date: day.date });
     }
     return summary;
   } catch (error) {

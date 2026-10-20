@@ -12,6 +12,7 @@ import { isFullyCredited } from '@/lib/storeCredit';
 export const INTERNAL_ORDER_FIELDS = [
   'channel',
   'countBeforePayment',
+  'pushLog',
   'stripeFee',
   'stripeRefunds',
   'preCreditTotals',

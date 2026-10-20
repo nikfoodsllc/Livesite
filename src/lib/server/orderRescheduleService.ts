@@ -12,6 +12,8 @@ import {
 } from '@/lib/orderReschedule';
 import { moveOrderStops, pacificToday } from '@/lib/server/optimoRoute/sync';
 import { sendDeliveryDateChangedEmail } from '@/lib/rescheduleEmail';
+import { dayLabel } from '@/lib/server/push/messages';
+import { notifyOrderSafely } from '@/lib/server/push/orderPush';
 import type { MovedDelivery } from '@/templates/deliveryDateChanged';
 
 /** One entry of an order's `reschedules` history (business only). */
@@ -153,6 +155,9 @@ export async function sendRescheduleEmail(orderId: string, adminId: string, opti
       count: (order.rescheduleEmail?.count ?? 0) + 1,
     };
     await collection.updateOne({ orderId } as never, { $set: { rescheduleEmail: record } } as never);
+    // the "Tell the customer" button also sends the app notification (the admin decides when; one per press)
+    const newDates = [...new Set(moves.map((m) => m.toDate))];
+    await notifyOrderSafely(orderId, 'rescheduled', { guardKey: `rescheduled-${record.count}`, note: newDates.length === 1 ? `Your delivery moved to ${dayLabel(newDates[0])}.` : undefined });
     return { ok: true, orderId, sentAt: now.toISOString(), moves: moves.length };
   } finally {
     await collection.updateOne({ orderId } as never, { $unset: { rescheduleEmailLock: '' } } as never).catch(() => undefined);
