@@ -22,6 +22,7 @@ import { syncOrderSafely } from '@/lib/server/optimoRoute/sync';
 import { calculateDeliveryDates } from '@/lib/deliveryCalculator';
 import { convertCartToOrderItems, createAddressSnapshot, formatOrderForDatabase, generateOrderId } from '@/lib/orderHelpers';
 import { sendPaymentLinkEmail, sendZelleInstructionsEmail } from '@/lib/offlineOrderEmail';
+import { notifyOrderSafely } from '@/lib/server/push/orderPush';
 import { recordPaymentLinkEmailSent, type PaymentLinkEmailRecord, type PaymentLinkViews } from '@/lib/server/paymentLinkTracking';
 import { sendOrderConfirmationEmail } from '@/lib/email';
 import { comboQuantityText } from '@/lib/comboQuantity';
@@ -440,6 +441,8 @@ async function createNewOfflineOrder(
     await db.updateOne('orders', { orderId } as never, { $set: { paymentLinkSentAt: new Date() } } as never);
     await recordPaymentLinkEmailSent(orderId, emailResult);
   }
+  // the same message in the app, for a customer who has it (the pay page opens in the browser)
+  await notifyOrderSafely(orderId, 'payment_link', { url: payLink });
   return {
     ok: true,
     order: {
@@ -837,6 +840,7 @@ export async function resendPaymentLink(
     await db.updateOne('orders', { orderId } as never, { $set: { paymentLinkSentAt: now } } as never);
     await recordPaymentLinkEmailSent(orderId, sent);
   }
+  await notifyOrderSafely(orderId, 'payment_link', { url: payLink });
   return { ok: true, payLink, emailSent: sent.success, emailError: sent.error, refreshed };
 }
 

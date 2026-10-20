@@ -28,6 +28,10 @@
     {
       "path": "/api/cron/cart-reminders",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/optimoroute-live",
+      "schedule": "*/5 * * * *"
     }
   ]
 }
