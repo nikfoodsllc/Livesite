@@ -1,0 +1,12 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["8VM99HJR2K.com.nikfoods.mobile"],
+        "components": [
+          { "/": "/account/orders", "?": { "order": "?*" }, "comment": "View my order links in emails and texts open the app's order screen" }
+        ]
+      }
+    ]
+  }
+}
