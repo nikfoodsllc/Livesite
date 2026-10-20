@@ -3,7 +3,7 @@ import { ObjectId } from 'mongodb';
 import { db } from '@/lib/server/db';
 import { jwtHandler } from '@/lib/jwt';
 import { clientIp, isBlocked, recordFailure, tooManyMessage, type RateLimit } from '@/lib/server/authRateLimit';
-import { useDeviceKey } from '@/lib/server/deviceLogin';
+import { redeemDeviceKey } from '@/lib/server/deviceLogin';
 import type { IUser, UserResponse } from '@/types/auth';
 
 export const dynamic = 'force-dynamic';
@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: tooManyMessage(blocked.retryAfterSec) }, { status: 429, headers: { 'Retry-After': String(blocked.retryAfterSec) } });
     }
 
-    const userId = await useDeviceKey(deviceKey);
+    const userId = await redeemDeviceKey(deviceKey);
     if (!userId || !ObjectId.isValid(userId)) {
       await recordFailure(limits);
       return Response.json({ error: 'Please sign in with your password' }, { status: 401 });

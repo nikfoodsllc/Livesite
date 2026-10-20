@@ -42,7 +42,7 @@ export async function enrollDevice(userId: string, deviceName: string): Promise<
 }
 
 /** Finds the customer a key belongs to (and keeps the key alive for another 90 days), or null. */
-export async function useDeviceKey(token: string): Promise<string | null> {
+export async function redeemDeviceKey(token: string): Promise<string | null> {
   if (typeof token !== 'string' || token.length < 20 || token.length > 200) return null;
   const col = await collection();
   const now = new Date();
