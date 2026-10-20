@@ -144,13 +144,17 @@ export function getStoreCreditEmailTemplate(order: Order, credit: CreditEmailDat
     </td></tr></table>
   </td></tr>
 
-  <!-- Balance -->
+  ${
+    credit.full
+      ? ''
+      : `  <!-- Balance -->
   <tr><td class="px" bgcolor="${C.card}" style="padding:10px 32px 0;background:${C.card};">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="${C.noteBg}" style="background:${C.noteBg};border:1px solid ${C.noteLine};border-radius:16px;border-collapse:separate;"><tr>
       <td style="padding:10px 14px;font-size:15px;font-weight:800;color:${C.noteText};">Your store credit</td>
       <td align="right" style="padding:10px 14px;font-size:20px;font-weight:800;color:${C.noteText};">${money(credit.balance)}</td>
     </tr></table>
-  </td></tr>
+  </td></tr>`
+  }
 
   <!-- CTA -->
   <tr><td class="px" align="center" bgcolor="${C.card}" style="padding:14px 32px 0;background:${C.card};">
