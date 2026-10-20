@@ -55,11 +55,14 @@ export default function CreditNotice({ order, showUsed = true }: { order: Order;
           `issued-${i}`,
           `Store credit added · ${dayText(c.at)}`,
           `+${formatCurrency(c.amount, order.currency)}`,
-          [
-            ...c.items.map((it) => ({ text: it.quantity > 1 ? `${it.name} × ${it.quantity}` : it.name, amount: it.amount })),
-            ...(c.fee ? [{ text: 'Platform Fee', amount: c.fee }] : []),
-            ...(c.tip ? [{ text: 'Tip', amount: c.tip }] : []),
-          ],
+          // a full credit shows only the total: the breakdown (items, Platform Fee, tip) stays with NikFoods
+          c.entireOrder
+            ? []
+            : [
+                ...c.items.map((it) => ({ text: it.quantity > 1 ? `${it.name} × ${it.quantity}` : it.name, amount: it.amount })),
+                ...(c.fee ? [{ text: 'Platform Fee', amount: c.fee }] : []),
+                ...(c.tip ? [{ text: 'Tip', amount: c.tip }] : []),
+              ],
           c.note
         )
       )}
