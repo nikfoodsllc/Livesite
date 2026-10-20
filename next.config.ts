@@ -18,6 +18,15 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        // iPhone reads this to open the NikFoods app for View my order links (must be JSON, served as is, no redirect)
+        source: '/.well-known/apple-app-site-association',
+        headers: [
+          { key: 'Content-Type', value: 'application/json' },
+          { key: 'Content-Disposition', value: 'inline' },
+          { key: 'Cache-Control', value: 'public, max-age=300' },
+        ],
+      },
+      {
         source: '/.well-known/apple-developer-merchantid-domain-association',
         headers: [
           { key: 'Content-Type', value: 'text/plain; charset=utf-8' },
