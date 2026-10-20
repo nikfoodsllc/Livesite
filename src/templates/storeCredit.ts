@@ -126,7 +126,7 @@ export function getStoreCreditEmailTemplate(order: Order, credit: CreditEmailDat
         ? `<div class="hero-h" style="font-size:30px;line-height:36px;font-weight:800;color:${C.text};margin:0;">${greeting} your full order has been credited</div>
     <div style="font-size:15px;line-height:22px;color:${C.body};margin:4px auto 0;max-width:460px;">The full amount of ${money(credit.orderTotal ?? credit.amount)}, with tax, the Platform Fee and the tip, was added to your store credit. This order will not be delivered.</div>`
         : `<div class="hero-h" style="font-size:30px;line-height:36px;font-weight:800;color:${C.text};margin:0;">${greeting} you have ${money(credit.amount)} store credit</div>
-    <div style="font-size:15px;line-height:22px;color:${C.body};margin:4px auto 0;max-width:440px;">It is used automatically on your next order. It does not expire.</div>`
+    <div style="font-size:15px;line-height:22px;color:${C.body};margin:4px auto 0;max-width:440px;">It is used automatically on your next order.</div>`
     }
   </td></tr>
 
