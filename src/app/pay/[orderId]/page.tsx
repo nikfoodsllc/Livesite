@@ -8,6 +8,7 @@ import { loadStripe, StripeElementsOptions } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
 import { hasAmount, taxesAndFeesOf } from '@/lib/orderTotalsDisplay';
 import TaxesFeesLabel from '@/components/common/TaxesFeesLabel';
+import StoreCreditSection from '@/components/checkout/StoreCreditSection';
 
 /**
  * The page behind the pay link an admin emails for an order they entered. It is laid out like the website's
@@ -52,6 +53,8 @@ interface PayData {
   discount?: number;
   discountCode?: string;
   total?: number;
+  /** Store credit: what is applied to this order, what could be, and whether it pays for everything */
+  credit?: { used: number; available: number; covered: boolean };
   days?: Array<{ day: string; date: string; deliverOn: string; dayTotal: number; items: PayItem[] }>;
 }
 
@@ -172,6 +175,19 @@ function OrderSummary({ data }: { data: PayData }) {
           <Typography variant="h6" sx={{ fontWeight: 600 }}>Total</Typography>
           <Typography variant="h6" sx={{ fontWeight: 600, color: C.brand }}>{money(data.total)}</Typography>
         </Box>
+
+        {(data.credit?.used ?? 0) > 0 && (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 2 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+              <Typography variant="body2">Store credit</Typography>
+              <Typography variant="body2" sx={{ fontWeight: 500, color: C.green }}>-{money(data.credit?.used)}</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+              <Typography variant="body1" sx={{ fontWeight: 600 }}>To pay</Typography>
+              <Typography variant="body1" sx={{ fontWeight: 600 }}>{money(Math.max(0, (data.total ?? 0) - (data.credit?.used ?? 0)))}</Typography>
+            </Box>
+          </Box>
+        )}
 
         <Typography variant="body2" sx={{ mt: 2, color: '#666', textAlign: 'center' }}>
           {itemCount} items in order
@@ -324,6 +340,66 @@ function DeliveryDetails({ data, token, onChanged }: { data: PayData; token: str
   );
 }
 
+/** Store credit on the pay page: the switch, and (when the credit covers everything) the button that pays with it. */
+function CreditPanel({ data, token, onChanged, onPaid }: { data: PayData; token: string; onChanged: () => Promise<void>; onPaid: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const credit = data.credit;
+  if (!credit) return null;
+
+  const call = async (action: 'use' | 'release' | 'pay') => {
+    setBusy(true);
+    setError('');
+    try {
+      const res = await fetch(`/api/pay/${encodeURIComponent(data.orderId)}/credit?t=${encodeURIComponent(token)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || !body.success) {
+        setError(body.error || 'Something went wrong. Please try again.');
+        await onChanged();
+        return false;
+      }
+      if (action === 'pay') onPaid();
+      else await onChanged();
+      return true;
+    } catch {
+      setError('Could not reach the server. Please try again.');
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Box>
+      <StoreCreditSection
+        balance={credit.available}
+        applied={credit.used}
+        checked={credit.used > 0}
+        locked={busy}
+        onChange={(on) => void call(on ? 'use' : 'release')}
+      />
+      {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')} role="alert">{error}</Alert>}
+      {credit.covered && (
+        <Button
+          fullWidth
+          variant="contained"
+          size="large"
+          onClick={() => void call('pay')}
+          disabled={busy}
+          startIcon={busy ? <CircularProgress size={20} sx={{ color: '#fff' }} /> : null}
+          sx={{ bgcolor: '#FF9F0D', color: '#fff', py: 1.5, fontSize: '16px', fontWeight: 600, '&:hover': { bgcolor: '#e68f0c' }, '&:disabled': { bgcolor: '#ccc', color: '#666' } }}
+        >
+          {busy ? 'Processing…' : 'Place order'}
+        </Button>
+      )}
+    </Box>
+  );
+}
+
 function PayForm({ data, token, onPaid, onClosed }: { data: PayData; token: string; onPaid: () => void; onClosed: () => void }) {
   const stripe = useStripe();
   const elements = useElements();
@@ -427,7 +503,7 @@ function PayForm({ data, token, onPaid, onClosed }: { data: PayData; token: stri
         startIcon={busy ? <CircularProgress size={20} sx={{ color: '#fff' }} /> : null}
         sx={{ bgcolor: '#FF9F0D', color: '#fff', py: 1.5, fontSize: '16px', fontWeight: 600, '&:hover': { bgcolor: '#e68f0c' }, '&:disabled': { bgcolor: '#ccc', color: '#666' } }}
       >
-        {busy ? 'Processing…' : `Pay ${money(data.total)}`}
+        {busy ? 'Processing…' : `Pay ${money(Math.max(0, (data.total ?? 0) - (data.credit?.used ?? 0)))}`}
       </Button>
     </Box>
   );
@@ -552,8 +628,10 @@ function PayInner() {
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 400px' }, gap: 3, alignItems: 'start' }}>
         <Box>
           <DeliveryDetails data={data} token={token} onChanged={() => void load()} />
-          {elementsOptions ? (
-            <Elements stripe={stripePromise} key={data.clientSecret} options={elementsOptions}>
+          <CreditPanel data={data} token={token} onChanged={load} onPaid={() => setJustPaid(true)} />
+          {data.credit?.covered ? null : elementsOptions ? (
+            // a new payment form when the credit changes, so the amount it shows (Apple Pay sheet) is the new one
+            <Elements stripe={stripePromise} key={`${data.clientSecret}-${data.credit?.used ?? 0}`} options={elementsOptions}>
               <PayForm data={data} token={token} onPaid={() => setJustPaid(true)} onClosed={() => void load()} />
             </Elements>
           ) : (

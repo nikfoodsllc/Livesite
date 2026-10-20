@@ -1,4 +1,5 @@
 import { customerDeliveryProgress } from '@/lib/deliveryProgress';
+import { isFullyCredited } from '@/lib/storeCredit';
 
 /**
  * Orders as customers may see them.
@@ -10,6 +11,8 @@ import { customerDeliveryProgress } from '@/lib/deliveryProgress';
  */
 export const INTERNAL_ORDER_FIELDS = [
   'stripeFee',
+  'stripeRefunds',
+  'preCreditTotals',
   'stripeNet',
   'paymentError',
   'paymentAttempts',
@@ -28,6 +31,10 @@ export const INTERNAL_ORDER_FIELDS = [
   'rescheduleEmailLock',
   'rescheduleSms',
   'rescheduleSmsLock',
+  'creditEmail',
+  'storeCreditReleasedAt',
+  'storeCreditHeldAt',
+  'creditShortfall',
   // the OptimoRoute sync record (stops, per-day delivery results, issues): for the team only
   'optimo',
 ] as const;
@@ -40,6 +47,21 @@ export function toCustomerOrder<T extends object>(order: T): Omit<T, (typeof INT
     if (progress.length > 0) copy.deliveryProgress = progress;
   }
   for (const field of INTERNAL_ORDER_FIELDS) delete copy[field];
+  // credit an admin gave for items: the customer sees what and how much, not which admin
+  if (Array.isArray(copy.creditsIssued)) {
+    const fullyCredited = isFullyCredited(copy as Parameters<typeof isFullyCredited>[0]);
+    copy.creditsIssued = (copy.creditsIssued as Array<Record<string, unknown>>).map((entry) => {
+      const { by: _by, internalNote: _internal, ...rest } = entry;
+      void _by;
+      void _internal;
+      // a full credit shows only the total: the Platform Fee and tip amounts are not sent to the customer
+      if (fullyCredited) {
+        delete rest.fee;
+        delete rest.tip;
+      }
+      return rest;
+    });
+  }
   // items an admin moved to another delivery date carry the date they started with: business only
   if (Array.isArray(copy.items)) {
     copy.items = (copy.items as Array<Record<string, unknown>>).map((line) =>

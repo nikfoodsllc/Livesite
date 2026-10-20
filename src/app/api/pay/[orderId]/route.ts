@@ -6,6 +6,9 @@ import { paymentTokenMatches } from '@/lib/server/paymentLink';
 import { cleanInstructions } from '@/lib/server/deliveryInstructions';
 import { validateZipcodeServiceabilityServer } from '@/utils/zipcodeValidation';
 import { comboQuantityText } from '@/lib/comboQuantity';
+import { getBalanceCents } from '@/lib/server/storeCredit';
+import { toCents, toDollars } from '@/lib/storeCredit';
+import { planLinkOrderCredit } from '@/lib/server/linkOrderCredit';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,6 +34,16 @@ function toPayItem(it: OrderDay['items'][number]): PayItem {
     if (choices.length > 0) combo.push({ title: section.title, choices });
   }
   return { name: it.food.name, quantity: it.quantity, price: it.price, portion: it.selectedPortion, spice: it.spiceLevel, eco: it.isEcoFriendlyContainer, notes: it.notes, combo };
+}
+
+/** The customer's store credit as the pay page shows it: what is applied to this order and what could be. Absent when there is none. */
+async function creditInfo(order: Order): Promise<{ used: number; available: number; covered: boolean } | undefined> {
+  if (!order.user) return undefined;
+  const used = order.storeCreditState === 'held' ? order.storeCreditUsed ?? 0 : 0;
+  const balance = await getBalanceCents(String(order.user));
+  const available = used > 0 ? 0 : toDollars(planLinkOrderCredit(order, balance).creditCents);
+  if (used <= 0 && available <= 0) return undefined;
+  return { used, available, covered: used > 0 && toCents(used) >= toCents(order.totalPaid) };
 }
 
 /**
@@ -83,6 +96,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         discount: order.discount?.amount ?? 0,
         discountCode: order.discount?.code,
         total: order.totalPaid,
+        credit: await creditInfo(order),
         // one entry per menu day (the day the items were picked for) with the date it is delivered on
         days: [...order.items]
           .sort((a, b) => String(a.deliveryDate).localeCompare(String(b.deliveryDate)))

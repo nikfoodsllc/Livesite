@@ -1,3 +1,4 @@
+import { cardTotalOf } from '@/lib/storeCredit';
 import { Box, Typography } from '@mui/material';
 import { IconReceiptRefund } from '@tabler/icons-react';
 import { Order } from '@/types/order';
@@ -60,8 +61,8 @@ export default function RefundNotice({ order }: RefundNoticeProps) {
         </Typography>
         <Typography sx={{ fontSize: '13px', color: '#075985', mt: 0.25 }}>
           {full
-            ? `Your full ${formatCurrency(order.totalPaid, order.currency)} was refunded to your original payment method.`
-            : `${formatCurrency(refunded, order.currency)} of your ${formatCurrency(order.totalPaid, order.currency)} was refunded to your original payment method.`}
+            ? `Your full ${formatCurrency(cardTotalOf(order), order.currency)} was refunded to your original payment method.${order.storeCreditUsed ? ' Your store credit was returned.' : ''}`
+            : `${formatCurrency(refunded, order.currency)} of your ${formatCurrency(cardTotalOf(order), order.currency)} was refunded to your original payment method.`}
         </Typography>
       </Box>
     </Box>

@@ -4,6 +4,7 @@ import { Order } from '@/types/order';
 import { formatAPITimestamp } from '@/lib/apiDateFormat';
 import { requireAdmin } from '@/lib/adminAuth';
 import { sendCartReminderEmail } from '@/lib/cartReminderEmail';
+import { sendStoreCreditEmail } from '@/lib/storeCreditEmail';
 
 /**
  * POST /api/test/email
@@ -101,6 +102,33 @@ export async function POST(request: NextRequest) {
         result = await sendOrderConfirmationEmail(testOrder);
         break;
 
+      case 'store-credit':
+      case 'store-credit-full': {
+        // a made-up order, sent to the address given; nothing is saved (the full variant is the "entire order credited" email)
+        const full = type === 'store-credit-full';
+        const sample = { orderId: 'TEST-123456', customerInfo: { name: 'Priya Sharma', email: testEmail, phone: '' } } as unknown as Order;
+        const sent = await sendStoreCreditEmail(
+          sample,
+          full
+            ? {
+                full: true,
+                orderTotal: 55,
+                amount: 55,
+                balance: 55,
+                items: [
+                  { name: 'Idli Batter (Saver Combo) 32Oz x 2', quantity: 1, amount: 19.85 },
+                  { name: 'Idli Batter (32Oz)', quantity: 1, amount: 11.02 },
+                  { name: 'Dosa Batter (Saver Combo) 32Oz x 2', quantity: 1, amount: 19.86 },
+                  { name: 'Platform Fee (with tax)', quantity: 1, amount: 1.97 },
+                  { name: 'Tip', quantity: 1, amount: 2.3 },
+                ],
+              }
+            : { amount: 19.85, balance: 19.85, items: [{ name: 'Idli Batter (Saver Combo) 32Oz x 2', quantity: 1, amount: 19.85 }] }
+        );
+        result = { success: sent.success, error: sent.error };
+        break;
+      }
+
       case 'cart-reminder': {
         // a sample cart (made-up items), sent to the address given; nothing is saved
         const sent = await sendCartReminderEmail(testEmail, {
@@ -155,7 +183,7 @@ export async function POST(request: NextRequest) {
 
       default:
         return NextResponse.json(
-          { success: false, error: 'Invalid test type. Use: password-reset, password-reset-confirmation, order-confirmation, payment-failed, or cart-reminder' },
+          { success: false, error: 'Invalid test type. Use: password-reset, password-reset-confirmation, order-confirmation, payment-failed, cart-reminder, store-credit, or store-credit-full' },
           { status: 400 }
         );
     }
