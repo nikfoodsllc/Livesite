@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Button, Typography, CircularProgress, IconButton } from '@mui/material';
 import { IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
 import AccountPageHeader from '@/components/account/AccountPageHeader';
+import StoreCreditCard from '@/components/account/StoreCreditCard';
 import OrderCard from '@/components/orders/OrderCard';
 import OrderDetailsDialog from '@/components/orders/OrderDetailsDialog';
 import TrackOrderDialog from '@/components/orders/TrackOrderDialog';
@@ -152,6 +153,8 @@ export default function OrdersPage() {
     <Box>
       {/* Page Header */}
       <AccountPageHeader />
+
+      <StoreCreditCard />
 
       {/* Opened from an email for an order that is on a different account */}
       {otherAccountOrderId && (

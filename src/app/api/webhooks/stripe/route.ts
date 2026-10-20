@@ -7,9 +7,11 @@ import Stripe from 'stripe';
 import { paymentMethodLabelFromCharge, resolvePaymentMethodLabel } from '@/lib/server/paymentMethodLabel';
 import { paymentErrorFromIntent } from '@/lib/server/stripePaymentInfo';
 import { refundFromCharge } from '@/lib/server/refundInfo';
+import { fetchRefundNotes } from '@/lib/server/refundNotes';
 import { annotatePaymentIntent } from '@/lib/server/stripePaymentNote';
 import { fetchChargeFee } from '@/lib/server/stripeFee';
 import { syncOrderSafely } from '@/lib/server/optimoRoute/sync';
+import { markOrderCreditApplied, reapplyReleasedCredit, restoreOrderCredit } from '@/lib/server/storeCredit';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 if (!stripeSecretKey) {
@@ -121,6 +123,11 @@ export async function POST(request: NextRequest) {
         }
 
         console.log(`[Webhook] Order ${order.orderId} confirmed and marked as paid`);
+        // store credit that was held for this order is now used for good
+        if (order.storeCreditUsed) {
+          await reapplyReleasedCredit(order);
+          await markOrderCreditApplied(order.orderId);
+        }
         await annotatePaymentIntent(
           stripe,
           paymentIntent.id,
@@ -406,6 +413,8 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'Failed to update order' }, { status: 500 });
         }
         console.log(`[Webhook] Order ${order.orderId} marked as canceled`, { code: paymentError.code });
+        // the card payment was cancelled: any store credit held for the order goes back to the customer
+        if (order.storeCreditUsed) await restoreOrderCredit(order.orderId, 'The card payment was cancelled');
         await annotatePaymentIntent(stripe, paymentIntent.id, order, {
           kind: 'canceled',
           reason: paymentIntent.cancellation_reason || 'canceled',
@@ -459,10 +468,12 @@ export async function POST(request: NextRequest) {
         // partial refund (e.g. one missing item) leaves it paid and active.
         const refund = refundFromCharge(charge);
         const now = new Date();
+        const refundNotes = await fetchRefundNotes(stripe, charge.id);
         const updateResult = await db.updateOne('orders',
           { orderId: order.orderId },
           {
             $set: {
+              ...(refundNotes.length > 0 ? { stripeRefunds: refundNotes } : {}),
               refundedAmount: refund.refundedAmount,
               refundedAt: now,
               ...(refund.fullyRefunded ? { paymentStatus: 'refunded', status: 'cancelled' } : {}),
@@ -478,6 +489,9 @@ export async function POST(request: NextRequest) {
             { status: 500 }
           );
         }
+
+        // a fully refunded order is cancelled: the store credit it used goes back to the customer
+        if (refund.fullyRefunded && order.storeCreditUsed) await restoreOrderCredit(order.orderId, 'The order was fully refunded');
 
         console.log(
           `[Webhook] Order ${order.orderId} ${refund.fullyRefunded ? 'fully refunded' : 'partially refunded'}`,

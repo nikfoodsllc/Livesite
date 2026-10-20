@@ -21,6 +21,12 @@ import { attachOrderToDraft } from '@/lib/server/checkoutDrafts';
 import { rememberUserPhone } from '@/lib/server/userPhone';
 import { cleanInstructions, saveInstructionsOnAddress } from '@/lib/server/deliveryInstructions';
 import { sendWelcomeText, setSmsConsent } from '@/lib/server/smsService';
+import { creditForCheckout } from '@/lib/server/checkoutCredit';
+import { addCredit, spendCredit } from '@/lib/server/storeCredit';
+import { toDollars } from '@/lib/storeCredit';
+import { sendOrderConfirmationEmail } from '@/lib/email';
+import { syncOrderSafely } from '@/lib/server/optimoRoute/sync';
+import { markDraftConverted } from '@/lib/server/checkoutDrafts';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 if (!stripeSecretKey) {
@@ -47,6 +53,8 @@ interface CreateOrderRequest {
   deliveryInstructions?: string;
   /** The text-message box at checkout: true = agree to order texts for this phone, false = stop them, absent = leave as is */
   smsOptIn?: boolean;
+  /** Pay with the customer's store credit first (the server works out how much) */
+  useStoreCredit?: boolean;
 }
 
 /**
@@ -74,6 +82,18 @@ async function getZipcodeConfigFromDb(zipcode: string): Promise<{ minCartValue?:
  * - formatOrderForDatabase() helper ensures Date objects are properly set
  */
 export async function POST(request: NextRequest) {
+  // store credit taken off the balance for this order; handed back if the order cannot be saved
+  let reservedCredit: { userId: string; cents: number; orderId: string } | null = null;
+  const giveBackCredit = async () => {
+    if (!reservedCredit) return;
+    const held = reservedCredit;
+    reservedCredit = null;
+    try {
+      await addCredit({ userId: held.userId, cents: held.cents, type: 'restored', orderId: held.orderId, reason: 'The order was not placed' });
+    } catch (creditError) {
+      console.error('[store-credit] could not hand the credit back after a failed order', { orderId: held.orderId, message: creditError instanceof Error ? creditError.message : String(creditError) });
+    }
+  };
   try {
     // Verify authentication
     const authHeader = request.headers.get('authorization');
@@ -190,16 +210,29 @@ export async function POST(request: NextRequest) {
 
     // Calculate total (cart already has calculated values)
     const discount = cart.appliedCoupon?.discountAmount || 0;
-    const totalPaid = Number(
-      (
-        cart.subtotal +
-        cart.platformFee +
-        cart.deliveryFee +
-        cart.tax +
-        tipAmount -
-        discount
-      ).toFixed(2)
-    );
+
+    // Store credit pays first. It is taken off the balance right now (one atomic update that only works while the balance
+    // covers it), so a second checkout at the same moment cannot spend it again.
+    const credit = await creditForCheckout({
+      userId,
+      cart,
+      tipAmount,
+      discount,
+      useStoreCredit: body.useStoreCredit === true,
+    });
+    // with credit the Platform Fee (and the tax on it) follow only the part that goes through the card
+    const totalPaid = credit.total;
+    if (credit.creditCents > 0) {
+      const taken = await spendCredit({ userId, cents: credit.creditCents, orderId, reason: `Order ${orderId}` });
+      if (!taken) {
+        return NextResponse.json(
+          { success: false, error: 'Your store credit changed. Please check the total and try again.', code: 'CREDIT_CHANGED' },
+          { status: 409 }
+        );
+      }
+      reservedCredit = { userId, cents: credit.creditCents, orderId };
+    }
+    const paidByCreditOnly = credit.creditCents > 0 && credit.cardCents === 0;
 
     // Extract delivery messages from cart
     const deliveryMessages = cart.days
@@ -214,9 +247,9 @@ export async function POST(request: NextRequest) {
       address: addressSnapshot,
       customerInfo: customer,
       subtotal: cart.subtotal,
-      platformFee: cart.platformFee,
+      platformFee: credit.platformFee,
       deliveryFee: cart.deliveryFee,
-      taxes: cart.tax,
+      taxes: credit.tax,
       tip: tipAmount,
       discount: cart.appliedCoupon
         ? {
@@ -229,14 +262,69 @@ export async function POST(request: NextRequest) {
       currency: currency || 'usd',
       status: 'pending',
       paymentStatus: 'unpaid',
-      paymentMethod,
+      paymentMethod: paidByCreditOnly ? 'Store Credit' : paymentMethod,
       deliveryMessages,
+      ...(credit.creditCents > 0
+        ? {
+            storeCreditUsed: toDollars(credit.creditCents),
+            storeCreditState: paidByCreditOnly ? ('applied' as const) : ('held' as const),
+          }
+        : {}),
+      ...(paidByCreditOnly ? { paidAt: new Date() } : {}),
     };
+
+    // The credit pays for the whole order: no card payment. The order is saved as paid, like the webhook does for a card.
+    if (paidByCreditOnly) {
+      const paidOrder: Omit<Order, '_id'> = { ...order, status: 'confirmed', paymentStatus: 'paid' };
+      const saved = await db.create('orders', formatOrderForDatabase(paidOrder as Order));
+      if (!saved.success) {
+        console.error('Failed to create the order paid by store credit:', { orderId, userId, error: saved.error });
+        await giveBackCredit();
+        return NextResponse.json({ success: false, error: 'Failed to create order' }, { status: 500 });
+      }
+      reservedCredit = null; // the order owns the credit now
+
+      // an earlier card session of this checkout is no longer needed (best effort)
+      if (paymentIntentId) {
+        try {
+          await stripe.paymentIntents.cancel(paymentIntentId);
+        } catch (cancelError) {
+          console.warn('[orders/create] could not close the card session after paying with store credit', cancelError instanceof Error ? cancelError.message : cancelError);
+        }
+        await markDraftConverted(paymentIntentId, userId);
+        await attachOrderToDraft(paymentIntentId, orderId);
+      }
+      await rememberUserPhone(userId, customerInfo.phone);
+      if (instructions !== undefined) await saveInstructionsOnAddress(userId, cart.selectedAddress._id, instructions);
+      if (typeof body.smsOptIn === 'boolean') {
+        try {
+          const sms = await setSmsConsent(userId, { optedIn: body.smsOptIn, phone: customerInfo.phone, source: 'checkout' });
+          if (sms.ok && sms.newlyOptedIn) await sendWelcomeText(userId);
+        } catch (smsError) {
+          console.warn('[sms] could not save the text-message choice', smsError instanceof Error ? smsError.message : smsError);
+        }
+      }
+
+      // same follow-up as a successful card payment: confirmation email and the OptimoRoute stop (each best effort)
+      try {
+        const emailResult = await sendOrderConfirmationEmail(paidOrder as Order);
+        if (!emailResult.success) console.error(`[orders/create] confirmation email failed for ${orderId}`, emailResult.error);
+      } catch (emailError) {
+        console.error(`[orders/create] confirmation email threw for ${orderId}`, emailError);
+      }
+      await syncOrderSafely(orderId);
+
+      return NextResponse.json({
+        success: true,
+        data: { orderId, clientSecret: null, totalAmount: order.totalPaid, paymentMethod: 'Store Credit', paidWithCredit: true },
+      });
+    }
 
     // Handle payment method specific logic
     if (paymentMethod === 'Credit Card') {
       // Check if Stripe is properly configured
       if (!stripeSecretKey || stripeSecretKey === 'sk_test_dummy_key_for_build') {
+        await giveBackCredit();
         return NextResponse.json(
           { success: false, error: 'Stripe is not properly configured' },
           { status: 500 }
@@ -245,13 +333,15 @@ export async function POST(request: NextRequest) {
 
       // Create or reuse Stripe PaymentIntent
       try {
-        const amountCents = Math.round(totalPaid * 100);
+        // the card pays what the store credit does not
+        const amountCents = credit.cardCents;
         let paymentIntent: Stripe.PaymentIntent;
 
         if (paymentIntentId) {
           paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
 
           if (paymentIntent.status === 'canceled') {
+            await giveBackCredit();
             return NextResponse.json(
               { success: false, error: 'Payment session expired. Please refresh the page.' },
               { status: 400 }
@@ -294,12 +384,15 @@ export async function POST(request: NextRequest) {
 
           // Cancel the PaymentIntent if order creation fails
           await stripe.paymentIntents.cancel(paymentIntent.id);
+          await giveBackCredit();
 
           return NextResponse.json(
             { success: false, error: 'Failed to create order' },
             { status: 500 }
           );
         }
+
+        reservedCredit = null; // the order owns the credit now
 
         // the customer pressed Pay: remember which order belongs to the checkout draft (best effort)
         await attachOrderToDraft(paymentIntent.id, order.orderId);
@@ -333,6 +426,7 @@ export async function POST(request: NextRequest) {
           },
         });
       } catch (stripeError) {
+        await giveBackCredit();
         console.error('Stripe error while creating the order payment:', {
           orderId: order.orderId,
           userId,
@@ -352,6 +446,7 @@ export async function POST(request: NextRequest) {
       }
     }
   } catch (error) {
+    await giveBackCredit();
     console.error('Order creation error:', error);
     return NextResponse.json(
       {

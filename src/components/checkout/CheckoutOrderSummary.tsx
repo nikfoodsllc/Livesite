@@ -21,6 +21,8 @@ interface CheckoutOrderSummaryProps {
   total: number;
   deliveryCalculations?: DayDeliveryInfo[];
   discountCode?: string;
+  /** Store credit paying part (or all) of the total, dollars */
+  storeCredit?: number;
 }
 
 export default function CheckoutOrderSummary({
@@ -32,6 +34,7 @@ export default function CheckoutOrderSummary({
   tip,
   total,
   deliveryCalculations = [],
+  storeCredit = 0,
 }: CheckoutOrderSummaryProps) {
   // tax, Platform Fee and delivery fee are shown as one line
   const taxesAndFees = taxesAndFeesOf({ taxes: tax, platformFee, deliveryFee });
@@ -225,6 +228,25 @@ export default function CheckoutOrderSummary({
             ${total.toFixed(2)}
           </Typography>
         </Box>
+
+        {storeCredit > 0 && (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 2 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+              <Typography variant="body2">Store credit</Typography>
+              <Typography variant="body2" sx={{ fontWeight: 500, color: '#28a745' }}>
+                -${storeCredit.toFixed(2)}
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+              <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                To pay
+              </Typography>
+              <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                ${Math.max(0, total - storeCredit).toFixed(2)}
+              </Typography>
+            </Box>
+          </Box>
+        )}
 
         {/* Item count */}
         <Typography

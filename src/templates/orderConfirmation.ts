@@ -5,6 +5,7 @@
 //  - every coloured block is a table cell with a bgcolor attribute (styled <div> backgrounds get dropped)
 //  - text on small coloured blocks is dark and the block has a border, so it stays readable even if the fill is dropped
 //  - the gold logo sits on its own dark strip (an opaque image on a solid cell), never directly on a flipping page
+import { cardTotalOf } from '@/lib/storeCredit';
 import type { Order, OrderDay, OrderDayItem, CustomerInfo } from '@/types/order';
 import { comboQuantityText } from '@/lib/comboQuantity';
 const PST = 'America/Los_Angeles';
@@ -365,12 +366,13 @@ export function getOrderConfirmationEmailTemplate(order: Order, profileCustomerD
           ${hasAmount(order.discount?.amount) ? sumRow('Discount', '&minus;' + money(order.discount!.amount, currency)) : ''}
           ${hasAmount(feesAndTaxes) ? sumRow('Taxes &amp; Fees', money(feesAndTaxes, currency)) : ''}
           ${order.tip > 0 ? sumRow('Tip', money(order.tip, currency), '&mdash; thank you!') : ''}
+          ${hasAmount(order.storeCreditUsed) ? sumRow('Store credit', '&minus;' + money(order.storeCreditUsed!, currency)) : ''}
         </table>
       </td></tr>
       <tr><td bgcolor="${C.brand}" style="padding:11px 18px;background:${C.brand};border-radius:0 0 15px 15px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
           <td style="font-size:15px;font-weight:800;color:${C.onBrand};">Total paid</td>
-          <td align="right" style="font-size:22px;font-weight:800;color:${C.onBrand};">${money(order.totalPaid, currency)}</td>
+          <td align="right" style="font-size:22px;font-weight:800;color:${C.onBrand};">${money(cardTotalOf(order), currency)}</td>
         </tr></table>
       </td></tr>
     </table>

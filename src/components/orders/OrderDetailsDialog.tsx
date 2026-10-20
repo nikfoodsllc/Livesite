@@ -1,3 +1,5 @@
+import { cardTotalOf } from '@/lib/storeCredit';
+import CreditNotice, { paidByCreditOnly, usedCredit } from './CreditNotice';
 import {
   Dialog,
   DialogTitle,
@@ -51,8 +53,8 @@ export default function OrderDetailsDialog({ open, order, onClose }: OrderDetail
           borderBottom: '1px solid #E5E7EB',
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <Typography sx={{ fontSize: '20px', fontWeight: 700, color: '#111827' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', columnGap: 2, rowGap: 0.5, minWidth: 0 }}>
+          <Typography sx={{ fontSize: '20px', fontWeight: 700, color: '#111827', overflowWrap: 'anywhere' }}>
             Order #{order.orderId}
           </Typography>
           <StatusBadge status={order.status} paymentStatus={order.paymentStatus} size="medium" deliveryProgress={order.deliveryProgress} />
@@ -266,6 +268,7 @@ export default function OrderDetailsDialog({ open, order, onClose }: OrderDetail
         <Divider sx={{ my: 3 }} />
 
         <RefundNotice order={order} />
+        <CreditNotice order={order} showUsed={false} />
 
         {/* Order Summary */}
         <Box>
@@ -318,9 +321,23 @@ export default function OrderDetailsDialog({ open, order, onClose }: OrderDetail
               Total
             </Typography>
             <Typography sx={{ fontSize: '18px', fontWeight: 700, color: '#111827' }}>
-              {formatCurrency(order.totalPaid, order.currency)}
+              {formatCurrency(usedCredit(order) ? order.totalPaid : cardTotalOf(order), order.currency)}
             </Typography>
           </Box>
+          {usedCredit(order) && (
+            <>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                <Typography sx={{ fontSize: '14px', color: '#166534' }}>Store credit</Typography>
+                <Typography sx={{ fontSize: '14px', color: '#166534' }}>-{formatCurrency(order.storeCreditUsed ?? 0, order.currency)}</Typography>
+              </Box>
+              {!paidByCreditOnly(order) && (
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+                  <Typography sx={{ fontSize: '14px', fontWeight: 600, color: '#111827' }}>Paid by card</Typography>
+                  <Typography sx={{ fontSize: '14px', fontWeight: 600, color: '#111827' }}>{formatCurrency(cardTotalOf(order), order.currency)}</Typography>
+                </Box>
+              )}
+            </>
+          )}
 
           {/* Refund and the new total */}
           {getRefundedAmount(order) > 0 && (
