@@ -264,6 +264,8 @@ export async function POST(request: NextRequest) {
       paymentStatus: 'unpaid',
       paymentMethod: paidByCreditOnly ? 'Store Credit' : paymentMethod,
       deliveryMessages,
+      // the iPhone app says who it is in this header; the website sends none
+      channel: request.headers.get('x-nikfoods-client') === 'ios' ? ('mobile' as const) : ('web' as const),
       ...(credit.creditCents > 0
         ? {
             storeCreditUsed: toDollars(credit.creditCents),
