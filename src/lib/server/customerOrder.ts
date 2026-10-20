@@ -10,6 +10,7 @@ import { isFullyCredited } from '@/lib/storeCredit';
  * the mobile app read them, so they are removed before the order leaves the server.
  */
 export const INTERNAL_ORDER_FIELDS = [
+  'channel',
   'stripeFee',
   'stripeRefunds',
   'preCreditTotals',
