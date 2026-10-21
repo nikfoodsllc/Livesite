@@ -44,7 +44,7 @@ export function isLive(banner: BannerDoc, now: Date = new Date()): boolean {
   return Boolean(banner.imageUrl);
 }
 
-/** Cloudinary: crop to a 2:1 banner around the interesting part, modern format, sensible quality. Other addresses pass through. */
+/** Cloudinary: the WHOLE picture (never cropped), at most 1600 px wide, modern format, sensible quality. Other addresses pass through. */
 export function bannerImageUrl(url: string | undefined): string {
   const u = String(url ?? '');
   try {
@@ -54,9 +54,9 @@ export function bannerImageUrl(url: string | undefined): string {
     const at = parsed.pathname.indexOf(marker);
     if (at < 0) return u;
     const rest = parsed.pathname.slice(at + marker.length);
-    // already transformed (the next part before the version/folder looks like "c_fill,w_..."): leave it alone
+    // already transformed (the next part before the version/folder looks like "c_limit,w_..."): leave it alone
     if (/^[a-z]{1,3}_[^/]+,/.test(rest) || /^(c|w|h|ar|f|q)_[^/]*\//.test(rest)) return u;
-    return `${parsed.origin}${parsed.pathname.slice(0, at + marker.length)}c_fill,g_auto,w_1400,h_700,f_auto,q_auto/${rest}${parsed.search}`;
+    return `${parsed.origin}${parsed.pathname.slice(0, at + marker.length)}c_limit,w_1600,f_auto,q_auto/${rest}${parsed.search}`;
   } catch {
     return u;
   }
