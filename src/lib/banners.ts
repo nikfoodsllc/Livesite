@@ -16,6 +16,8 @@ export interface BannerDoc {
   startsAt?: Date | string | null;
   endsAt?: Date | string | null;
   sequence?: number;
+  /** how long it stays on show before the carousel moves on (seconds) */
+  durationSeconds?: number;
 }
 
 export interface PublicBanner {
@@ -26,6 +28,16 @@ export interface PublicBanner {
   linkType: BannerLinkType;
   categoryId: string;
   url: string;
+  /** seconds this banner stays on show before the next one (2 to 60; 5 when the admin never set it) */
+  durationSeconds: number;
+}
+
+export const DEFAULT_BANNER_SECONDS = 5;
+
+/** The stay time of a banner, always a sensible whole number of seconds. */
+export function bannerSeconds(v: unknown): number {
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) && n >= 2 && n <= 60 ? n : DEFAULT_BANNER_SECONDS;
 }
 
 const ms = (v: Date | string | null | undefined): number | null => {
@@ -72,5 +84,6 @@ export function toPublicBanner(doc: BannerDoc): PublicBanner {
     linkType,
     categoryId: linkType === 'category' ? String(doc.categoryId ?? '') : '',
     url: linkType === 'url' && /^https:\/\//i.test(String(doc.url ?? '')) ? String(doc.url) : '',
+    durationSeconds: bannerSeconds(doc.durationSeconds),
   };
 }
