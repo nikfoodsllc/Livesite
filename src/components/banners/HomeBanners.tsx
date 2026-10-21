@@ -4,10 +4,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Box, IconButton, Typography } from '@mui/material';
 import { IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
 import HeroBanner from '@/components/banners/HeroBanner';
-import type { PublicBanner } from '@/lib/banners';
+import { DEFAULT_BANNER_SECONDS, type PublicBanner } from '@/lib/banners';
 
 const CACHE_KEY = 'nikfoods_banners_v1';
-const AUTO_MS = 5500;
 
 /**
  * The home page banners the admin set up (a swipeable strip). With no banners the page keeps its original hero, so nothing changes
@@ -78,9 +77,11 @@ export default function HomeBanners({ onOpenCategory }: { onOpenCategory: (categ
   useEffect(() => {
     if (count < 2 || paused) return;
     if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
-    const t = setInterval(() => goTo((index + 1) % count), AUTO_MS);
-    return () => clearInterval(t);
-  }, [count, paused, index, goTo]);
+    // each banner stays for the time the admin chose for it, then the next one slides in
+    const stay = (banners?.[index]?.durationSeconds ?? DEFAULT_BANNER_SECONDS) * 1000;
+    const t = setTimeout(() => goTo((index + 1) % count), stay);
+    return () => clearTimeout(t);
+  }, [count, paused, index, goTo, banners]);
 
   if (banners === null) return null;
   if (count === 0) return <HeroBanner />;
