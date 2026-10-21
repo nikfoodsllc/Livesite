@@ -11,6 +11,7 @@ import {
   Button,
   CircularProgress,
 } from '@mui/material';
+import { IconBell, IconChevronDown, IconChevronUp } from '@tabler/icons-react';
 import { useNotifications, showSuccessNotification, showErrorNotification } from '@/components/common/NotificationSystem';
 import { subscribeSchema } from '@/lib/validations/subscription';
 
@@ -19,6 +20,21 @@ interface User {
   email: string;
   name?: string;
 }
+
+// A visitor who is not logged in is remembered by the email they subscribed with, so the box stays away on their next visit
+const STORAGE_KEY = 'menuSubscribedEmail';
+const rememberEmail = (value: string) => {
+  try {
+    localStorage.setItem(STORAGE_KEY, value);
+  } catch {}
+};
+const rememberedEmail = (): string => {
+  try {
+    return localStorage.getItem(STORAGE_KEY) || '';
+  } catch {
+    return '';
+  }
+};
 
 interface MenuSubscriptionSectionProps {
   user?: User | null;
@@ -35,16 +51,19 @@ export default function MenuSubscriptionSection({
   const [checkingStatus, setCheckingStatus] = useState(true);
   const [subscribed, setSubscribed] = useState(false);
   const [error, setError] = useState('');
+  // Starts as one slim row (like the app) so the menu stays the first thing customers see
+  const [open, setOpen] = useState(false);
 
   // Check subscription status on mount
   useEffect(() => {
     const checkSubscription = async () => {
-      // For logged-in users, check if their email is already subscribed
-      if (user?.email) {
-        setEmail(user.email);
+      // Check the logged-in user's email, or the one this browser subscribed with earlier
+      if (user?.email) setEmail(user.email);
+      const known = user?.email || rememberedEmail();
+      if (known) {
         try {
           const response = await fetch(
-            `/api/menu-subscriptions/check?email=${encodeURIComponent(user.email)}`
+            `/api/menu-subscriptions/check?email=${encodeURIComponent(known)}`
           );
           const data = await response.json();
           if (data.subscribed) {
@@ -87,9 +106,11 @@ export default function MenuSubscriptionSection({
 
       if (response.ok && data.success) {
         showSuccessNotification(showNotification, 'Successfully subscribed to menu notifications!');
+        rememberEmail(email.trim());
         setSubscribed(true);
       } else if (response.status === 409) {
         setError('This email is already subscribed');
+        rememberEmail(email.trim());
         setSubscribed(true);
       } else {
         setError(data.error || 'Failed to subscribe. Please try again.');
@@ -104,59 +125,42 @@ export default function MenuSubscriptionSection({
     }
   };
 
-  // Show loading state while checking subscription
-  if (checkingStatus) {
-    return (
-      <Container maxWidth="sm">
-        <Box
-          sx={{
-            bgcolor: 'background.paper',
-            borderRadius: 2,
-            p: 4,
-            mt: 4,
-            mb: 4,
-            boxShadow: 1,
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            minHeight: 200,
-          }}
-        >
-          <CircularProgress />
-        </Box>
-      </Container>
-    );
-  }
+  // Nothing while we find out, and nothing once the email is on the list (a notice confirms a new sign-up)
+  if (checkingStatus || subscribed) return null;
 
-  // Show success message if already subscribed
-  if (subscribed) {
+  if (!open) {
     return (
       <Container maxWidth="sm">
         <Box
+          component="button"
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-label="Get menu alerts"
           sx={{
-            bgcolor: 'background.paper',
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            minHeight: 44,
+            px: 2,
+            mt: 2,
+            mb: 2,
+            border: 1,
+            borderColor: 'divider',
             borderRadius: 2,
-            p: 4,
-            mt: 4,
-            mb: 4,
-            boxShadow: 1,
-            textAlign: 'center',
+            bgcolor: '#FFF9F2',
+            cursor: 'pointer',
+            font: 'inherit',
+            color: 'text.primary',
+            textAlign: 'left',
           }}
         >
-          <Typography
-            variant="h5"
-            sx={{
-              fontFamily: 'Georgia, serif',
-              fontWeight: 700,
-              color: 'text.primary',
-              mb: 1,
-            }}
-          >
-            {user ? "You're already subscribed!" : 'Thank you for subscribing!'}
+          <IconBell size={18} />
+          <Typography sx={{ flex: 1, fontWeight: 600, fontSize: '0.9rem' }} noWrap>
+            Get menu alerts
           </Typography>
-          <Typography variant="body2" color="text.secondary">
-            You will receive notifications when our menus are uploaded.
-          </Typography>
+          <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: 'primary.dark' }}>Subscribe</Typography>
+          <IconChevronDown size={16} />
         </Box>
       </Container>
     );
@@ -171,24 +175,35 @@ export default function MenuSubscriptionSection({
         sx={{
           bgcolor: 'background.paper',
           borderRadius: 2,
-          p: 4,
-          mt: 4,
-          mb: 4,
+          position: 'relative',
+          p: 2,
+          mt: 2,
+          mb: 2,
           boxShadow: 1,
           display: 'flex',
           flexDirection: 'column',
-          gap: 2.5,
+          gap: 1.5,
         }}
       >
+        <Box
+          component="button"
+          type="button"
+          onClick={() => setOpen(false)}
+          aria-label="Close"
+          sx={{ position: 'absolute', top: 8, right: 8, p: 0.5, border: 0, bgcolor: 'transparent', cursor: 'pointer', color: 'text.secondary', display: 'flex' }}
+        >
+          <IconChevronUp size={18} />
+        </Box>
         {/* Heading */}
         <Typography
-          variant="h5"
+          variant="h6"
           sx={{
             fontFamily: 'Georgia, serif',
             fontWeight: 700,
             color: 'text.primary',
             textAlign: 'center',
             lineHeight: 1.3,
+            px: 3,
           }}
         >
           Get notified as soon as our menu&apos;s are uploaded
@@ -226,7 +241,7 @@ export default function MenuSubscriptionSection({
                 },
               },
               '& .MuiInputBase-input': {
-                py: 1.5,
+                py: 1.25,
               },
             }}
           />
@@ -237,7 +252,7 @@ export default function MenuSubscriptionSection({
             disabled={loading}
             sx={{
               px: { xs: 2, sm: 3 },
-              py: 1.5,
+              py: 1,
               borderRadius: 1,
               border: 2,
               borderColor: 'text.primary',
