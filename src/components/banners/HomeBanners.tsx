@@ -18,6 +18,9 @@ export default function HomeBanners({ onOpenCategory }: { onOpenCategory: (categ
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
+  // each picture keeps its own shape, so the strip is as tall as the picture on show (no empty bands round a shorter one)
+  const slideRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const [heights, setHeights] = useState<number[]>([]);
 
   // the last answer is shown at once on a repeat visit, then refreshed
   useEffect(() => {
@@ -53,6 +56,15 @@ export default function HomeBanners({ onOpenCategory }: { onOpenCategory: (categ
   }, []);
 
   const count = banners?.length ?? 0;
+
+  useEffect(() => {
+    if (!count || typeof ResizeObserver === 'undefined') return;
+    const measure = () => setHeights(slideRefs.current.slice(0, count).map((el) => el?.offsetHeight ?? 0));
+    const ro = new ResizeObserver(measure);
+    slideRefs.current.slice(0, count).forEach((el) => el && ro.observe(el));
+    measure();
+    return () => ro.disconnect();
+  }, [count, banners]);
 
   // follow the swipe
   const onScroll = () => {
@@ -99,6 +111,10 @@ export default function HomeBanners({ onOpenCategory }: { onOpenCategory: (categ
         sx={{
           display: 'flex',
           overflowX: 'auto',
+          overflowY: 'hidden',
+          alignItems: 'flex-start',
+          height: heights[index] || 'auto',
+          transition: 'height 300ms ease',
           scrollSnapType: 'x mandatory',
           scrollbarWidth: 'none',
           '&::-webkit-scrollbar': { display: 'none' },
@@ -112,13 +128,16 @@ export default function HomeBanners({ onOpenCategory }: { onOpenCategory: (categ
           return (
             <Box
               key={b.id}
+              ref={(el: HTMLDivElement | null) => {
+                slideRefs.current[i] = el;
+              }}
               role="group"
               aria-roledescription="slide"
               aria-label={`${i + 1} of ${count}${b.title ? `: ${b.title}` : ''}`}
               onClick={clickable ? () => open(b) : undefined}
               onKeyDown={clickable ? (e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), open(b)) : undefined}
               tabIndex={clickable ? 0 : -1}
-              sx={{ position: 'relative', flex: '0 0 100%', scrollSnapAlign: 'start', display: 'flex', alignItems: 'center', cursor: clickable ? 'pointer' : 'default', outlineOffset: -3 }}
+              sx={{ position: 'relative', flex: '0 0 100%', scrollSnapAlign: 'start', cursor: clickable ? 'pointer' : 'default', outlineOffset: -3 }}
             >
               <Box component="img" src={b.imageUrl} alt={b.title || 'NikFoods'} loading={i === 0 ? 'eager' : 'lazy'} sx={{ width: '100%', height: 'auto', display: 'block' }} />
               {(b.title || b.subtitle) && (
