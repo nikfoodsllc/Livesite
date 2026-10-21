@@ -21,6 +21,21 @@ interface User {
   name?: string;
 }
 
+// A visitor who is not logged in is remembered by the email they subscribed with, so the box stays away on their next visit
+const STORAGE_KEY = 'menuSubscribedEmail';
+const rememberEmail = (value: string) => {
+  try {
+    localStorage.setItem(STORAGE_KEY, value);
+  } catch {}
+};
+const rememberedEmail = (): string => {
+  try {
+    return localStorage.getItem(STORAGE_KEY) || '';
+  } catch {
+    return '';
+  }
+};
+
 interface MenuSubscriptionSectionProps {
   user?: User | null;
 }
@@ -42,12 +57,13 @@ export default function MenuSubscriptionSection({
   // Check subscription status on mount
   useEffect(() => {
     const checkSubscription = async () => {
-      // For logged-in users, check if their email is already subscribed
-      if (user?.email) {
-        setEmail(user.email);
+      // Check the logged-in user's email, or the one this browser subscribed with earlier
+      if (user?.email) setEmail(user.email);
+      const known = user?.email || rememberedEmail();
+      if (known) {
         try {
           const response = await fetch(
-            `/api/menu-subscriptions/check?email=${encodeURIComponent(user.email)}`
+            `/api/menu-subscriptions/check?email=${encodeURIComponent(known)}`
           );
           const data = await response.json();
           if (data.subscribed) {
@@ -90,9 +106,11 @@ export default function MenuSubscriptionSection({
 
       if (response.ok && data.success) {
         showSuccessNotification(showNotification, 'Successfully subscribed to menu notifications!');
+        rememberEmail(email.trim());
         setSubscribed(true);
       } else if (response.status === 409) {
         setError('This email is already subscribed');
+        rememberEmail(email.trim());
         setSubscribed(true);
       } else {
         setError(data.error || 'Failed to subscribe. Please try again.');
