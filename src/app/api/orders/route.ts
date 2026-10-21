@@ -1,3 +1,4 @@
+import { orderSearchFilter } from '@/lib/orderSearch';
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/server/db';
 import { jwtHandler } from '@/lib/jwt';
@@ -45,6 +46,10 @@ export async function GET(request: NextRequest) {
 
     // Build query filter
     const filter: Record<string, unknown> = { user: userId };
+
+    // Optional search (the app's search box): order number, dish, delivery date or status
+    const search = orderSearchFilter(searchParams.get('q'));
+    if (search) Object.assign(filter, search);
 
     // Apply status filter
     if (statusFilter !== 'all') {
