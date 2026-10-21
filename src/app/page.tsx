@@ -5,7 +5,7 @@ import { Box, Container, Typography, IconButton, CircularProgress, Skeleton, Tab
 import { IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
 import Footer from '@/components/layout/Footer';
 import DeliveryLocationBar from '@/components/layout/DeliveryLocationBar';
-import HeroBanner from '@/components/banners/HeroBanner';
+import HomeBanners from '@/components/banners/HomeBanners';
 import CategoryCard from '@/components/cards/CategoryCard';
 import FoodCard from '@/components/cards/FoodCard';
 import FoodDetailsDialog from '@/components/dialogs/FoodDetailsDialog';
@@ -1491,8 +1491,8 @@ export default function Home() {
       {/* Main Content */}
       <Box component="main" sx={{ flex: 1 }}>
 
-        {/* Hero Banner */}
-        <HeroBanner />
+        {/* Banners the admin set up (the original hero when there are none) */}
+        <HomeBanners onOpenCategory={(id) => setSelectedCategory(id)} />
 
         {/* Menu Subscription Section */}
         <MenuSubscriptionSection user={user} />
