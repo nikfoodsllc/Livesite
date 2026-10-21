@@ -103,7 +103,7 @@ export default function HomeBanners({ onOpenCategory }: { onOpenCategory: (categ
       onMouseLeave={() => setPaused(false)}
       onTouchStart={() => setPaused(true)}
       onTouchEnd={() => setPaused(false)}
-      sx={{ position: 'relative', maxWidth: { xs: 1200, md: 960 }, mx: 'auto', px: { xs: 2, md: 4 }, mt: { xs: 1.5, md: 2 }, mb: { xs: 2, md: 3 } }}
+      sx={{ position: 'relative', maxWidth: { xs: 1200, md: 640 }, mx: 'auto', px: { xs: 2, md: 4 }, mt: { xs: 1.5, md: 1.5 }, mb: { xs: 2, md: 2 } }}
     >
       <Box
         ref={scroller}
