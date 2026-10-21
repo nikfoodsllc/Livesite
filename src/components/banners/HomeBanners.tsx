@@ -118,9 +118,9 @@ export default function HomeBanners({ onOpenCategory }: { onOpenCategory: (categ
               onClick={clickable ? () => open(b) : undefined}
               onKeyDown={clickable ? (e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), open(b)) : undefined}
               tabIndex={clickable ? 0 : -1}
-              sx={{ position: 'relative', flex: '0 0 100%', scrollSnapAlign: 'start', aspectRatio: '2 / 1', maxHeight: 420, cursor: clickable ? 'pointer' : 'default', outlineOffset: -3 }}
+              sx={{ position: 'relative', flex: '0 0 100%', scrollSnapAlign: 'start', display: 'flex', alignItems: 'center', cursor: clickable ? 'pointer' : 'default', outlineOffset: -3 }}
             >
-              <Box component="img" src={b.imageUrl} alt={b.title || 'NikFoods'} loading={i === 0 ? 'eager' : 'lazy'} sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+              <Box component="img" src={b.imageUrl} alt={b.title || 'NikFoods'} loading={i === 0 ? 'eager' : 'lazy'} sx={{ width: '100%', height: 'auto', display: 'block' }} />
               {(b.title || b.subtitle) && (
                 <Box sx={{ position: 'absolute', left: 0, right: 0, bottom: 0, p: { xs: 2, md: 4 }, pt: { xs: 6, md: 10 }, background: 'linear-gradient(to top, rgba(26,20,16,0.72), rgba(26,20,16,0))', color: '#fff' }}>
                   {b.title && (
