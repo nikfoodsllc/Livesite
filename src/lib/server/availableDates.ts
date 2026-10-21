@@ -14,6 +14,7 @@
 
 import { db } from './db';
 import { ObjectId } from 'mongodb';
+import { itemHiddenForLine, loadHiddenLookup } from './hiddenCategories';
 import {
   getPSTNow,
   isInPSTPast,
@@ -503,6 +504,9 @@ export async function findClosedLines(lines: LineToCheck[]): Promise<ClosedLine[
     return [];
   }
 
+  // items whose category an admin switched to Unavailable cannot be ordered either (null = could not read: never block)
+  const hidden = await loadHiddenLookup(checked.map((l) => l.foodItemId).filter((id): id is string => !!id));
+
   const closed: ClosedLine[] = [];
   for (const line of checked) {
     let kinds: ItemKind[];
@@ -517,6 +521,10 @@ export async function findClosedLines(lines: LineToCheck[]): Promise<ClosedLine[
     }
     const doc = docs.get(line.date);
     const kind = kinds[0];
+    if (hidden && line.foodItemId && itemHiddenForLine(hidden.mappingsByItem.get(line.foodItemId) ?? [], hidden.categories, line.date, kind)) {
+      closed.push({ date: line.date, foodItemId: line.foodItemId, kind, closesAt: new Date().toISOString(), name: line.name, reason: 'disabled' });
+      continue;
+    }
     // a kind an admin switched off for the date cannot be ordered at all (only judged when the date's settings exist)
     const switchedOff = (k: ItemKind) => !!doc && !(k === 'flat' ? doc.flatCategoryEnabled : doc.dayWiseCategoryEnabled);
     if (kinds.every(switchedOff)) {
