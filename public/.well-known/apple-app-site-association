@@ -2,9 +2,34 @@
   "applinks": {
     "details": [
       {
-        "appIDs": ["8VM99HJR2K.com.nikfoods.mobile"],
+        "appIDs": [
+          "8VM99HJR2K.com.nikfoods.mobile"
+        ],
         "components": [
-          { "/": "/account/orders", "?": { "order": "?*" }, "comment": "View my order links in emails and texts open the app's order screen" }
+          {
+            "/": "/api/*",
+            "exclude": true,
+            "comment": "server routes stay on the website"
+          },
+          {
+            "/": "/_next/*",
+            "exclude": true,
+            "comment": "site files stay on the website"
+          },
+          {
+            "/": "/.well-known/*",
+            "exclude": true,
+            "comment": "verification files stay on the website"
+          },
+          {
+            "/": "/checkout/return",
+            "exclude": true,
+            "comment": "the bank's return page after a payment stays on the website"
+          },
+          {
+            "/": "/*",
+            "comment": "every other page of the website opens in the app when it is installed (orders, pay links, terms, privacy, FAQs, ...)"
+          }
         ]
       }
     ]

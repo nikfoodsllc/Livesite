@@ -1,5 +1,5 @@
 /** The words of every order notification, kept short (a notification shows about 40 + 100 characters). Pure, so it can be tested. */
-export type OrderEvent = 'confirmed' | 'payment_failed' | 'on_the_way' | 'delivered' | 'rescheduled' | 'payment_link';
+export type OrderEvent = 'confirmed' | 'payment_failed' | 'on_the_way' | 'delivered' | 'rescheduled' | 'payment_link' | 'store_credit';
 
 /** "2026-10-21" -> "Wed, Oct 21" */
 export function dayLabel(date: string): string {
@@ -47,6 +47,8 @@ export function orderMessage(event: OrderEvent, ctx: OrderMessageContext): Order
       };
     case 'rescheduled':
       return { title: 'Delivery date changed', body: ctx.note?.trim() || 'We moved your delivery. Open the app for the new date.', data: order };
+    case 'store_credit':
+      return { title: 'Store credit added', body: ctx.note?.trim() || 'We added store credit to your account.', data: order };
     case 'payment_link':
       return { title: 'Payment link', body: 'Tap to pay for your NikFoods order.', data: { type: 'pay', orderId: ctx.orderId, ...(ctx.url ? { url: ctx.url } : {}) } };
   }
