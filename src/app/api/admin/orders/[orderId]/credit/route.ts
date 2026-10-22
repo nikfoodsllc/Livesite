@@ -4,6 +4,7 @@ import { db } from '@/lib/server/db';
 import type { Order } from '@/types/order';
 import { issueItemCredit, type CreditSelection } from '@/lib/server/storeCreditIssue';
 import { sendStoreCreditEmail } from '@/lib/storeCreditEmail';
+import { notifyOrderSafely } from '@/lib/server/push/orderPush';
 import { toCents } from '@/lib/storeCredit';
 import { deliveryDaysOf } from '@/lib/server/optimoRoute/stops';
 import { syncAfterCredit } from '@/lib/server/optimoRoute/sync';
@@ -66,6 +67,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   } catch (error) {
     email = { sent: false, error: error instanceof Error ? error.message : 'Email failed' };
   }
+
+  // and on the phone (best effort; one message for each credit, so a second credit on the same order is told too)
+  const money = (n: number) => `$${(Math.round(n * 100) / 100).toFixed(2)}`;
+  await notifyOrderSafely(orderId, 'store_credit', {
+    guardKey: `store_credit-${Date.now()}`,
+    note: `${money(result.issued.amount)} was added to your store credit${typeof result.balance === 'number' ? ` (balance ${money(result.balance)})` : ''}.`,
+  });
 
   return NextResponse.json({ success: true, data: { orderId, issued: result.issued, balance: result.balance, email } });
 }
