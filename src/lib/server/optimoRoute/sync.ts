@@ -1,7 +1,8 @@
 import { db } from '@/lib/server/db';
 import type { Order } from '@/types/order';
 import { optimoMode } from './config';
-import { createStop, deleteStop, searchOrdersForDate, updateStopDetails } from './client';
+import { createStop, deleteStop, geocodeAddress, searchOrdersForDate, setStopPin, updateStopDetails } from './client';
+import { hasCoordinates, judgePin, pinNeedsMove, type Pin } from './pinRules';
 import { ROUTE_ORDER_PAYMENT_CLAUSES, buildOptimoOrder, deliveryDaysOf, findExistingStop, isRouteOrder, stopDetailsOf, stopKeyFor, type ExistingOptimoOrder } from './stops';
 
 /**
@@ -32,6 +33,9 @@ export interface StopDoc {
   optimoOrderNo?: string;
   attempts?: number;
   lastError?: string;
+  /** The address text and coordinates this stop had in OptimoRoute when we last looked (see pinRules.ts) */
+  pin?: Pin;
+  pinFixedAt?: Date;
   lock?: { at: Date };
   createdAt?: Date;
   updatedAt?: Date;
@@ -246,6 +250,9 @@ export async function updateOrderStopsAddress(orderId: string, options: { now?: 
   const docs = await stops.find({ orderIds: orderId, date: { $gte: today }, state: { $in: ['sent', 'adopted'] } }).toArray();
   const outcomes: StopOutcome[] = [];
   const recreate: string[] = [];
+  // OptimoRoute does not re-place a stop when only its address text changes, so the new address is geocoded here once
+  const details = stopDetailsOf(order);
+  let spot: { lat: number; lng: number } | null | undefined;
 
   for (const doc of docs) {
     if (!current.has(doc.date)) continue; // a moved date is handled by the date change
@@ -266,9 +273,14 @@ export async function updateOrderStopsAddress(orderId: string, options: { now?: 
       outcomes.push({ date: doc.date, stopKey: newKey, result: 'would_update', orderNo: doc.optimoOrderNo });
       continue;
     }
-    const updated = await updateStopDetails({ id: doc.optimoId, orderNo: doc.optimoOrderNo || undefined }, stopDetailsOf(order));
+    if (spot === undefined) spot = await geocodeAddress(details.address);
+    if (!spot) {
+      recreate.push(doc.date); // the new address cannot be placed on the map: a new stop is flagged by OptimoRoute instead of keeping the old pin
+      continue;
+    }
+    const updated = await updateStopDetails({ id: doc.optimoId, orderNo: doc.optimoOrderNo || undefined }, details, spot);
     if (updated.ok) {
-      await stops.updateOne({ stopKey: doc.stopKey }, { $set: { stopKey: newKey, updatedAt: now }, $unset: { lastError: '' } });
+      await stops.updateOne({ stopKey: doc.stopKey }, { $set: { stopKey: newKey, pin: { address: details.address, lat: spot.lat, lng: spot.lng }, updatedAt: now }, $unset: { lastError: '' } });
       outcomes.push({ date: doc.date, stopKey: newKey, result: 'updated', orderNo: doc.optimoOrderNo });
     } else {
       recreate.push(doc.date); // could not change it: try taking it off and making a new stop
@@ -337,6 +349,8 @@ export interface ReconcileSummary {
   stoppedEarly: boolean;
   /** Orders whose OptimoRoute summary was brought up to date (a shared stop that had been left as in progress) */
   summariesRefreshed?: number;
+  /** Upcoming stops whose pin was still on the old address and was moved */
+  pinsFixed?: number;
 }
 
 /**
@@ -425,6 +439,8 @@ export async function reconcile(options: { now?: Date; budgetMs?: number } = {})
       }
       tally((await updateOrderStopsAddress(order.orderId, { now })).outcomes);
     }
+    // 3c. a stop whose address text was changed but whose pin was not (see pinRules.ts)
+    if (mode === 'on') summary.pinsFixed = await checkPins(live, lookup, { now, started, budget, today });
   }
   // 4. summaries on orders that still say a shared stop is in progress
   try {
@@ -433,6 +449,68 @@ export async function reconcile(options: { now?: Date; budgetMs?: number } = {})
     console.error('[optimoroute] summary refresh failed', error instanceof Error ? error.message : String(error));
   }
   return summary;
+}
+
+/** How many days ahead the pin check looks (the days that are, or are about to be, planned). */
+const PIN_CHECK_DAYS = 3;
+
+function addDays(date: string, days: number): string {
+  const d = new Date(`${date}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Compares what OptimoRoute shows for each upcoming stop with what we last saw. If its address text changed but its
+ * coordinates did not (an update that changed the text only: our own older sync, or someone typing a new address in
+ * OptimoRoute's Edit location box), the address is geocoded and the pin moved there. A first look only records the pin.
+ * Never throws; a problem is logged and tried again at the next run.
+ */
+export async function checkPins(
+  live: StopDoc[],
+  lookup: ReturnType<typeof dayLookup>,
+  run: { now: Date; started: number; budget: number; today: string }
+): Promise<number> {
+  const stops = await stopsCollection();
+  const lastDay = addDays(run.today, PIN_CHECK_DAYS);
+  const upcoming = live.filter((s) => (s.state === 'sent' || s.state === 'adopted') && s.date >= run.today && s.date <= lastDay);
+  let fixed = 0;
+  for (const doc of upcoming) {
+    if (Date.now() - run.started > run.budget) break;
+    try {
+      const day = await lookup(doc.date);
+      if (!day.ok) continue;
+      const entry = day.list.find((o) => (doc.optimoId && o.id === doc.optimoId) || (doc.optimoOrderNo && o.orderNo === doc.optimoOrderNo));
+      if (!entry?.address || !hasCoordinates(entry)) continue;
+      const seen: Pin = { address: entry.address, lat: entry.lat, lng: entry.lng };
+      const verdict = judgePin(doc.pin, seen);
+      if (verdict === 'ok') continue;
+      if (verdict !== 'stale') {
+        await stops.updateOne({ stopKey: doc.stopKey }, { $set: { pin: seen } });
+        continue;
+      }
+      const spot = await geocodeAddress(seen.address);
+      if (!spot) {
+        console.error('[optimoroute] pin check: address could not be placed', { orderNo: doc.optimoOrderNo });
+        continue;
+      }
+      if (!pinNeedsMove(seen, spot)) {
+        await stops.updateOne({ stopKey: doc.stopKey }, { $set: { pin: { ...seen, lat: spot.lat, lng: spot.lng } } });
+        continue;
+      }
+      const moved = await setStopPin({ id: doc.optimoId, orderNo: doc.optimoOrderNo || undefined }, { address: seen.address, locationName: entry.name ?? '', lat: spot.lat, lng: spot.lng });
+      if (moved.ok) {
+        await stops.updateOne({ stopKey: doc.stopKey }, { $set: { pin: { address: seen.address, lat: spot.lat, lng: spot.lng }, pinFixedAt: run.now } });
+        fixed++;
+        console.warn('[optimoroute] pin check: moved a stop pin to its new address', { orderNo: doc.optimoOrderNo, date: doc.date });
+      } else {
+        console.error('[optimoroute] pin check: could not move the pin', { orderNo: doc.optimoOrderNo, code: moved.code });
+      }
+    } catch (error) {
+      console.error('[optimoroute] pin check failed', error instanceof Error ? error.message : String(error));
+    }
+  }
+  return fixed;
 }
 
 /**
