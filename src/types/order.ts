@@ -186,6 +186,9 @@ export interface Order {
   zellePending?: boolean;
   /** Admin-entered order that counts in the kitchen, packing and delivery reports and goes to OptimoRoute even though it is not paid yet */
   countBeforePayment?: boolean;
+  /** Set when an admin counted the order from the Orders table: who and when */
+  countedByAdmin?: string;
+  countedAt?: Date;
   /** Which push notifications were already sent for this order (event -> when), so none goes out twice */
   pushLog?: Record<string, Date>;
   offlinePaymentNote?: string; // How an order was paid outside the website (cash, Zelle, ...)
