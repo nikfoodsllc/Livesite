@@ -10,6 +10,8 @@ export interface FoodItem {
   category: string;
   veg: boolean;
   available: boolean;
+  /** Chef's Pick (mobile app only) */
+  chefsPick?: boolean;
   isDraft?: boolean;
   availableWeekDays?: string[];
   portions?: string[];
