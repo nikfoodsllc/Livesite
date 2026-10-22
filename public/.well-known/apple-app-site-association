@@ -3,7 +3,8 @@
     "details": [
       {
         "appIDs": [
-          "8VM99HJR2K.com.nikfoods.mobile"
+          "8VM99HJR2K.com.nikfoods.mobile",
+          "8VM99HJR2K.com.nikfoods.mobile.dev"
         ],
         "components": [
           {
