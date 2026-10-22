@@ -162,3 +162,8 @@ class JWTHandler {
 
 // Export singleton instance
 export const jwtHandler = JWTHandler.getInstance();
+
+/** How long a customer stays signed in: 90 days. A person with the admin role keeps the short one-day login. */
+export function loginLifetimes(role: string): { access: string; refresh: string } {
+  return String(role).toLowerCase() === 'admin' ? { access: '1d', refresh: '7d' } : { access: '90d', refresh: '90d' };
+}

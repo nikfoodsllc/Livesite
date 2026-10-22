@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { db } from '@/lib/server/db';
-import { jwtHandler } from '@/lib/jwt';
+import { jwtHandler, loginLifetimes } from '@/lib/jwt';
 import { comparePassword } from '@/lib/password';
 import { clearCounter, clientIp, isBlocked, recordFailure, tooManyMessage, type RateLimit } from '@/lib/server/authRateLimit';
 import { loginSchema } from '@/lib/validations/auth';
@@ -72,15 +72,16 @@ export async function POST(request: NextRequest) {
     const userId = user._id!.toString();
 
     // Generate JWT tokens
+    const life = loginLifetimes(user.role);
     const accessTokenResult = jwtHandler.generateToken(
       userId,
       user.role.toLowerCase() as 'user' | 'admin',
-      '1d'
+      life.access
     );
     const refreshTokenResult = jwtHandler.generateToken(
       userId,
       user.role.toLowerCase() as 'user' | 'admin',
-      '7d'
+      life.refresh
     );
 
     if (!accessTokenResult.success || !refreshTokenResult.success) {
@@ -144,7 +145,7 @@ export async function POST(request: NextRequest) {
         user: userResponse,
         token: accessToken,
         refreshToken: refreshToken,
-        expiresIn: 86400, // 1 day in seconds
+        expiresIn: life.access === '90d' ? 90 * 86400 : 86400, // seconds the access token lasts
         isCompleted: user.isCompleted,
       },
       message: 'User logged in successfully',
