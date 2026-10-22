@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { revokeAllDeviceKeysSafely } from '@/lib/server/deviceLogin';
+import { forgetUserPush } from '@/lib/server/push/devices';
 import { db } from '@/lib/server/db';
 import { jwtHandler } from '@/lib/jwt';
 import { IUser } from '@/types/auth';
@@ -44,6 +45,7 @@ export async function DELETE(request: NextRequest) {
 
     // Delete the user
     await revokeAllDeviceKeysSafely(userId);
+    await forgetUserPush(userId);
     const result = await db.deleteOne('users', {
       _id: userObjectId,
     } as unknown as Filter<IUser>);

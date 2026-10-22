@@ -2,14 +2,20 @@ import { ObjectId } from 'mongodb';
 import { db } from '@/lib/server/db';
 import { wants, type PushPrefs } from './config';
 import { prefsForUsers } from './store';
+import { allDevices, type DevicePermission } from './devices';
 
 /**
- * The admin's "App customers" list: every customer who has the app with notifications allowed on the phone (a phone is only
- * registered after the customer said yes to Apple's question, so a phone on file = the phone permission is granted), and the
- * three switches they chose inside the app. Customers who said no to Apple, or never opened the app, are not on file.
+ * The admin's "App customers" list: every customer who uses the app signed in, whether the phone allows notifications
+ * (a registered push token means yes; newer app versions also report No and "not asked yet"), and the three switches they chose
+ * inside the app. Customers who never signed in on the app are not on file. Older app versions report nothing, so a customer
+ * with only a token is shown as allowed.
  */
 
+/** Allowed = a phone can get notifications, denied = said No in iPhone Settings / to Apple, notAsked = the question was never answered. */
+export type AppPermission = 'allowed' | 'denied' | 'notAsked';
+
 export interface AppPhone {
+  permission: AppPermission;
   platform: string;
   deviceName: string;
   appVersion: string;
@@ -25,6 +31,8 @@ export interface AppUserRow {
   phone: string;
   phones: AppPhone[];
   lastSeenAt: string | null;
+  /** Whether the customer's phone(s) allow notifications: allowed if any phone does */
+  permission: AppPermission;
   /** Order updates switch (on unless the customer turned it off) */
   orders: boolean;
   /** Menu alerts switch inside the app */
@@ -36,9 +44,13 @@ export interface AppUserRow {
 }
 
 export interface AppUserCounts {
+  /** everyone who uses the app signed in */
   customers: number;
+  allowed: number;
+  denied: number;
+  notAsked: number;
   phones: number;
-  /** customers with order updates on */
+  /** among the customers who allowed notifications: with order updates on */
   orders: number;
   /** customers who will get a menu alert: switch on AND subscribed */
   menu: number;
@@ -55,6 +67,15 @@ export interface TokenRow {
   createdAt?: Date | string | null;
   updatedAt?: Date | string | null;
 }
+export interface DeviceRow {
+  userId: string;
+  permission: DevicePermission;
+  platform?: string;
+  deviceName?: string;
+  appVersion?: string;
+  firstSeenAt?: Date | string | null;
+  lastSeenAt?: Date | string | null;
+}
 export interface UserInfo {
   name?: string;
   email?: string;
@@ -67,25 +88,42 @@ const iso = (d: Date | string | null | undefined): string | null => {
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 };
 
-/** Puts the phones, the customer records, the switches and the menu list together. Customers without a record are left out. Newest activity first. */
+const permissionOf = (p: DevicePermission): AppPermission => (p === 'granted' ? 'allowed' : p === 'denied' ? 'denied' : 'notAsked');
+
+/**
+ * Puts the phones, the reports from the app, the customer records, the switches and the menu list together. Customers without
+ * a record are left out. Newest activity first. The phones of a customer are their push tokens (allowed) plus the installs that
+ * said No or were not asked (and an install that says allowed but has no token yet, when the customer has no token at all).
+ */
 export function buildAppUsers(input: {
   tokens: TokenRow[];
+  devices?: DeviceRow[];
   users: Map<string, UserInfo>;
   prefs: Map<string, PushPrefs>;
   menuSubscribed: Set<string>;
 }): { customers: AppUserRow[]; counts: AppUserCounts } {
-  const byUser = new Map<string, AppPhone[]>();
+  const phonesOf = new Map<string, AppPhone[]>();
+  const add = (userId: string, phone: AppPhone) => {
+    const list = phonesOf.get(userId) ?? [];
+    list.push(phone);
+    phonesOf.set(userId, list);
+  };
+  const withToken = new Set<string>();
   for (const t of input.tokens) {
-    const list = byUser.get(t.userId) ?? [];
-    list.push({ platform: t.platform || 'ios', deviceName: t.deviceName || '', appVersion: t.appVersion || '', lastSeenAt: iso(t.updatedAt), firstSeenAt: iso(t.createdAt) });
-    byUser.set(t.userId, list);
+    withToken.add(t.userId);
+    add(t.userId, { permission: 'allowed', platform: t.platform || 'ios', deviceName: t.deviceName || '', appVersion: t.appVersion || '', lastSeenAt: iso(t.updatedAt), firstSeenAt: iso(t.createdAt) });
+  }
+  for (const d of input.devices ?? []) {
+    if (d.permission === 'granted' && withToken.has(d.userId)) continue; // already listed through its token
+    add(d.userId, { permission: permissionOf(d.permission), platform: d.platform || 'ios', deviceName: d.deviceName || '', appVersion: d.appVersion || '', lastSeenAt: iso(d.lastSeenAt), firstSeenAt: iso(d.firstSeenAt) });
   }
   const customers: AppUserRow[] = [];
-  for (const [userId, phones] of byUser) {
+  for (const [userId, phones] of phonesOf) {
     const info = input.users.get(userId);
     if (!info) continue;
     phones.sort((a, b) => (b.lastSeenAt ?? '').localeCompare(a.lastSeenAt ?? ''));
     const prefs = input.prefs.get(userId);
+    const permission: AppPermission = phones.some((p) => p.permission === 'allowed') ? 'allowed' : phones.some((p) => p.permission === 'denied') ? 'denied' : 'notAsked';
     customers.push({
       userId,
       name: String(info.name ?? '').trim(),
@@ -93,6 +131,7 @@ export function buildAppUsers(input: {
       phone: String(info.phone ?? '').trim(),
       phones,
       lastSeenAt: phones[0]?.lastSeenAt ?? null,
+      permission,
       orders: wants(prefs, 'orders'),
       menuSwitch: wants(prefs, 'menu'),
       menuSubscribed: input.menuSubscribed.has(userId),
@@ -100,13 +139,17 @@ export function buildAppUsers(input: {
     });
   }
   customers.sort((a, b) => (b.lastSeenAt ?? '').localeCompare(a.lastSeenAt ?? '') || a.name.localeCompare(b.name));
+  const allowed = customers.filter((c) => c.permission === 'allowed');
   const counts: AppUserCounts = {
     customers: customers.length,
+    allowed: allowed.length,
+    denied: customers.filter((c) => c.permission === 'denied').length,
+    notAsked: customers.filter((c) => c.permission === 'notAsked').length,
     phones: customers.reduce((n, c) => n + c.phones.length, 0),
-    orders: customers.filter((c) => c.orders).length,
-    menu: customers.filter((c) => c.menuSwitch && c.menuSubscribed).length,
-    reminders: customers.filter((c) => c.reminders).length,
-    allOff: customers.filter((c) => !c.orders && !(c.menuSwitch && c.menuSubscribed) && !c.reminders).length,
+    orders: allowed.filter((c) => c.orders).length,
+    menu: allowed.filter((c) => c.menuSwitch && c.menuSubscribed).length,
+    reminders: allowed.filter((c) => c.reminders).length,
+    allOff: allowed.filter((c) => !c.orders && !(c.menuSwitch && c.menuSubscribed) && !c.reminders).length,
   };
   return { customers, counts };
 }
@@ -125,7 +168,9 @@ export async function listAppUsers(): Promise<{ customers: AppUserRow[]; counts:
     createdAt: r.createdAt as Date | undefined,
     updatedAt: r.updatedAt as Date | undefined,
   })).filter((t) => t.userId);
-  const ids = [...new Set(tokens.map((t) => t.userId))];
+  const deviceDocs = await allDevices(MAX_PHONES);
+  const devices: DeviceRow[] = deviceDocs.map((d) => ({ userId: String(d.userId), permission: d.permission, platform: d.platform, deviceName: d.deviceName, appVersion: d.appVersion, firstSeenAt: d.firstSeenAt, lastSeenAt: d.lastSeenAt }));
+  const ids = [...new Set([...tokens.map((t) => t.userId), ...devices.map((d) => d.userId)])];
 
   const users = new Map<string, UserInfo>();
   const emails = new Map<string, string>(); // lower-case email -> user id
@@ -155,5 +200,5 @@ export async function listAppUsers(): Promise<{ customers: AppUserRow[]; counts:
       }
     }
   }
-  return buildAppUsers({ tokens, users, prefs, menuSubscribed });
+  return buildAppUsers({ tokens, devices, users, prefs, menuSubscribed });
 }
