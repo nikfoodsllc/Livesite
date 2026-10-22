@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
         user: userResponse,
         token: accessToken,
         refreshToken: refreshToken,
-        expiresIn: 86400, // 1 day in seconds
+        expiresIn: 90 * 86400, // 90 days in seconds
         isCompleted: false,
       },
       message: 'User registered successfully',

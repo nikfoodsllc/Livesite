@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
 
     const userResponse: UserResponse = { id: userId, email: user.email, name: user.name, phone: user.phone, role: user.role, isCompleted: user.isCompleted };
     return Response.json({
-      data: { user: userResponse, token: access.token, refreshToken: refresh.token, expiresIn: 86400, isCompleted: user.isCompleted },
+      data: { user: userResponse, token: access.token, refreshToken: refresh.token, expiresIn: loginLifetimes(role).access === '90d' ? 90 * 86400 : 86400, isCompleted: user.isCompleted },
       message: 'User logged in successfully',
     });
   } catch (error) {
