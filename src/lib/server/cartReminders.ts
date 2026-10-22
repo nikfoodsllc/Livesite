@@ -20,13 +20,13 @@ import type { ReminderEmailRecord } from '@/lib/server/cartReminderTracking';
  * Rules, per customer: only their newest open checkout counts; it has to be untouched for 30 minutes and no older than 24
  * hours; it has the customer's email and its saved items; they did not press Pay (a failed payment already has its own
  * email); nobody reached out from the admin and it was not dismissed; at least one delivery day is still open; one
- * reminder per cart and none to the same customer within 14 days.
+ * reminder per cart and none to the same customer within 2 days.
  */
 
 const COLLECTION = 'checkoutDrafts';
 export const REMINDER_AFTER_MINUTES = 30;
 export const REMINDER_MAX_AGE_HOURS = 24;
-export const REMINDER_GAP_DAYS = 14;
+export const REMINDER_GAP_DAYS = 2;
 export const REMINDER_MAX_ATTEMPTS = 3;
 const MAX_PER_RUN = 20;
 const AGAIN_COOLDOWN_SECONDS = 30;
@@ -48,7 +48,7 @@ export type ReminderDraft = Pick<CheckoutDraft, 'userId' | 'customer' | 'status'
 const personKey = (d: ReminderDraft) => (d.userId ? `u:${d.userId}` : `e:${(d.customer?.email ?? '').toLowerCase()}`);
 const emailKey = (email?: string) => `e:${(email ?? '').trim().toLowerCase()}`;
 
-/** Who should get a reminder now (pure, so it can be tested). `recent` holds the people already reminded in the last 14 days. */
+/** Who should get a reminder now (pure, so it can be tested). `recent` holds the people already reminded in the last REMINDER_GAP_DAYS days. */
 export function pickReminderTargets(drafts: ReminderDraft[], now: Date, recent: Set<string>): ReminderDraft[] {
   const newest = new Map<string, ReminderDraft>();
   for (const d of drafts) {
