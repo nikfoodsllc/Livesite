@@ -257,6 +257,8 @@ export async function buildHomeMenu(): Promise<HomeMenuPayload> {
         price: foodItem.price,
         veg: foodItem.veg,
         available: foodItem.available,
+        // marked in the admin (Food Items > Chef's Pick); the mobile app shows these in its Chef's Pick row, the website does not use it
+        chefsPick: foodItem.chefsPick === true,
         url: foodItem.url || foodItem.imageUrl || '',
         public_id: foodItem.public_id || '',
         isEcoFriendlyContainer: foodItem.isEcoFriendlyContainer || false,
