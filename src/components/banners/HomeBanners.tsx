@@ -104,7 +104,15 @@ export default function HomeBanners({ onOpenCategory }: { onOpenCategory: (categ
       onMouseLeave={() => setPaused(false)}
       onTouchStart={() => setPaused(true)}
       onTouchEnd={() => setPaused(false)}
-      sx={{ position: 'relative', maxWidth: { xs: 1200, md: 640 }, mx: 'auto', px: { xs: 2, md: 4 }, mt: { xs: 1.5, md: 1.5 }, mb: { xs: 2, md: 2 } }}
+      sx={{
+        position: 'relative',
+        // wider on a computer, but never so wide that the picture pushes the menu off the screen: the cap follows the window height
+        maxWidth: { xs: 1200, md: 'max(640px, min(1000px, calc(90vh + 64px)))' },
+        mx: 'auto',
+        px: { xs: 2, md: 4 },
+        mt: { xs: 1.5, md: 1.5 },
+        mb: { xs: 2, md: 2 },
+      }}
     >
       <Box
         ref={scroller}
@@ -140,7 +148,7 @@ export default function HomeBanners({ onOpenCategory }: { onOpenCategory: (categ
               tabIndex={clickable ? 0 : -1}
               sx={{ position: 'relative', flex: '0 0 100%', scrollSnapAlign: 'start', cursor: clickable ? 'pointer' : 'default', outlineOffset: -3 }}
             >
-              <Box component="img" src={b.imageUrl} alt={b.title || 'NikFoods'} loading={i === 0 ? 'eager' : 'lazy'} sx={{ width: '100%', height: 'auto', display: 'block' }} />
+              <Box component="img" src={b.imageUrl} alt={b.title || 'NikFoods'} loading={i === 0 ? 'eager' : 'lazy'} sx={{ width: '100%', height: 'auto', display: 'block', maxHeight: { md: 'calc(100vh - 320px)' }, objectFit: 'contain' }} />
               {(b.title || b.subtitle) && (
                 <Box sx={{ position: 'absolute', left: 0, right: 0, bottom: 0, p: { xs: 2, md: 4 }, pt: { xs: 6, md: 10 }, background: 'linear-gradient(to top, rgba(26,20,16,0.72), rgba(26,20,16,0))', color: '#fff' }}>
                   {b.title && (
