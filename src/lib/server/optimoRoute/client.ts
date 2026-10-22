@@ -47,7 +47,7 @@ async function call<T>(path: string, body?: unknown): Promise<OptimoResult<T>> {
 
 interface RawOrder {
   id?: string;
-  data?: { orderNo?: string; date?: string; phone?: string; location?: { address?: string; locationName?: string } };
+  data?: { orderNo?: string; date?: string; phone?: string; location?: { address?: string; locationName?: string; latitude?: number; longitude?: number; valid?: boolean } };
 }
 
 /** Every order OptimoRoute has for one day (read only). */
@@ -60,6 +60,8 @@ export async function searchOrdersForDate(date: string): Promise<OptimoResult<Ex
     phone: o.data?.phone,
     address: o.data?.location?.address,
     name: o.data?.location?.locationName,
+    lat: o.data?.location?.latitude,
+    lng: o.data?.location?.longitude,
   }));
   return { ok: true, data: orders };
 }
@@ -72,26 +74,79 @@ export async function createStop(payload: OptimoOrderPayload): Promise<OptimoRes
 /**
  * Changes the address details of a stop that is already in OptimoRoute (same stop, so a route it is on is kept). Found by
  * OptimoRoute id, or by our order number when that is all we know. Empty text clears a field. Verified live: UPDATE by
- * orderNo and by id both work, and storeInvalid is not allowed in an update.
+ * orderNo and by id both work, and storeInvalid is not allowed in an update. OptimoRoute geocodes the address text only
+ * when a stop is created: an update with new text alone leaves the OLD coordinates (verified live), so a changed address
+ * must come with its coordinates (`coords`, from geocodeAddress).
  */
 export async function updateStopDetails(
   ref: { id?: string; orderNo?: string },
-  details: { address: string; locationName: string; apartment: string; gate: string; instruction: string }
+  details: { address: string; locationName: string; apartment: string; gate: string; instruction: string },
+  coords?: { lat: number; lng: number }
 ): Promise<OptimoResult<undefined>> {
   const target = ref.id ? { id: ref.id } : ref.orderNo ? { orderNo: ref.orderNo } : null;
   if (!target) return { ok: false, code: 'NO_REF', message: 'No OptimoRoute id or order number to update' };
   const order = {
     operation: 'UPDATE',
     ...target,
-    location: { address: details.address, locationName: details.locationName },
+    location: { address: details.address, locationName: details.locationName, ...(coords ? { latitude: coords.lat, longitude: coords.lng } : {}) },
     customField2: details.apartment,
     customField3: details.gate,
     customFields: { delivery_instruction: details.instruction },
   };
+  return updateOrder(order);
+}
+
+/** Moves only the pin of a stop (address text, name and coordinates); the notes and custom fields are left as they are. */
+export async function setStopPin(
+  ref: { id?: string; orderNo?: string },
+  location: { address: string; locationName: string; lat: number; lng: number }
+): Promise<OptimoResult<undefined>> {
+  const target = ref.id ? { id: ref.id } : ref.orderNo ? { orderNo: ref.orderNo } : null;
+  if (!target) return { ok: false, code: 'NO_REF', message: 'No OptimoRoute id or order number to update' };
+  return updateOrder({
+    operation: 'UPDATE',
+    ...target,
+    location: { address: location.address, locationName: location.locationName, latitude: location.lat, longitude: location.lng },
+  });
+}
+
+async function updateOrder(order: Record<string, unknown>): Promise<OptimoResult<undefined>> {
   const result = await call<{ orders?: Array<{ success?: boolean; code?: string; message?: string }> }>('create_or_update_orders', { orders: [order] });
   const first = result.data?.orders?.[0];
   if (result.ok && first && first.success === false) return { ok: false, code: first.code, message: first.message };
   return { ok: result.ok, code: result.code ?? first?.code, message: result.message ?? first?.message };
+}
+
+/** A day nobody delivers on: the probe stop for geocodeAddress lives there for a second. */
+const PROBE_DATE = '2099-12-31';
+
+/**
+ * Asks OptimoRoute's own geocoder where an address is (the one that places Kunal's stops), by creating a stop on a far
+ * future day, reading where it landed and deleting it again. null when the address cannot be placed or a call fails.
+ */
+export async function geocodeAddress(address: string): Promise<{ lat: number; lng: number } | null> {
+  const orderNo = `ZZGEO-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const created = await call('create_order', {
+    operation: 'CREATE',
+    orderNo,
+    date: PROBE_DATE,
+    type: 'D',
+    duration: 1,
+    location: { address, locationName: 'address check', storeInvalid: true },
+  });
+  if (!created.ok) return null;
+  let spot: { lat: number; lng: number } | null = null;
+  try {
+    const read = await call<{ orders?: RawOrder[] }>('search_orders', { orders: [{ orderNo }], includeOrderData: true });
+    const loc = read.data?.orders?.[0]?.data?.location as { latitude?: number; longitude?: number; valid?: boolean } | undefined;
+    if (loc && loc.valid !== false && typeof loc.latitude === 'number' && typeof loc.longitude === 'number' && !(loc.latitude === 0 && loc.longitude === 0)) {
+      spot = { lat: loc.latitude, lng: loc.longitude };
+    }
+  } finally {
+    const removed = await call('delete_orders', { orders: [{ orderNo }], forceDelete: false });
+    if (!removed.ok) console.error('[optimoroute] address-check stop could not be deleted', { orderNo, code: removed.code });
+  }
+  return spot;
 }
 
 /** Removes a stop by OptimoRoute id (or by order number when we only know that). Never forces: a stop in a running plan is refused. */

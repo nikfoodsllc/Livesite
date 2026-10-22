@@ -140,6 +140,9 @@ export interface ExistingOptimoOrder {
   phone?: string;
   address?: string;
   name?: string;
+  /** Where OptimoRoute placed the stop on the map (absent or 0/0 when the address could not be placed) */
+  lat?: number;
+  lng?: number;
 }
 
 /** An order OptimoRoute already has for this stop (Kunal's own upload): same phone and same street on that day. */
