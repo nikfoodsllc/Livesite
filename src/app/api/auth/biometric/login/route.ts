@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { ObjectId } from 'mongodb';
 import { db } from '@/lib/server/db';
-import { jwtHandler } from '@/lib/jwt';
+import { jwtHandler, loginLifetimes } from '@/lib/jwt';
 import { clientIp, isBlocked, recordFailure, tooManyMessage, type RateLimit } from '@/lib/server/authRateLimit';
 import { redeemDeviceKey } from '@/lib/server/deviceLogin';
 import type { IUser, UserResponse } from '@/types/auth';
@@ -35,8 +35,8 @@ export async function POST(request: NextRequest) {
     }
 
     const role = user.role.toLowerCase() as 'user' | 'admin';
-    const access = jwtHandler.generateToken(userId, role, '1d');
-    const refresh = jwtHandler.generateToken(userId, role, '7d');
+    const access = jwtHandler.generateToken(userId, role, loginLifetimes(role).access);
+    const refresh = jwtHandler.generateToken(userId, role, loginLifetimes(role).refresh);
     if (!access.success || !refresh.success) return Response.json({ error: 'Failed to generate tokens' }, { status: 500 });
 
     // the same stored refresh token the password sign-in keeps

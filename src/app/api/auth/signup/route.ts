@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { db } from '@/lib/server/db';
-import { jwtHandler } from '@/lib/jwt';
+import { jwtHandler, loginLifetimes } from '@/lib/jwt';
 import { hashPassword } from '@/lib/password';
 import { signupStep1Schema } from '@/lib/validations/auth';
 import { IUser, AuthResponse, UserResponse } from '@/types/auth';
@@ -75,8 +75,8 @@ export async function POST(request: NextRequest) {
     const userId = result.id;
 
     // Generate JWT tokens
-    const accessTokenResult = jwtHandler.generateToken(userId, 'user', '1d');
-    const refreshTokenResult = jwtHandler.generateToken(userId, 'user', '7d');
+    const accessTokenResult = jwtHandler.generateToken(userId, 'user', loginLifetimes('user').access);
+    const refreshTokenResult = jwtHandler.generateToken(userId, 'user', loginLifetimes('user').refresh);
 
     if (!accessTokenResult.success || !refreshTokenResult.success) {
       return Response.json(
