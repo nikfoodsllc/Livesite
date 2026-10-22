@@ -145,7 +145,7 @@ export async function POST(request: NextRequest) {
         user: userResponse,
         token: accessToken,
         refreshToken: refreshToken,
-        expiresIn: 86400, // 1 day in seconds
+        expiresIn: life.access === '90d' ? 90 * 86400 : 86400, // seconds the access token lasts
         isCompleted: user.isCompleted,
       },
       message: 'User logged in successfully',
