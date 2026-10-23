@@ -32,6 +32,7 @@ import { formatDeliveryDate } from '@/lib/orderHelpers';
 import { hasAmount, taxesAndFeesOf } from '@/lib/orderTotalsDisplay';
 import TaxesFeesLabel from '@/components/common/TaxesFeesLabel';
 import { comboQuantityText } from '@/lib/comboQuantity';
+import { comboSpiceText } from '@/lib/comboSpiceText';
 
 interface OrderConfirmationDialogProps {
   open: boolean;
@@ -232,6 +233,7 @@ export default function OrderConfirmationDialog({
                                         • {section.title}:{' '}
                                         {selectedItem.item.name}
                                         {portionText}
+                                        {comboSpiceText(item.comboSelections, section)}
                                       </Typography>
                                     );
                                   })}

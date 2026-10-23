@@ -19,6 +19,7 @@ import { formatDeliveryDate } from '@/lib/orderHelpers';
 import { hasAmount, taxesAndFeesOf } from '@/lib/orderTotalsDisplay';
 import TaxesFeesLabel from '@/components/common/TaxesFeesLabel';
 import { comboQuantityText } from '@/lib/comboQuantity';
+import { comboSpiceText } from '@/lib/comboSpiceText';
 
 interface OrderConfirmationProps {
   order: Order;
@@ -141,7 +142,7 @@ export default function OrderConfirmation({ order }: OrderConfirmationProps) {
                                   display: 'block',
                                 }}
                               >
-                                • {section.title}: {selectedItem.item.name}{portionText}
+                                • {section.title}: {selectedItem.item.name}{portionText}{comboSpiceText(item.comboSelections, section)}
                               </Typography>
                             );
                           })}

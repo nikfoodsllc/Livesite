@@ -3,18 +3,42 @@
 import { Box, Checkbox, FormControlLabel, Radio, RadioGroup, Typography } from '@mui/material';
 import { ComboSection } from '@/types/food';
 import { comboItemQuantity } from '@/lib/comboQuantity';
+import { sectionOwnsSpice } from '@/lib/comboSpice';
+import SpiceLevelSelector from './SpiceLevelSelector';
 
 interface ComboSectionComponentProps {
   section: ComboSection;
   selectedValue: string | string[];
   onSelect: (sectionId: string, itemIds: string | string[]) => void;
+  /** The combo's spice levels, when it has any: a section with its own spice choice then shows them after its items */
+  spiceLevels?: string[];
+  /** The level picked for this section ('' = none yet) */
+  spiceValue?: string;
+  onSpiceChange?: (sectionId: string, level: string) => void;
 }
 
 export default function ComboSectionComponent({
   section,
   selectedValue,
   onSelect,
+  spiceLevels,
+  spiceValue = '',
+  onSpiceChange,
 }: ComboSectionComponentProps) {
+  const hasPick = Array.isArray(selectedValue) ? selectedValue.length > 0 : Boolean(selectedValue);
+  const showSpice = Boolean(onSpiceChange && spiceLevels && spiceLevels.length > 0 && sectionOwnsSpice(section) && hasPick);
+  const spicePicker = showSpice ? (
+    <Box sx={{ mt: 1.5 }}>
+      <SpiceLevelSelector
+        spiceLevels={spiceLevels}
+        selectedSpiceLevel={spiceValue}
+        onSpiceLevelChange={(level) => onSpiceChange?.(section._id, level)}
+        label="Spice level"
+        idSuffix={`-${section._id}`}
+      />
+    </Box>
+  ) : null;
+
   // Determine if this section should use checkboxes or radio buttons
   const useCheckboxes = !section.isRequired || (section.maxSelection !== undefined && section.maxSelection > 1);
 
@@ -168,6 +192,7 @@ export default function ComboSectionComponent({
               />
             );
           })}
+        {spicePicker}
         </Box>
       ) : (
         // Radio Group for required single-select sections
@@ -234,6 +259,7 @@ export default function ComboSectionComponent({
           ))}
         </RadioGroup>
       )}
+      {spicePicker}
     </Box>
   );
 }

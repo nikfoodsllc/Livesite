@@ -24,6 +24,7 @@ import { IconX, IconMinus, IconPlus } from '@tabler/icons-react';
 import PortionSelector from './PortionSelector';
 import SpiceLevelSelector from './SpiceLevelSelector';
 import ComboSectionComponent from './ComboSectionComponent';
+import { comboNeedsOverallSpice, getSectionSpice, pruneSectionSpice, sectionsMissingSpice, withSectionSpice } from '@/lib/comboSpice';
 import { useNotifications, showSuccessNotification, showErrorNotification } from '@/components/common/NotificationSystem';
 
 // Define types for the category display structure (matching main page)
@@ -249,7 +250,7 @@ export default function FoodDetailsDialog({
   const handleQuantityChange = (newQuantity: number) => {
     if (!foodItem) return;
 
-    if (foodItem.hasSpiceLevel && !selectedSpiceLevel.trim() && newQuantity > 0) {
+    if (newQuantity > 0 && ((comboNeedsOverallSpice(foodItem) && !selectedSpiceLevel.trim()) || sectionsMissingSpice(foodItem, comboSelections).length > 0)) {
       showErrorNotification(
         showNotification,
         'Please select a spice level before updating the cart.',
@@ -463,7 +464,7 @@ export default function FoodDetailsDialog({
       finalComboSelections = defaults;
     }
 
-    if (foodItem.hasSpiceLevel && !selectedSpiceLevel.trim()) {
+    if ((comboNeedsOverallSpice(foodItem) && !selectedSpiceLevel.trim()) || sectionsMissingSpice(foodItem, finalComboSelections).length > 0) {
       showErrorNotification(
         showNotification,
         'Please select a spice level before adding this item to your cart.',
@@ -514,7 +515,7 @@ export default function FoodDetailsDialog({
       selectedSpiceLevel: selectedSpiceLevel as SpiceLevel,
       isEcoFriendlyContainer: useEcoContainer,
       ecoContainerCharge: useEcoContainer ? foodItem.ecoContainerCharge : undefined,
-      comboSelections: finalComboSelections,
+      comboSelections: pruneSectionSpice(foodItem.sections, finalComboSelections),
     };
 
     console.log('[FoodDetailsDialog] Created customizations:', {
@@ -546,7 +547,9 @@ export default function FoodDetailsDialog({
 
   if (!foodItem) return null;
 
-  const spiceRequiredIncomplete = Boolean(foodItem.hasSpiceLevel && !selectedSpiceLevel.trim());
+  const spiceRequiredIncomplete = Boolean(
+    (comboNeedsOverallSpice(foodItem) && !selectedSpiceLevel.trim()) || sectionsMissingSpice(foodItem, comboSelections).length > 0
+  );
 
   return (
     <Dialog
@@ -667,7 +670,7 @@ export default function FoodDetailsDialog({
           )}
 
           {/* Spice Level Selector */}
-          {foodItem.hasSpiceLevel && (
+          {comboNeedsOverallSpice(foodItem) && (
             <SpiceLevelSelector
               spiceLevels={foodItem.spiceLevel}
               selectedSpiceLevel={selectedSpiceLevel}
@@ -720,6 +723,9 @@ export default function FoodDetailsDialog({
                     section={section}
                     selectedValue={selectedValue}
                     onSelect={handleComboSelection}
+                    spiceLevels={foodItem.hasSpiceLevel ? foodItem.spiceLevel : undefined}
+                    spiceValue={getSectionSpice(comboSelections, section._id) ?? ''}
+                    onSpiceChange={(sectionId, level) => setComboSelections((current) => withSectionSpice(current, sectionId, level))}
                   />
                 );
               })}

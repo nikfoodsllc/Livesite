@@ -1,5 +1,6 @@
 import { Cart, CartDay, CartItem, SpiceLevel } from '@/types/cart';
 import { FoodItem } from '@/types/food';
+import { comboNeedsOverallSpice, comboSpiceKey, getSectionSpice, isComboSpiceKey, sectionOwnsSpice } from '@/lib/comboSpice';
 import {
   calculateCartClubbing,
   calculateCartSubtotal,
@@ -116,11 +117,12 @@ export function priceLine(
   if (item.hasSpiceLevel) {
     const levels = item.spiceLevel ?? [];
     if (levels.length > 0) {
-      if (!line.selectedSpiceLevel) return { problem: `${name}: choose a spice level` };
-      if (!levels.includes(line.selectedSpiceLevel)) {
+      // a combo whose sections all have their own spice choice has no single level
+      if (!line.selectedSpiceLevel && comboNeedsOverallSpice(item)) return { problem: `${name}: choose a spice level` };
+      if (line.selectedSpiceLevel && !levels.includes(line.selectedSpiceLevel)) {
         return { problem: `${name}: "${line.selectedSpiceLevel}" is not a spice level of this item` };
       }
-      selectedSpiceLevel = line.selectedSpiceLevel as SpiceLevel;
+      if (line.selectedSpiceLevel) selectedSpiceLevel = line.selectedSpiceLevel as SpiceLevel;
     }
   } else if (line.selectedSpiceLevel) {
     return { problem: `${name}: this item has no spice level` };
@@ -150,14 +152,21 @@ export function priceLine(
         return { problem: `${name}: choose no more than ${section.maxSelection} for "${section.title}"` };
       }
       if (chosen.length > 0) comboSelections[section._id] = chosen;
+      // a section the customer picks spice for on its own: one level from the combo's list
+      if (sectionOwnsSpice(section) && item.hasSpiceLevel && (item.spiceLevel?.length ?? 0) > 0 && chosen.length > 0) {
+        const level = getSectionSpice(line.comboSelections, section._id);
+        if (!level) return { problem: `${name}: choose a spice level for "${section.title}"` };
+        if (!item.spiceLevel?.includes(level)) return { problem: `${name}: "${level}" is not a spice level of this item` };
+        comboSelections[comboSpiceKey(section._id)] = [level];
+      }
       for (const id of chosen) {
         const option = section.selectedItems.find((o) => o._id === id);
         if (option && option.price > 0) unitPrice += option.price;
       }
     }
-    const unexpected = Object.keys(line.comboSelections ?? {}).find((id) => !item.sections?.some((s) => s._id === id));
+    const unexpected = Object.keys(line.comboSelections ?? {}).filter((id) => !isComboSpiceKey(id)).find((id) => !item.sections?.some((s) => s._id === id));
     if (unexpected) return { problem: `${name}: a combo section that does not exist was sent` };
-  } else if (line.comboSelections && Object.keys(line.comboSelections).length > 0) {
+  } else if (line.comboSelections && Object.keys(line.comboSelections).filter((id) => !isComboSpiceKey(id)).length > 0) {
     return { problem: `${name}: this item is not a combo` };
   }
 
