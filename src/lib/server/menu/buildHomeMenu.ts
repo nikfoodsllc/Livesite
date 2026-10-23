@@ -12,6 +12,7 @@ import {
   type MenuCategory,
 } from '@/lib/server/menu/categories';
 import { populateComboSections } from '@/lib/server/menu/comboSections';
+import { publicImageFields } from '@/lib/server/menu/itemImages';
 
 interface CategoryFoodMapping {
   categoryId: MongoObjectId | { toString(): string };
@@ -260,6 +261,7 @@ export async function buildHomeMenu(): Promise<HomeMenuPayload> {
         // marked in the admin (Food Items > Chef's Pick); the mobile app shows these in its Chef's Pick row, the website does not use it
         chefsPick: foodItem.chefsPick === true,
         url: foodItem.url || foodItem.imageUrl || '',
+        ...publicImageFields(foodItem),
         public_id: foodItem.public_id || '',
         isEcoFriendlyContainer: foodItem.isEcoFriendlyContainer || false,
         hasSpiceLevel: foodItem.hasSpiceLevel || false,

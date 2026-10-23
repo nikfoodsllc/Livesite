@@ -3,6 +3,7 @@ import { db } from '@/lib/server/db';
 import { ObjectId as MongoObjectId, Document } from 'mongodb';
 import { PST_TIMEZONE, createPSTDate } from '@/lib/timezone';
 import { getOrderableDayWiseDateStrings } from '@/lib/server/availableDates';
+import { publicImageFields } from '@/lib/server/menu/itemImages';
 
 /**
  * ============================================================================
@@ -521,6 +522,7 @@ export async function GET(req: NextRequest) {
           veg: foodItem.veg,
           available: foodItem.available,
           url: foodItem.url || foodItem.imageUrl || '',
+          ...publicImageFields(foodItem),
           public_id: foodItem.public_id || '',
           isEcoFriendlyContainer: foodItem.isEcoFriendlyContainer || false,
           hasSpiceLevel: foodItem.hasSpiceLevel || false,
