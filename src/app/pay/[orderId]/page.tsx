@@ -34,7 +34,7 @@ interface PayItem {
   spice?: string;
   eco?: boolean;
   notes?: string;
-  combo: Array<{ title: string; choices: string[] }>;
+  combo: Array<{ title: string; choices: string[]; spice?: string }>;
 }
 
 interface PayData {
@@ -99,7 +99,7 @@ function ItemLine({ item }: { item: PayItem }) {
       {(item.combo.length > 0 || item.portion || item.spice || item.eco || item.notes) && (
         <Box sx={{ mt: 0.5, pl: 1 }}>
           {item.combo.map((c) => c.choices.map((choice) => (
-            <Typography key={`${c.title}-${choice}`} variant="caption" sx={bullet}>• {c.title}: {choice}</Typography>
+            <Typography key={`${c.title}-${choice}`} variant="caption" sx={bullet}>• {c.title}: {choice}{c.spice ? ` · ${c.spice}` : ''}</Typography>
           )))}
           {item.portion && <Typography variant="caption" sx={bullet}>• {item.portion}</Typography>}
           {item.spice && <Typography variant="caption" sx={bullet}>• Spice: {item.spice}</Typography>}

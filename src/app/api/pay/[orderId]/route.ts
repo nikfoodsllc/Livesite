@@ -6,6 +6,7 @@ import { paymentTokenMatches } from '@/lib/server/paymentLink';
 import { cleanInstructions } from '@/lib/server/deliveryInstructions';
 import { validateZipcodeServiceabilityServer } from '@/utils/zipcodeValidation';
 import { comboQuantityText } from '@/lib/comboQuantity';
+import { getSectionSpice } from '@/lib/comboSpice';
 import { getBalanceCents } from '@/lib/server/storeCredit';
 import { toCents, toDollars } from '@/lib/storeCredit';
 import { planLinkOrderCredit } from '@/lib/server/linkOrderCredit';
@@ -21,7 +22,7 @@ interface PayItem {
   eco?: boolean;
   notes?: string;
   /** One entry per combo section: { title: 'Veg Curry of the Day', choices: ['Kale Chane (12Oz)'] } */
-  combo: Array<{ title: string; choices: string[] }>;
+  combo: Array<{ title: string; choices: string[]; spice?: string }>;
 }
 
 function toPayItem(it: OrderDay['items'][number]): PayItem {
@@ -31,7 +32,8 @@ function toPayItem(it: OrderDay['items'][number]): PayItem {
       .map((id) => section.selectedItems.find((o) => o._id === id))
       .filter((o): o is NonNullable<typeof o> => !!o?.item?.name)
       .map((o) => `${o.item.name}${o.portion ? ` (${o.portion})` : ''}${comboQuantityText(o.quantity)}`);
-    if (choices.length > 0) combo.push({ title: section.title, choices });
+    const spice = getSectionSpice(it.comboSelections, section._id);
+    if (choices.length > 0) combo.push({ title: section.title, choices, ...(spice ? { spice } : {}) });
   }
   return { name: it.food.name, quantity: it.quantity, price: it.price, portion: it.selectedPortion, spice: it.spiceLevel, eco: it.isEcoFriendlyContainer, notes: it.notes, combo };
 }
