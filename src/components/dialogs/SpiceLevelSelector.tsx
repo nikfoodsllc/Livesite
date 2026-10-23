@@ -5,6 +5,10 @@ interface SpiceLevelSelectorProps {
   spiceLevels?: string[];
   selectedSpiceLevel: string;
   onSpiceLevelChange: (level: string) => void;
+  /** Heading (default 'Select Spice Level'); a combo section uses a shorter one */
+  label?: string;
+  /** Keeps the radio group ids unique when several selectors are on screen */
+  idSuffix?: string;
 }
 
 const spiceLevelConfig: Record<string, { dots: number; colors: string[] }> = {
@@ -38,11 +42,13 @@ export default function SpiceLevelSelector({
   spiceLevels = ['mild', 'normal', 'medium', 'Semi-Spicy', 'Super-Spicy'],
   selectedSpiceLevel,
   onSpiceLevelChange,
+  label = 'Select Spice Level',
+  idSuffix = '',
 }: SpiceLevelSelectorProps) {
   return (
     <Box sx={{ mb: 3 }}>
-      <Typography variant="subtitle1" component="label" id="spice-level-label" sx={{ fontWeight: 600, mb: 1.5 }}>
-        Select Spice Level{' '}
+      <Typography variant="subtitle1" component="label" id={`spice-level-label${idSuffix}`} sx={{ fontWeight: 600, mb: 1.5 }}>
+        {label}{' '}
         <Typography
           component="span"
           sx={{
@@ -56,7 +62,7 @@ export default function SpiceLevelSelector({
         </Typography>
       </Typography>
       <RadioGroup
-        aria-labelledby="spice-level-label"
+        aria-labelledby={`spice-level-label${idSuffix}`}
         aria-required
         value={selectedSpiceLevel}
         onChange={(e) => onSpiceLevelChange(e.target.value)}

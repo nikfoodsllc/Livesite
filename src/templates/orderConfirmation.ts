@@ -8,6 +8,7 @@
 import { cardTotalOf } from '@/lib/storeCredit';
 import type { Order, OrderDay, OrderDayItem, CustomerInfo } from '@/types/order';
 import { comboQuantityText } from '@/lib/comboQuantity';
+import { getSectionSpice } from '@/lib/comboSpice';
 const PST = 'America/Los_Angeles';
 import { getSiteUrl } from '@/lib/siteUrl';
 import { EMAIL_LOGO_CID } from '@/lib/emailLogo';
@@ -81,7 +82,10 @@ function toppings(item: OrderDayItem): string {
         // the chosen item is the important part: its name and its size are bold and dark; only the section title stays light
         .map((si) => `<span style="white-space:nowrap;font-weight:700;color:${C.body};">${esc(si.item.name)}${has(si.portion) ? ` (${esc(si.portion.trim())})` : ''}${esc(comboQuantityText(si.quantity))}</span>`);
       if (!chosen.length) return '';
-      return `<div style="margin-top:1px;color:${C.muted};font-size:12px;line-height:17px;"><span style="font-weight:400;">${esc(s.title)}:</span> ${chosen.join(', ')}</div>`;
+      // a section the customer chose a spice level for (set per section in the admin)
+      const spice = getSectionSpice(item.comboSelections, s._id);
+      const spiceTag = spice ? ` <span style="white-space:nowrap;font-weight:600;color:#A12A14;">\u{1F336}\uFE0F ${esc(spice)}</span>` : '';
+      return `<div style="margin-top:1px;color:${C.muted};font-size:12px;line-height:17px;"><span style="font-weight:400;">${esc(s.title)}:</span> ${chosen.join(', ')}${spiceTag}</div>`;
     })
     .filter(Boolean);
   if (!lines.length) return '';

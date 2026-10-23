@@ -44,6 +44,10 @@ export interface ComboSection {
   minSelection: number;
   maxSelection: number;
   isRequired: boolean;
+  /** Whether the combo's spice level applies to this section (missing = all but staples/breads) */
+  takesSpice?: boolean;
+  /** The customer picks this section's spice level separately (see lib/comboSpice.ts) */
+  ownSpice?: boolean;
 }
 
 /**

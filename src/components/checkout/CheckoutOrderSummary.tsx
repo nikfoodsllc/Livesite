@@ -9,6 +9,7 @@ import DeliveryDateBadge from './DeliveryDateBadge';
 import { hasAmount, taxesAndFeesOf } from '@/lib/orderTotalsDisplay';
 import TaxesFeesLabel from '@/components/common/TaxesFeesLabel';
 import { comboQuantityText } from '@/lib/comboQuantity';
+import { comboSpiceText } from '@/lib/comboSpiceText';
 
 interface CheckoutOrderSummaryProps {
   cartDays: CartDay[];
@@ -140,7 +141,7 @@ export default function CheckoutOrderSummary({
                                     display: 'block',
                                   }}
                                 >
-                                  • {section.title}: {selectedItem.item.name}{portionText}
+                                  • {section.title}: {selectedItem.item.name}{portionText}{comboSpiceText(item.comboSelections, section)}
                                 </Typography>
                               );
                             })}

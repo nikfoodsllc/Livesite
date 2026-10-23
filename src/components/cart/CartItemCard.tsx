@@ -19,6 +19,7 @@ import { CartItem } from '@/types/cart';
 import { useCart } from '@/contexts/CartContext';
 import { formatSpiceLevel } from '@/utils/formatters';
 import { comboQuantityText } from '@/lib/comboQuantity';
+import { comboSpiceText } from '@/lib/comboSpiceText';
 
 interface CartItemCardProps {
   item: CartItem;
@@ -294,7 +295,7 @@ export default function CartItemCard({ item }: CartItemCardProps) {
                             pl: 1,
                           }}
                         >
-                          • <strong>{section.title}:</strong> {selectedItem.item.name}{portionText}{itemPrice}
+                          • <strong>{section.title}:</strong> {selectedItem.item.name}{portionText}{comboSpiceText(item.comboSelections, section)}{itemPrice}
                         </Typography>
                       );
                     });

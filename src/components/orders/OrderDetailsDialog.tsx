@@ -20,6 +20,7 @@ import { getNetTotal, getRefundedAmount } from '@/lib/orderRefunds';
 import { hasAmount, taxesAndFeesOf } from '@/lib/orderTotalsDisplay';
 import TaxesFeesLabel from '@/components/common/TaxesFeesLabel';
 import { comboQuantityText } from '@/lib/comboQuantity';
+import { comboSpiceText } from '@/lib/comboSpiceText';
 
 interface OrderDetailsDialogProps {
   open: boolean;
@@ -201,7 +202,7 @@ export default function OrderDetailsDialog({ open, order, onClose }: OrderDetail
                                     key={selectedItemId}
                                     sx={{ fontSize: '11px', color: '#6B7280', display: 'block', lineHeight: 1.4 }}
                                   >
-                                    {section.title}: {selectedItem.item.name}{comboQuantityText(selectedItem.quantity)}
+                                    {section.title}: {selectedItem.item.name}{comboQuantityText(selectedItem.quantity)}{comboSpiceText(item.comboSelections, section)}
                                     {selectedItem.price > 0 && ` (+${formatCurrency(selectedItem.price, order.currency)})`}
                                   </Typography>
                                 );
