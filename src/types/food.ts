@@ -7,6 +7,8 @@ export interface FoodItem {
   description?: string;
   price: number;
   url: string; // API returns 'url' property for food item images
+  /** More photos of the item (main photo first); only present when there is more than one */
+  images?: string[];
   category: string;
   veg: boolean;
   available: boolean;
