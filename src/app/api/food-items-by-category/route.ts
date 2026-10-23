@@ -3,6 +3,7 @@ import { db } from '@/lib/server/db';
 import { jwtHandler } from '@/lib/jwt';
 import { ObjectId as MongoObjectId, Document } from 'mongodb';
 import { getOrderableDayWiseDateStrings } from '@/lib/server/availableDates';
+import { publicImageFields } from '@/lib/server/menu/itemImages';
 
 // Category types based on admin schema
 type CategoryListingType = 'flat' | 'day-wise';
@@ -577,6 +578,7 @@ export async function GET(req: NextRequest) {
         veg: foodItem.veg,
         available: foodItem.available,
         url: foodItem.url || foodItem.imageUrl || '',
+        ...publicImageFields(foodItem),
         public_id: foodItem.public_id || '',
         isEcoFriendlyContainer: foodItem.isEcoFriendlyContainer || false,
         hasSpiceLevel: foodItem.hasSpiceLevel || false,

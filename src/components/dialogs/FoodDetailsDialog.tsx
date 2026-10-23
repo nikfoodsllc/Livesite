@@ -24,6 +24,7 @@ import { IconX, IconMinus, IconPlus } from '@tabler/icons-react';
 import PortionSelector from './PortionSelector';
 import SpiceLevelSelector from './SpiceLevelSelector';
 import ComboSectionComponent from './ComboSectionComponent';
+import ItemImageGallery from './ItemImageGallery';
 import { comboNeedsOverallSpice, getSectionSpice, pruneSectionSpice, sectionsMissingSpice, withSectionSpice } from '@/lib/comboSpice';
 import { useNotifications, showSuccessNotification, showErrorNotification } from '@/components/common/NotificationSystem';
 
@@ -594,34 +595,8 @@ export default function FoodDetailsDialog({
           <IconX size={20} />
         </IconButton>
 
-        {/* Food Image: the whole photo is shown (contain) over a soft blurred copy of itself, so any photo shape fills the strip without being cropped */}
-        <Box
-          sx={{
-            position: 'relative',
-            width: '100%',
-            height: { xs: 240, sm: 300 },
-            flexShrink: 0,
-            overflow: 'hidden',
-            backgroundColor: '#f3f4f6',
-          }}
-        >
-          <Image
-            src={foodItem.url}
-            alt=""
-            aria-hidden
-            fill
-            sizes="700px"
-            style={{ objectFit: 'cover', filter: 'blur(24px) saturate(1.1)', transform: 'scale(1.15)', opacity: 0.85 }}
-          />
-          <Image
-            src={foodItem.url}
-            alt={foodItem.name}
-            fill
-            priority
-            sizes="(max-width: 600px) 100vw, 700px"
-            style={{ objectFit: 'contain' }}
-          />
-        </Box>
+        {/* Food photos: swipe through them, + opens one to zoom */}
+        <ItemImageGallery name={foodItem.name} images={foodItem.images && foodItem.images.length > 1 ? foodItem.images : [foodItem.url]} />
 
         {/* Scrollable Content */}
         <Box
