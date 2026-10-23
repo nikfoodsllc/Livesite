@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Box, Dialog, IconButton, Typography } from '@mui/material';
-import { IconChevronLeft, IconChevronRight, IconMinus, IconPlus, IconX } from '@tabler/icons-react';
+import { IconChevronLeft, IconChevronRight, IconX, IconZoomIn, IconZoomOut } from '@tabler/icons-react';
 
 const ZOOM_STEPS = [1, 2, 3, 4];
 
@@ -99,10 +99,10 @@ export default function ImageLightbox({
 
       <Box sx={{ position: 'absolute', bottom: 'max(20px, env(safe-area-inset-bottom))', left: '50%', transform: 'translateX(-50%)', zIndex: 3, display: 'flex', gap: 1.5 }}>
         <IconButton aria-label="Zoom out" disabled={step === 0} onClick={() => setStep((s) => Math.max(s - 1, 0))} sx={{ ...round, '&.Mui-disabled': { backgroundColor: 'rgba(255,255,255,0.4)' } }}>
-          <IconMinus size={22} />
+          <IconZoomOut size={22} />
         </IconButton>
         <IconButton aria-label="Zoom in" disabled={step === ZOOM_STEPS.length - 1} onClick={() => setStep((s) => Math.min(s + 1, ZOOM_STEPS.length - 1))} sx={{ ...round, '&.Mui-disabled': { backgroundColor: 'rgba(255,255,255,0.4)' } }}>
-          <IconPlus size={22} />
+          <IconZoomIn size={22} />
         </IconButton>
       </Box>
     </Dialog>
