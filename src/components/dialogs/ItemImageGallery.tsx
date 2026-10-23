@@ -77,7 +77,7 @@ export default function ItemImageGallery({ name, images }: { name: string; image
         sx={{ display: 'flex', width: '100%', height: '100%', overflowX: many ? 'auto' : 'hidden', scrollSnapType: 'x mandatory', scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' } }}
       >
         {list.map((src, i) => (
-          <Box key={src} sx={{ position: 'relative', flex: '0 0 100%', height: '100%', scrollSnapAlign: 'start' }}>
+          <Box key={src} sx={{ position: 'relative', flex: '0 0 100%', height: '100%', scrollSnapAlign: 'start', overflow: 'hidden' }}>
             <Image src={src} alt="" aria-hidden fill sizes="700px" style={{ objectFit: 'cover', filter: 'blur(24px) saturate(1.1)', transform: 'scale(1.15)', opacity: 0.85 }} />
             <Image src={src} alt={many ? `${name} (photo ${i + 1} of ${list.length})` : name} fill priority={i === 0} sizes="(max-width: 600px) 100vw, 700px" style={{ objectFit: 'contain' }} />
           </Box>
