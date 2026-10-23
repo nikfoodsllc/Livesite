@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { Box, IconButton } from '@mui/material';
-import { IconChevronLeft, IconChevronRight, IconPlus } from '@tabler/icons-react';
+import { IconArrowsMaximize, IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
 import ImageLightbox from './ImageLightbox';
 
 /**
@@ -102,9 +102,9 @@ export default function ItemImageGallery({ name, images }: { name: string; image
         </Box>
       )}
 
-      {/* the zoom button: a plus, bottom right */}
+      {/* the zoom button: an expand icon (a plus would look like add to cart), bottom right */}
       <IconButton aria-label="Zoom photo" onClick={() => setZoomOpen(true)} sx={{ ...round, position: 'absolute', right: 12, bottom: 12, width: 40, height: 40 }}>
-        <IconPlus size={22} />
+        <IconArrowsMaximize size={20} />
       </IconButton>
 
       <ImageLightbox open={zoomOpen} images={list} startIndex={index} name={name} onClose={() => setZoomOpen(false)} />
