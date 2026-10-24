@@ -25,7 +25,7 @@ import PortionSelector from './PortionSelector';
 import SpiceLevelSelector from './SpiceLevelSelector';
 import ComboSectionComponent from './ComboSectionComponent';
 import ItemImageGallery from './ItemImageGallery';
-import { comboNeedsOverallSpice, getSectionSpice, pruneSectionSpice, sectionsMissingSpice, withSectionSpice } from '@/lib/comboSpice';
+import { comboNeedsOverallSpice, getSectionSpice, optionsMissingSpice, pickedSpiceOptions, pruneComboSpice, sectionsMissingSpice, withOptionSpice, withSectionSpice } from '@/lib/comboSpice';
 import { useNotifications, showSuccessNotification, showErrorNotification } from '@/components/common/NotificationSystem';
 
 // Define types for the category display structure (matching main page)
@@ -251,7 +251,7 @@ export default function FoodDetailsDialog({
   const handleQuantityChange = (newQuantity: number) => {
     if (!foodItem) return;
 
-    if (newQuantity > 0 && ((comboNeedsOverallSpice(foodItem) && !selectedSpiceLevel.trim()) || sectionsMissingSpice(foodItem, comboSelections).length > 0)) {
+    if (newQuantity > 0 && ((comboNeedsOverallSpice(foodItem) && !selectedSpiceLevel.trim()) || sectionsMissingSpice(foodItem, comboSelections).length > 0 || optionsMissingSpice(foodItem, comboSelections).length > 0)) {
       showErrorNotification(
         showNotification,
         'Please select a spice level before updating the cart.',
@@ -465,7 +465,7 @@ export default function FoodDetailsDialog({
       finalComboSelections = defaults;
     }
 
-    if ((comboNeedsOverallSpice(foodItem) && !selectedSpiceLevel.trim()) || sectionsMissingSpice(foodItem, finalComboSelections).length > 0) {
+    if ((comboNeedsOverallSpice(foodItem) && !selectedSpiceLevel.trim()) || sectionsMissingSpice(foodItem, finalComboSelections).length > 0 || optionsMissingSpice(foodItem, finalComboSelections).length > 0) {
       showErrorNotification(
         showNotification,
         'Please select a spice level before adding this item to your cart.',
@@ -516,7 +516,7 @@ export default function FoodDetailsDialog({
       selectedSpiceLevel: selectedSpiceLevel as SpiceLevel,
       isEcoFriendlyContainer: useEcoContainer,
       ecoContainerCharge: useEcoContainer ? foodItem.ecoContainerCharge : undefined,
-      comboSelections: pruneSectionSpice(foodItem.sections, finalComboSelections),
+      comboSelections: pruneComboSpice(foodItem, finalComboSelections),
     };
 
     console.log('[FoodDetailsDialog] Created customizations:', {
@@ -549,7 +549,7 @@ export default function FoodDetailsDialog({
   if (!foodItem) return null;
 
   const spiceRequiredIncomplete = Boolean(
-    (comboNeedsOverallSpice(foodItem) && !selectedSpiceLevel.trim()) || sectionsMissingSpice(foodItem, comboSelections).length > 0
+    (comboNeedsOverallSpice(foodItem) && !selectedSpiceLevel.trim()) || sectionsMissingSpice(foodItem, comboSelections).length > 0 || optionsMissingSpice(foodItem, comboSelections).length > 0
   );
 
   return (
@@ -701,6 +701,8 @@ export default function FoodDetailsDialog({
                     spiceLevels={foodItem.hasSpiceLevel ? foodItem.spiceLevel : undefined}
                     spiceValue={getSectionSpice(comboSelections, section._id) ?? ''}
                     onSpiceChange={(sectionId, level) => setComboSelections((current) => withSectionSpice(current, sectionId, level))}
+                    itemSpice={pickedSpiceOptions(foodItem, comboSelections).filter((p) => p.section._id === section._id)}
+                    onItemSpiceChange={(sectionId, optionId, level) => setComboSelections((current) => withOptionSpice(current, sectionId, optionId, level))}
                   />
                 );
               })}

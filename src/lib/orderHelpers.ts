@@ -55,6 +55,7 @@ export function convertCartToOrderItems(
           veg: item.foodItem.veg,
           hasSpiceLevel: item.foodItem.hasSpiceLevel,
           spiceLevel: item.foodItem.spiceLevel,
+          ...(item.foodItem.spiceMode ? { spiceMode: item.foodItem.spiceMode } : {}),
           portions: item.foodItem.portions,
           portionPrices: item.foodItem.portionPrices,
           hasCombo: item.foodItem.hasCombo,

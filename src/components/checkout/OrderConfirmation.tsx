@@ -142,7 +142,7 @@ export default function OrderConfirmation({ order }: OrderConfirmationProps) {
                                   display: 'block',
                                 }}
                               >
-                                • {section.title}: {selectedItem.item.name}{portionText}{comboSpiceText(item.comboSelections, section)}
+                                • {section.title}: {selectedItem.item.name}{portionText}{comboSpiceText(item.comboSelections, section, selectedItem)}
                               </Typography>
                             );
                           })}

@@ -4,7 +4,7 @@ import { EMAIL_LOGO_CID } from '@/lib/emailLogo';
 import { hasAmount } from '@/lib/orderTotalsDisplay';
 import { getZelleId } from '@/lib/zelle';
 import { comboQuantityText } from '@/lib/comboQuantity';
-import { getSectionSpice } from '@/lib/comboSpice';
+import { getOptionSpice, getSectionSpice } from '@/lib/comboSpice';
 
 function esc(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -68,7 +68,10 @@ function toppings(item: OrderDay['items'][number]): string {
       const chosen = (item.comboSelections?.[s._id] ?? [])
         .map((id: string) => s.selectedItems.find((si) => si._id === id))
         .filter((si): si is NonNullable<typeof si> => !!si?.item?.name)
-        .map((si) => `<span style="white-space:nowrap;font-weight:700;color:${C.body};">${esc(si.item.name)}${has(si.portion) ? ` (${esc(si.portion.trim())})` : ''}${esc(comboQuantityText(si.quantity))}</span>`);
+        .map((si) => `<span style="white-space:nowrap;font-weight:700;color:${C.body};">${esc(si.item.name)}${has(si.portion) ? ` (${esc(si.portion.trim())})` : ''}${esc(comboQuantityText(si.quantity))}</span>${(() => {
+          const lv = getOptionSpice(item.comboSelections, s._id, si._id);
+          return lv ? ` <span style="white-space:nowrap;font-weight:600;color:#A12A14;">\u{1F336}\uFE0F ${esc(lv)}</span>` : '';
+        })()}`);
       if (!chosen.length) return '';
       // a section the customer chose a spice level for (set per section in the admin)
       const spice = getSectionSpice(item.comboSelections, s._id);

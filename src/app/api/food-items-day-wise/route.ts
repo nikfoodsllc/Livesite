@@ -174,6 +174,8 @@ async function populateComboSections(sections: ComboSection[], sectionIndexStart
                 description: itemData.description || '',
                 price: itemData.price || 0,
                 veg: itemData.veg || false,
+                hasSpiceLevel: itemData.hasSpiceLevel || false,
+                spiceLevel: itemData.spiceLevel || [],
                 url: itemData.url || itemData.imageUrl || '',
               },
             };
@@ -526,6 +528,7 @@ export async function GET(req: NextRequest) {
           public_id: foodItem.public_id || '',
           isEcoFriendlyContainer: foodItem.isEcoFriendlyContainer || false,
           hasSpiceLevel: foodItem.hasSpiceLevel || false,
+          spiceMode: foodItem.spiceMode || undefined,
           hasCombo: foodItem.hasCombo || false,
           portions: foodItem.portions || [],
           portionPrices: foodItem.portionPrices || [],

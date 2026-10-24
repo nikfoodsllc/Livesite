@@ -25,7 +25,7 @@ import { sendPaymentLinkEmail, sendZelleInstructionsEmail } from '@/lib/offlineO
 import { notifyOrderSafely } from '@/lib/server/push/orderPush';
 import { recordPaymentLinkEmailSent, type PaymentLinkEmailRecord, type PaymentLinkViews } from '@/lib/server/paymentLinkTracking';
 import { sendOrderConfirmationEmail } from '@/lib/email';
-import { getSectionSpice } from '@/lib/comboSpice';
+import { getOptionSpice, getSectionSpice } from '@/lib/comboSpice';
 import { comboQuantityText } from '@/lib/comboQuantity';
 import { QUOTE_METHOD } from '@/lib/quoteOrder';
 
@@ -550,7 +550,7 @@ function comboChoiceLines(item: OrderDay['items'][number]): string[] {
     const names = ((section._id && picks[section._id]) || [])
       .map((id) => section.selectedItems?.find((s) => s._id === id))
       .filter((s): s is NonNullable<typeof s> => Boolean(s))
-      .map((s) => `${s.item?.name ?? 'Item'}${s.portion ? ` (${s.portion})` : ''}${comboQuantityText(s.quantity)}`);
+      .map((s) => `${s.item?.name ?? 'Item'}${s.portion ? ` (${s.portion})` : ''}${comboQuantityText(s.quantity)}${getOptionSpice(picks, section._id, s._id) ? ` · ${getOptionSpice(picks, section._id, s._id)}` : ''}`);
     const spice = getSectionSpice(picks, section._id);
     if (names.length > 0) lines.push(`${section.title ?? 'Choice'}: ${names.join(', ')}${spice ? ` · ${spice}` : ''}`);
   }
@@ -738,7 +738,7 @@ export async function getOrderForEdit(orderId: string): Promise<{ ok: true; orde
         const names = ((section._id && picks[section._id]) || [])
           .map((id) => section.selectedItems?.find((s) => s._id === id))
           .filter((s): s is NonNullable<typeof s> => Boolean(s))
-          .map((s) => `${s.item?.name ?? 'Item'}${s.portion ? ` (${s.portion})` : ''}${comboQuantityText(s.quantity)}`);
+          .map((s) => `${s.item?.name ?? 'Item'}${s.portion ? ` (${s.portion})` : ''}${comboQuantityText(s.quantity)}${getOptionSpice(picks, section._id, s._id) ? ` · ${getOptionSpice(picks, section._id, s._id)}` : ''}`);
         const spice = getSectionSpice(picks, section._id);
         if (names.length > 0) tags.push(`${section.title ?? 'Choice'}: ${names.join(', ')}${spice ? ` · ${spice}` : ''}`);
       }

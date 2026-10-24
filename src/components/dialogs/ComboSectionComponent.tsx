@@ -3,7 +3,7 @@
 import { Box, Checkbox, FormControlLabel, Radio, RadioGroup, Typography } from '@mui/material';
 import { ComboSection } from '@/types/food';
 import { comboItemQuantity } from '@/lib/comboQuantity';
-import { sectionOwnsSpice } from '@/lib/comboSpice';
+import { sectionOwnsSpice, type PickedSpiceOption } from '@/lib/comboSpice';
 import SpiceLevelSelector from './SpiceLevelSelector';
 
 interface ComboSectionComponentProps {
@@ -15,6 +15,9 @@ interface ComboSectionComponentProps {
   /** The level picked for this section ('' = none yet) */
   spiceValue?: string;
   onSpiceChange?: (sectionId: string, level: string) => void;
+  /** Combos with a spice mode: the picked items of this section that need their own spice level */
+  itemSpice?: PickedSpiceOption<ComboSection>[];
+  onItemSpiceChange?: (sectionId: string, optionId: string, level: string) => void;
 }
 
 export default function ComboSectionComponent({
@@ -24,6 +27,8 @@ export default function ComboSectionComponent({
   spiceLevels,
   spiceValue = '',
   onSpiceChange,
+  itemSpice = [],
+  onItemSpiceChange,
 }: ComboSectionComponentProps) {
   const hasPick = Array.isArray(selectedValue) ? selectedValue.length > 0 : Boolean(selectedValue);
   const showSpice = Boolean(onSpiceChange && spiceLevels && spiceLevels.length > 0 && sectionOwnsSpice(section) && hasPick);
@@ -36,6 +41,22 @@ export default function ComboSectionComponent({
         label="Spice level"
         idSuffix={`-${section._id}`}
       />
+    </Box>
+  ) : null;
+
+  // one spice choice for each picked item that can have spice (rice and bread never show one)
+  const itemSpicePickers = itemSpice.length > 0 ? (
+    <Box sx={{ mt: 1.5 }}>
+      {itemSpice.map((p) => (
+        <SpiceLevelSelector
+          key={p.option._id}
+          spiceLevels={p.levels}
+          selectedSpiceLevel={p.level ?? ''}
+          onSpiceLevelChange={(level) => onItemSpiceChange?.(section._id, p.option._id ?? '', level)}
+          label={`${p.option.item?.name ?? 'Item'} spice`}
+          idSuffix={`-${section._id}-${p.option._id}`}
+        />
+      ))}
     </Box>
   ) : null;
 
@@ -260,6 +281,7 @@ export default function ComboSectionComponent({
         </RadioGroup>
       )}
       {spicePicker}
+      {itemSpicePickers}
     </Box>
   );
 }

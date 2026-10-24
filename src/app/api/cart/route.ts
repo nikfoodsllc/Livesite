@@ -65,6 +65,8 @@ async function populateComboSections(sections: ComboSection[]): Promise<Array<Re
                 description: itemData.description || '',
                 price: itemData.price || 0,
                 veg: itemData.veg || false,
+                hasSpiceLevel: itemData.hasSpiceLevel || false,
+                spiceLevel: itemData.spiceLevel || [],
                 url: itemData.url || itemData.imageUrl || '',
               },
             };
