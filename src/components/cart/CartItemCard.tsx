@@ -295,7 +295,7 @@ export default function CartItemCard({ item }: CartItemCardProps) {
                             pl: 1,
                           }}
                         >
-                          • <strong>{section.title}:</strong> {selectedItem.item.name}{portionText}{comboSpiceText(item.comboSelections, section)}{itemPrice}
+                          • <strong>{section.title}:</strong> {selectedItem.item.name}{portionText}{comboSpiceText(item.comboSelections, section, selectedItem)}{itemPrice}
                         </Typography>
                       );
                     });

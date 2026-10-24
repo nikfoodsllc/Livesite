@@ -1,6 +1,6 @@
 import { Cart, CartDay, CartItem, SpiceLevel } from '@/types/cart';
 import { FoodItem } from '@/types/food';
-import { comboNeedsOverallSpice, comboSpiceKey, getSectionSpice, isComboSpiceKey, sectionOwnsSpice } from '@/lib/comboSpice';
+import { comboNeedsOverallSpice, comboSpiceKey, getOptionSpice, getSectionSpice, isComboSpiceKey, isPerItemSpice, optionSpiceKey, optionSpiceLevels, sectionOwnsSpice } from '@/lib/comboSpice';
 import {
   calculateCartClubbing,
   calculateCartSubtotal,
@@ -153,7 +153,7 @@ export function priceLine(
       }
       if (chosen.length > 0) comboSelections[section._id] = chosen;
       // a section the customer picks spice for on its own: one level from the combo's list
-      if (sectionOwnsSpice(section) && item.hasSpiceLevel && (item.spiceLevel?.length ?? 0) > 0 && chosen.length > 0) {
+      if (!isPerItemSpice(item) && sectionOwnsSpice(section) && item.hasSpiceLevel && (item.spiceLevel?.length ?? 0) > 0 && chosen.length > 0) {
         const level = getSectionSpice(line.comboSelections, section._id);
         if (!level) return { problem: `${name}: choose a spice level for "${section.title}"` };
         if (!item.spiceLevel?.includes(level)) return { problem: `${name}: "${level}" is not a spice level of this item` };
@@ -162,6 +162,16 @@ export function priceLine(
       for (const id of chosen) {
         const option = section.selectedItems.find((o) => o._id === id);
         if (option && option.price > 0) unitPrice += option.price;
+        // a combo that asks for spice per item: every picked item that can have spice needs one of its levels
+        if (option && isPerItemSpice(item)) {
+          const levels = optionSpiceLevels(item, option);
+          if (levels.length > 0) {
+            const level = getOptionSpice(line.comboSelections, section._id, id);
+            if (!level) return { problem: `${name}: choose a spice level for ${option.item?.name ?? 'an item'}` };
+            if (!levels.includes(level)) return { problem: `${name}: "${level}" is not a spice level of ${option.item?.name ?? 'this item'}` };
+            comboSelections[optionSpiceKey(section._id, id)] = [level];
+          }
+        }
       }
     }
     const unexpected = Object.keys(line.comboSelections ?? {}).filter((id) => !isComboSpiceKey(id)).find((id) => !item.sections?.some((s) => s._id === id));

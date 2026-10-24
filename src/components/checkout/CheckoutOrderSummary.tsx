@@ -141,7 +141,7 @@ export default function CheckoutOrderSummary({
                                     display: 'block',
                                   }}
                                 >
-                                  • {section.title}: {selectedItem.item.name}{portionText}{comboSpiceText(item.comboSelections, section)}
+                                  • {section.title}: {selectedItem.item.name}{portionText}{comboSpiceText(item.comboSelections, section, selectedItem)}
                                 </Typography>
                               );
                             })}

@@ -202,7 +202,7 @@ export default function OrderDetailsDialog({ open, order, onClose }: OrderDetail
                                     key={selectedItemId}
                                     sx={{ fontSize: '11px', color: '#6B7280', display: 'block', lineHeight: 1.4 }}
                                   >
-                                    {section.title}: {selectedItem.item.name}{comboQuantityText(selectedItem.quantity)}{comboSpiceText(item.comboSelections, section)}
+                                    {section.title}: {selectedItem.item.name}{comboQuantityText(selectedItem.quantity)}{comboSpiceText(item.comboSelections, section, selectedItem)}
                                     {selectedItem.price > 0 && ` (+${formatCurrency(selectedItem.price, order.currency)})`}
                                   </Typography>
                                 );

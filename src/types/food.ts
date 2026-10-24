@@ -23,6 +23,8 @@ export interface FoodItem {
   ecoContainerCharge?: number;
   hasSpiceLevel?: boolean;
   spiceLevel?: string[];
+  /** Combos only: how spice is asked. 'inherit' = for each item that has spice levels, using its own levels; 'combo' = for each such item, using the combo's levels; missing = the older one-level-for-the-combo behaviour */
+  spiceMode?: 'inherit' | 'combo';
   hasCombo?: boolean;
   sections?: ComboSection[];
   /** Set when item is FLAT-tagged to a sub-category under a day-wise parent */
@@ -64,6 +66,9 @@ export interface SelectedComboItem {
     price: number;
     veg: boolean;
     url: string;
+    /** The item's own spice setup (a combo with a spice mode asks for a level for each picked item that has one) */
+    hasSpiceLevel?: boolean;
+    spiceLevel?: string[];
   };
   portion?: string;
   /** How many of this item come with one combo (missing = 1) */
