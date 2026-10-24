@@ -6,7 +6,7 @@ import { paymentTokenMatches } from '@/lib/server/paymentLink';
 import { cleanInstructions } from '@/lib/server/deliveryInstructions';
 import { validateZipcodeServiceabilityServer } from '@/utils/zipcodeValidation';
 import { comboQuantityText } from '@/lib/comboQuantity';
-import { getSectionSpice } from '@/lib/comboSpice';
+import { getOptionSpice, getSectionSpice } from '@/lib/comboSpice';
 import { getBalanceCents } from '@/lib/server/storeCredit';
 import { toCents, toDollars } from '@/lib/storeCredit';
 import { planLinkOrderCredit } from '@/lib/server/linkOrderCredit';
@@ -31,7 +31,7 @@ function toPayItem(it: OrderDay['items'][number]): PayItem {
     const choices = (it.comboSelections?.[section._id] ?? [])
       .map((id) => section.selectedItems.find((o) => o._id === id))
       .filter((o): o is NonNullable<typeof o> => !!o?.item?.name)
-      .map((o) => `${o.item.name}${o.portion ? ` (${o.portion})` : ''}${comboQuantityText(o.quantity)}`);
+      .map((o) => `${o.item.name}${o.portion ? ` (${o.portion})` : ''}${comboQuantityText(o.quantity)}${getOptionSpice(it.comboSelections, section._id, o._id) ? ` · ${getOptionSpice(it.comboSelections, section._id, o._id)}` : ''}`);
     const spice = getSectionSpice(it.comboSelections, section._id);
     if (choices.length > 0) combo.push({ title: section.title, choices, ...(spice ? { spice } : {}) });
   }

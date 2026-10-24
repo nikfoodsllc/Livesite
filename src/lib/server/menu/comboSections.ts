@@ -41,6 +41,8 @@ async function resolveComboItem(
       description: cached.description || '',
       price: cached.price || 0,
       veg: cached.veg || false,
+      hasSpiceLevel: cached.hasSpiceLevel || false,
+      spiceLevel: cached.spiceLevel || [],
       url: cached.url || cached.imageUrl || '',
     };
   }
@@ -65,6 +67,8 @@ async function resolveComboItem(
       description: itemData.description || '',
       price: itemData.price || 0,
       veg: itemData.veg || false,
+      hasSpiceLevel: itemData.hasSpiceLevel || false,
+      spiceLevel: itemData.spiceLevel || [],
       url: itemData.url || itemData.imageUrl || '',
     };
   } catch {

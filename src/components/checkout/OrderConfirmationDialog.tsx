@@ -233,7 +233,7 @@ export default function OrderConfirmationDialog({
                                         • {section.title}:{' '}
                                         {selectedItem.item.name}
                                         {portionText}
-                                        {comboSpiceText(item.comboSelections, section)}
+                                        {comboSpiceText(item.comboSelections, section, selectedItem)}
                                       </Typography>
                                     );
                                   })}
