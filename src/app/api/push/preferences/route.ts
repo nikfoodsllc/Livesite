@@ -30,11 +30,12 @@ export async function GET(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   const userId = userIdFrom(request);
   if (!userId) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-  const body = (await request.json().catch(() => ({}))) as { orders?: unknown; menu?: unknown; reminders?: unknown };
+  const body = (await request.json().catch(() => ({}))) as { orders?: unknown; menu?: unknown; reminders?: unknown; updates?: unknown };
   await setPrefs(userId, {
     ...(typeof body.orders === 'boolean' ? { orders: body.orders } : {}),
     ...(typeof body.menu === 'boolean' ? { menu: body.menu } : {}),
     ...(typeof body.reminders === 'boolean' ? { reminders: body.reminders } : {}),
+    ...(typeof body.updates === 'boolean' ? { updates: body.updates } : {}),
   });
   if (body.menu === true) {
     const email = await emailOf(userId);

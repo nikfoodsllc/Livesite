@@ -25,6 +25,8 @@ export interface PushRequest {
   title: string;
   body: string;
   data?: Record<string, unknown>;
+  /** Only these phones (of the customers above), e.g. the ones on an older app version */
+  onlyTokens?: string[];
   /** For an admin's test message: send to the customer's phones whatever they chose in settings */
   ignorePrefs?: boolean;
   /** What this message belongs to, written in the log (never who it went to) */
@@ -46,7 +48,8 @@ export async function sendPush(req: PushRequest): Promise<PushSummary> {
     const prefs = await prefsForUsers(userIds);
     const allowedUsers = req.ignorePrefs ? userIds : userIds.filter((id) => wants(prefs.get(id), req.kind));
     summary.allowed = allowedUsers.length;
-    const list = await tokensForUsers(allowedUsers);
+    const only = req.onlyTokens ? new Set(req.onlyTokens) : null;
+    const list = (await tokensForUsers(allowedUsers)).filter((t) => !only || only.has(t.token));
     summary.tokens = list.length;
     if (list.length > 0 && mode === 'on') {
       const messages: PushMessage[] = list.map((t) => ({ to: t.token, title: req.title, body: req.body, data: { ...(req.data ?? {}), kind: req.kind } }));
