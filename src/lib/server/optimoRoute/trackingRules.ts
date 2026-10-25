@@ -63,6 +63,8 @@ export function pacificHHMM(utcIso: string | undefined): string | undefined {
 export function trackingFor(input: TrackingInput): Tracking {
   const dates = [...new Set(input.dates.filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)))].sort();
   if (dates.length === 0) return { state: 'none' };
+  // a cancelled order is not being delivered: nothing to show (it used to say 'Delivery today' on the delivery day)
+  if (input.orderStatus === 'cancelled') return { state: 'none' };
   const { today } = input;
   if (!dates.includes(today)) {
     const next = dates.find((d) => d > today);
