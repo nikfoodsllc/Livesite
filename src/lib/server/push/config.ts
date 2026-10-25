@@ -15,16 +15,18 @@ export function pushMode(env: Record<string, string | undefined> = process.env):
  *  orders    - confirmed, on the way, delivered, delivery date changed, payment problems, the payment link (on by default)
  *  menu      - "the new menu is up" (on by default, but only for people subscribed to menu alerts)
  *  reminders - a nudge about a cart left behind (OFF until the customer turns it on: it is a marketing message)
+ *  updates   - "a new version of the app is ready", only to phones on an older version (on by default)
  */
-export type PushKind = 'orders' | 'menu' | 'reminders';
-export const PUSH_KINDS: PushKind[] = ['orders', 'menu', 'reminders'];
+export type PushKind = 'orders' | 'menu' | 'reminders' | 'updates';
+export const PUSH_KINDS: PushKind[] = ['orders', 'menu', 'reminders', 'updates'];
 
 export interface PushPrefs {
   orders: boolean;
   menu: boolean;
   reminders: boolean;
+  updates: boolean;
 }
-export const DEFAULT_PREFS: PushPrefs = { orders: true, menu: true, reminders: false };
+export const DEFAULT_PREFS: PushPrefs = { orders: true, menu: true, reminders: false, updates: true };
 
 /** Does this customer want this kind of message? (an unset choice uses the default) */
 export function wants(prefs: Partial<PushPrefs> | null | undefined, kind: PushKind): boolean {
