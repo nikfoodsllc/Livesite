@@ -13,6 +13,7 @@ import {
   DATE_RE,
 } from '@/lib/server/offlineOrder';
 import { loadItemsForOrder } from '@/lib/server/offlineCatalog';
+import { findPossibleDuplicates, type PossibleDuplicate } from '@/lib/server/offlineDuplicates';
 import { ensureCustomer, EMAIL_RE, normalizeEmail, normalizePhone, CustomerInput } from '@/lib/server/offlineCustomer';
 import { buildPayLink, hashPaymentToken, newPaymentToken, paymentTokenMatches } from '@/lib/server/paymentLink';
 import { buildOrderDescription, buildOrderPaymentMetadata } from '@/lib/server/stripePaymentInfo';
@@ -50,6 +51,8 @@ export interface OfflineOrderInput {
   /** Dollars off the order (admin only) */
   discount?: number;
   allowBelowMinimum?: boolean;
+  /** The admin saw the "this customer already has an order on these dates" warning and still wants to create the order */
+  confirmDuplicate?: boolean;
   payment: OfflinePayment;
   /** One id per press of Create: a second request with the same id is refused, so a double tap or a retry cannot make the order twice */
   requestId: string;
@@ -62,7 +65,7 @@ export interface OfflineOrderInput {
   countBeforePayment?: boolean;
 }
 
-export type ServiceFailure = { ok: false; status: number; error: string; problems?: string[]; code?: string; closedItems?: unknown };
+export type ServiceFailure = { ok: false; status: number; error: string; problems?: string[]; code?: string; closedItems?: unknown; duplicates?: PossibleDuplicate[] };
 
 interface Prepared {
   items: CartItem[];
@@ -310,6 +313,22 @@ async function createNewOfflineOrder(
   const prepared = await prepare(input);
   if (!prepared.ok) return prepared;
   const { built, orderItems } = prepared.value;
+
+  // red flag: the same customer already has an order on one of these dates (checked before anything is made or claimed, so
+  // "Create anyway" can send the same request again)
+  if (input.confirmDuplicate !== true) {
+    const dates = input.lines.flatMap((l) => [l.date, l.deliverOn ?? ''].filter(Boolean));
+    let duplicates: PossibleDuplicate[] = [];
+    try {
+      duplicates = await findPossibleDuplicates({ email, phone, dates, excludeOrderId: typeof input.replacesOrderId === 'string' ? input.replacesOrderId.trim() : undefined });
+    } catch (error) {
+      // a failed lookup must not stop the admin from entering an order
+      console.error('[offline-orders] duplicate check failed', error);
+    }
+    if (duplicates.length > 0) {
+      return fail(409, 'This customer already has an order for the same date.', { code: 'POSSIBLE_DUPLICATE', duplicates });
+    }
+  }
 
   if (payment.mode === 'zelle' && !(built.totals.total > 0)) return fail(400, 'The total is $0.00, so there is nothing to pay by Zelle. Use “Already paid” instead.');
   const stripe = payment.mode === 'link' ? stripeClient() : null;
