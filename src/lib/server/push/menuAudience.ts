@@ -1,6 +1,5 @@
-import type { ObjectId } from 'mongodb';
 import { db } from '@/lib/server/db';
-import { wants } from './config';
+import { wants, type PushPrefs } from './config';
 import { prefsForUsers, usersWithTokens } from './store';
 
 interface SubDoc {
@@ -9,11 +8,6 @@ interface SubDoc {
   consentGiven?: boolean;
   isActive?: boolean;
 }
-interface UserDoc {
-  _id: ObjectId;
-  email?: string;
-}
-
 /** Is this customer on the menu alerts list (by account or by email)? */
 export async function isMenuSubscribed(userId: string, email?: string): Promise<boolean> {
   const col = await db.getCollectionForOperations<SubDoc & Record<string, unknown>>('menu_subscriptions');
@@ -37,27 +31,21 @@ export async function subscribeMenu(userId: string, email: string): Promise<void
   await col.insertOne({ email: normalized, userId, subscribedAt: now, consentGiven: true, isActive: true, source: 'app', createdAt: now, updatedAt: now } as never);
 }
 
+/** Customers who have the app and have not switched menu notifications off (an unset choice counts as on). */
+export function pickMenuAudience(withApp: string[], prefs: Map<string, Partial<PushPrefs>>): string[] {
+  return withApp.filter((id) => wants(prefs.get(id), 'menu'));
+}
+
 /**
- * Who gets a "the menu is up" notification: customers on the menu alerts list (consent given, still active) who have the app
- * with a phone registered and have not switched menu notifications off. Counts and ids only, never emails.
+ * Who gets a "the menu is up" notification: every customer who has the app with a phone registered (they allowed notifications
+ * and are signed in) and has not switched menu notifications off in the app. Being on the menu alerts email list is NOT needed:
+ * allowing notifications in the app is their consent. Counts and ids only, never emails.
+ * `subscribers` (the email list) is only reported for information.
  */
 export async function menuAudience(): Promise<{ userIds: string[]; subscribers: number; withApp: number }> {
   const subs = await db.getCollectionForOperations<SubDoc & Record<string, unknown>>('menu_subscriptions');
-  const rows = await subs.find({ isActive: true, consentGiven: true } as never, { projection: { email: 1, userId: 1 } }).toArray();
-  const ids = new Set<string>();
-  const emails: string[] = [];
-  for (const r of rows) {
-    if (r.userId) ids.add(String(r.userId));
-    else if (r.email) emails.push(String(r.email).toLowerCase());
-  }
-  if (emails.length > 0) {
-    const users = await db.getCollectionForOperations<UserDoc & Record<string, unknown>>('users');
-    const found = await users.find({ email: { $in: emails } } as never, { projection: { _id: 1 } }).toArray();
-    for (const u of found) ids.add(String(u._id));
-  }
-  const subscribedUsers = [...ids];
-  const withApp = await usersWithTokens(subscribedUsers);
+  const subscribers = await subs.countDocuments({ isActive: true, consentGiven: true } as never);
+  const withApp = await usersWithTokens();
   const prefs = await prefsForUsers(withApp);
-  const userIds = withApp.filter((id) => wants(prefs.get(id), 'menu'));
-  return { userIds, subscribers: rows.length, withApp: withApp.length };
+  return { userIds: pickMenuAudience(withApp, prefs), subscribers, withApp: withApp.length };
 }
