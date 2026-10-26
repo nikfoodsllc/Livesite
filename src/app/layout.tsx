@@ -23,6 +23,8 @@ export const metadata = {
   title: "NikFoods - Indian Food Delivery",
   description: "Order delicious Indian food for delivery across United States",
   icons: "/favicon.ico?v=2",
+  // Safari on iPhone shows Apple's own "Open / Get" strip for the NikFoods app
+  other: { "apple-itunes-app": "app-id=6767141830" },
 };
 
 export default function RootLayout({
