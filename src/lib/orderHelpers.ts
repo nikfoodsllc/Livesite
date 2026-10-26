@@ -128,6 +128,23 @@ export function calculateTipAmount(subtotal: number, tipPercentage: number): num
   return Number(((subtotal * tipPercentage) / 100).toFixed(2));
 }
 
+/** The most a custom tip can be (dollars): stops a typo like 5000 from being charged. */
+export const MAX_TIP_AMOUNT = 500;
+
+/** A custom tip in dollars, rounded to cents, or null when it is missing or not an allowed amount (0 to MAX_TIP_AMOUNT). */
+export function parseCustomTip(value: unknown): number | null {
+  if (value === undefined || value === null || value === '') return null;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0 || n > MAX_TIP_AMOUNT) return null;
+  return Math.round(n * 100) / 100;
+}
+
+/** The tip in dollars: a custom amount when one was typed, else the chosen percentage of the subtotal. */
+export function resolveTipAmount(subtotal: number, tipPercentage: number, customTip?: unknown): number {
+  const custom = parseCustomTip(customTip);
+  return custom !== null ? custom : calculateTipAmount(subtotal, tipPercentage);
+}
+
 /**
  * Formats order for database storage
  */

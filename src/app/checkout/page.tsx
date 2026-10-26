@@ -86,6 +86,7 @@ interface CheckoutFormContentProps {
   onDeliveryInstructionsChange: (value: string) => void;
   paymentMethod: PaymentMethod;
   tipPercentage: number;
+  customTip: number | null;
   errors: {
     name?: string;
     email?: string;
@@ -100,6 +101,7 @@ interface CheckoutFormContentProps {
   onSmsChange?: (value: boolean) => void;
   onPaymentMethodChange: (method: PaymentMethod) => void;
   onTipChange: (percentage: number) => void;
+  onCustomTipChange: (amount: number | null) => void;
   onPlaceOrder: () => Promise<void>;
   onOpenAddressDialog: () => void;
   contactInfoRef: React.RefObject<ContactInfoSectionRef | null>;
@@ -141,6 +143,7 @@ function CheckoutFormContent({
   onDeliveryInstructionsChange,
   paymentMethod,
   tipPercentage,
+  customTip,
   errors,
   userAddresses,
   onNameChange,
@@ -151,6 +154,7 @@ function CheckoutFormContent({
   onSmsChange,
   onPaymentMethodChange,
   onTipChange,
+  onCustomTipChange,
   onPlaceOrder,
   onOpenAddressDialog,
   contactInfoRef,
@@ -185,7 +189,7 @@ function CheckoutFormContent({
     const platformFee = creditedTotals ? creditedTotals.platformFee : cart.platformFee;
     const deliveryFee = cart.deliveryFee;
     const tax = creditedTotals ? creditedTotals.tax : cart.tax;
-    const tip = (subtotal * tipPercentage) / 100;
+    const tip = customTip !== null ? customTip : (subtotal * tipPercentage) / 100;
     const discount = cart.appliedCoupon?.discountAmount || 0;
     const total = subtotal + platformFee + deliveryFee + tax + tip - discount;
 
@@ -345,7 +349,9 @@ function CheckoutFormContent({
         {/* Tip Section */}
         <TipSection
           selectedTipPercentage={tipPercentage}
+          customTip={customTip}
           onTipChange={onTipChange}
+          onCustomTipChange={onCustomTipChange}
           subtotal={totals.subtotal}
         />
 
@@ -529,6 +535,8 @@ export default function CheckoutPage() {
   const sentInstructionsRef = useRef<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Credit Card');
   const [tipPercentage, setTipPercentage] = useState(5);
+  // a tip typed in dollars; when set it replaces the percentage
+  const [customTip, setCustomTip] = useState<number | null>(null);
   const [orderCompleted, setOrderCompleted] = useState(false);
   const [error, setError] = useState('');
   // Red banner about days in the cart that ordering has closed for (stays until dismissed)
@@ -987,7 +995,7 @@ export default function CheckoutPage() {
   // What the credit pays for this total (the server decides for real; this is what is shown until it answers)
   const localCredit =
     useCredit && creditBalance > 0 && cart && !(cart.appliedCoupon?.discountAmount)
-      ? planCreditForOrder({ subtotal: cart.subtotal, deliveryFee: cart.deliveryFee, tip: (cart.subtotal * tipPercentage) / 100, balanceCents: toCents(creditBalance) })
+      ? planCreditForOrder({ subtotal: cart.subtotal, deliveryFee: cart.deliveryFee, tip: customTip !== null ? customTip : (cart.subtotal * tipPercentage) / 100, balanceCents: toCents(creditBalance) })
       : null;
   const creditApplied = useCredit && creditBalance > 0 ? (serverCredit ? serverCredit.applied : localCredit ? toDollars(localCredit.creditCents) : 0) : 0;
   // the Platform Fee and its tax follow only the part that goes through the card (once an order exists its own figures are shown)
@@ -1050,6 +1058,7 @@ export default function CheckoutPage() {
         body: JSON.stringify({
           cart,
           tipPercentage,
+          tipAmount: customTip ?? undefined,
           currency: 'usd',
           paymentIntentId: paymentIntentId ?? undefined,
           useStoreCredit: useCredit && creditBalance > 0,
@@ -1114,6 +1123,7 @@ export default function CheckoutPage() {
     paymentMethod,
     pendingOrderId,
     tipPercentage,
+    customTip,
     useCredit,
     creditBalance,
   ]);
@@ -1131,6 +1141,7 @@ export default function CheckoutPage() {
         cart,
         customerInfo: { name, email, phone },
         tipPercentage,
+        tipAmount: customTip ?? undefined,
         paymentMethod,
         currency: 'usd',
         paymentIntentId: paymentIntentId ?? undefined,
@@ -1213,6 +1224,7 @@ export default function CheckoutPage() {
     phone,
     router,
     tipPercentage,
+    customTip,
     useCredit,
     creditBalance,
     loadCreditBalance,
@@ -1250,7 +1262,7 @@ export default function CheckoutPage() {
   }, [canLoadPaymentIntent, initializePaymentIntent, paymentClientSecret, serverCredit?.covered]);
 
   // Refresh payment intent when tip or cart total changes
-  const paymentAmountKey = `${tipPercentage}-${cart?.subtotal}-${cart?.platformFee}-${cart?.deliveryFee}-${cart?.tax}-${cart?.appliedCoupon?.discountAmount ?? 0}-${useCredit ? creditBalance : 0}`;
+  const paymentAmountKey = `${tipPercentage}-${customTip ?? ''}-${cart?.subtotal}-${cart?.platformFee}-${cart?.deliveryFee}-${cart?.tax}-${cart?.appliedCoupon?.discountAmount ?? 0}-${useCredit ? creditBalance : 0}`;
   const paymentAmountKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -1498,6 +1510,7 @@ export default function CheckoutPage() {
             onDeliveryInstructionsChange={setDeliveryInstructions}
             paymentMethod={paymentMethod}
             tipPercentage={tipPercentage}
+            customTip={customTip}
             errors={errors}
             userAddresses={userAddresses}
             addressesLoading={addressesLoading}
@@ -1509,7 +1522,11 @@ export default function CheckoutPage() {
             smsOptIn={smsChecked}
             onSmsChange={smsAlreadyOn ? undefined : handleSmsChange}
             onPaymentMethodChange={setPaymentMethod}
-            onTipChange={setTipPercentage}
+            onTipChange={(percentage) => {
+              setTipPercentage(percentage);
+              setCustomTip(null);
+            }}
+            onCustomTipChange={setCustomTip}
             onPlaceOrder={handlePlaceOrder}
             onOpenAddressDialog={handleOpenAddressDialog}
             onAddressSelect={handleAddressSelect}
