@@ -60,7 +60,7 @@ export async function sendMenuCampaign(input: { title: unknown; body: unknown; a
     }
   }
   const audience = await menuAudience();
-  if (audience.userIds.length === 0) return { ok: false, status: 409, code: 'nobody', error: 'Nobody can get this yet: no subscriber has the app with notifications on.' };
+  if (audience.userIds.length === 0) return { ok: false, status: 409, code: 'nobody', error: 'Nobody can get this yet: no customer has the app with notifications on.' };
   const _id = new ObjectId();
   const campaignId = String(_id);
   const summary = await sendPush({ userIds: audience.userIds, kind: 'menu', title: text.title, body: text.body, data: { type: 'menu' }, log: { campaignId, event: 'menu_campaign' } });

@@ -1,7 +1,7 @@
 import { ObjectId } from 'mongodb';
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/server/db';
-import { isMenuSubscribed, subscribeMenu } from '@/lib/server/push/menuAudience';
+import { subscribeMenu } from '@/lib/server/push/menuAudience';
 import { userIdFrom } from '@/lib/server/push/auth';
 import { getPrefs, setPrefs } from '@/lib/server/push/store';
 
@@ -16,7 +16,9 @@ async function emailOf(userId: string): Promise<string> {
 
 async function view(userId: string) {
   const prefs = await getPrefs(userId);
-  return { ...prefs, menuSubscribed: await isMenuSubscribed(userId, await emailOf(userId)) };
+  // the menu alerts email list no longer decides who gets the menu notification (only the app's own switch does); the field stays,
+  // always true, so apps released before this change show the switch as it really is
+  return { ...prefs, menuSubscribed: true };
 }
 
 /** GET /api/push/preferences: which notifications this customer gets, and whether they are on the menu alerts list. */

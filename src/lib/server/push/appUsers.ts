@@ -52,7 +52,7 @@ export interface AppUserCounts {
   phones: number;
   /** among the customers who allowed notifications: with order updates on */
   orders: number;
-  /** customers who will get a menu alert: switch on AND subscribed */
+  /** customers who will get a menu alert: the menu switch is on */
   menu: number;
   reminders: number;
   /** customers with all three off (they only get what the customer cannot switch off) */
@@ -147,9 +147,9 @@ export function buildAppUsers(input: {
     notAsked: customers.filter((c) => c.permission === 'notAsked').length,
     phones: customers.reduce((n, c) => n + c.phones.length, 0),
     orders: allowed.filter((c) => c.orders).length,
-    menu: allowed.filter((c) => c.menuSwitch && c.menuSubscribed).length,
+    menu: allowed.filter((c) => c.menuSwitch).length,
     reminders: allowed.filter((c) => c.reminders).length,
-    allOff: allowed.filter((c) => !c.orders && !(c.menuSwitch && c.menuSubscribed) && !c.reminders).length,
+    allOff: allowed.filter((c) => !c.orders && !c.menuSwitch && !c.reminders).length,
   };
   return { customers, counts };
 }
