@@ -8,7 +8,9 @@ import {
   convertCartToOrderItems,
   createAddressSnapshot,
   createCustomerInfo,
-  calculateTipAmount,
+  MAX_TIP_AMOUNT,
+  parseCustomTip,
+  resolveTipAmount,
   formatOrderForDatabase,
 } from '@/lib/orderHelpers';
 import { calculateDeliveryDates } from '@/lib/deliveryCalculator';
@@ -46,6 +48,8 @@ interface CreateOrderRequest {
     phone: string;
   };
   tipPercentage: number;
+  /** A tip typed in dollars; used instead of the percentage when present */
+  tipAmount?: number;
   paymentMethod: PaymentMethod;
   currency: string;
   /** Reuse PaymentIntent created at checkout load (inline payment form) */
@@ -207,7 +211,10 @@ export async function POST(request: NextRequest) {
     );
 
     // Calculate tip amount
-    const tipAmount = calculateTipAmount(cart.subtotal, tipPercentage);
+    if (body.tipAmount !== undefined && body.tipAmount !== null && parseCustomTip(body.tipAmount) === null) {
+      return NextResponse.json({ success: false, error: `The tip must be from $0 to $${MAX_TIP_AMOUNT}` }, { status: 400 });
+    }
+    const tipAmount = resolveTipAmount(cart.subtotal, tipPercentage, body.tipAmount);
 
     // Calculate total (cart already has calculated values)
     const discount = cart.appliedCoupon?.discountAmount || 0;

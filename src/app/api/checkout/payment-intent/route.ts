@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { jwtHandler } from '@/lib/jwt';
 import { Cart } from '@/types/cart';
-import { calculateTipAmount } from '@/lib/orderHelpers';
+import { MAX_TIP_AMOUNT, parseCustomTip, resolveTipAmount } from '@/lib/orderHelpers';
 import Stripe from 'stripe';
 import { ObjectId, type Filter } from 'mongodb';
 import { db } from '@/lib/server/db';
@@ -25,6 +25,8 @@ const stripe = new Stripe(stripeSecretKey || 'sk_test_dummy_key_for_build', {
 interface PaymentIntentRequest {
   cart: Cart;
   tipPercentage: number;
+  /** A tip typed in dollars; used instead of the percentage when present */
+  tipAmount?: number;
   currency?: string;
   paymentIntentId?: string;
   /** Pay with the customer's store credit first */
@@ -33,8 +35,8 @@ interface PaymentIntentRequest {
   orderId?: string;
 }
 
-function calculateCheckoutTotal(cart: Cart, tipPercentage: number): number {
-  const tipAmount = calculateTipAmount(cart.subtotal, tipPercentage);
+function calculateCheckoutTotal(cart: Cart, tipPercentage: number, customTip?: number): number {
+  const tipAmount = resolveTipAmount(cart.subtotal, tipPercentage, customTip);
   const discount = cart.appliedCoupon?.discountAmount || 0;
   return Number(
     (
@@ -96,6 +98,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Cart is empty' }, { status: 400 });
     }
 
+    if (body.tipAmount !== undefined && body.tipAmount !== null && parseCustomTip(body.tipAmount) === null) {
+      return NextResponse.json({ success: false, error: `The tip must be from $0 to $${MAX_TIP_AMOUNT}` }, { status: 400 });
+    }
+
     if (!cart.canCheckout) {
       return NextResponse.json(
         { success: false, error: 'Cart does not meet minimum order requirements' },
@@ -115,7 +121,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (Math.round(calculateCheckoutTotal(cart, tipPercentage ?? 0) * 100) <= 0) {
+    if (Math.round(calculateCheckoutTotal(cart, tipPercentage ?? 0, body.tipAmount) * 100) <= 0) {
       return NextResponse.json({ success: false, error: 'Invalid order total' }, { status: 400 });
     }
 
@@ -123,7 +129,7 @@ export async function POST(request: NextRequest) {
     const credit = await creditForCheckout({
       userId,
       cart,
-      tipAmount: calculateTipAmount(cart.subtotal, tipPercentage ?? 0),
+      tipAmount: resolveTipAmount(cart.subtotal, tipPercentage ?? 0, body.tipAmount),
       discount: cart.appliedCoupon?.discountAmount || 0,
       useStoreCredit,
       orderId: pendingOrderId,

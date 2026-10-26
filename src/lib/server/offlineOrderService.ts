@@ -20,7 +20,7 @@ import { validateZipcodeServiceabilityServer } from '@/utils/zipcodeValidation';
 import { giveBackLinkOrderCredit } from '@/lib/server/linkOrderCredit';
 import { syncOrderSafely } from '@/lib/server/optimoRoute/sync';
 import { calculateDeliveryDates } from '@/lib/deliveryCalculator';
-import { convertCartToOrderItems, createAddressSnapshot, formatOrderForDatabase, generateOrderId } from '@/lib/orderHelpers';
+import { convertCartToOrderItems, createAddressSnapshot, formatOrderForDatabase, generateOrderId, MAX_TIP_AMOUNT, parseCustomTip } from '@/lib/orderHelpers';
 import { sendPaymentLinkEmail, sendZelleInstructionsEmail } from '@/lib/offlineOrderEmail';
 import { notifyOrderSafely } from '@/lib/server/push/orderPush';
 import { recordPaymentLinkEmailSent, type PaymentLinkEmailRecord, type PaymentLinkViews } from '@/lib/server/paymentLinkTracking';
@@ -44,6 +44,8 @@ export interface OfflineOrderInput {
   address: OfflineAddressInput;
   lines: OfflineLineInput[];
   tipPercentage: number;
+  /** A tip typed in dollars (admin); used instead of the percentage when present */
+  tipAmount?: number;
   waivePlatformFee?: boolean;
   /** Dollars off the order (admin only) */
   discount?: number;
@@ -90,7 +92,7 @@ function fail(status: number, error: string, extra: Partial<ServiceFailure> = {}
 
 /** Checks the lines and the delivery address, prices everything and totals it. Shared by the preview and the real thing. */
 async function prepare(
-  input: Pick<OfflineOrderInput, 'lines' | 'address' | 'tipPercentage' | 'waivePlatformFee' | 'discount'>
+  input: Pick<OfflineOrderInput, 'lines' | 'address' | 'tipPercentage' | 'tipAmount' | 'waivePlatformFee' | 'discount'>
 ): Promise<{ ok: true; value: Prepared } | ServiceFailure> {
   const { lines, address, tipPercentage } = input;
   if (input.discount !== undefined && input.discount !== null && (!Number.isFinite(Number(input.discount)) || Number(input.discount) < 0 || Number(input.discount) > 10000)) {
@@ -99,7 +101,9 @@ async function prepare(
 
   if (!Array.isArray(lines) || lines.length === 0) return fail(400, 'Add at least one item');
   if (lines.length > MAX_LINES) return fail(400, `An order can have at most ${MAX_LINES} lines`);
-  if (!(TIP_PERCENTAGES as readonly number[]).includes(tipPercentage)) return fail(400, 'Tip must be 0, 5, 10 or 15 percent');
+  const hasCustomTip = input.tipAmount !== undefined && input.tipAmount !== null;
+  if (hasCustomTip && parseCustomTip(input.tipAmount) === null) return fail(400, `The tip must be from $0 to $${MAX_TIP_AMOUNT}`);
+  if (!hasCustomTip && !(TIP_PERCENTAGES as readonly number[]).includes(tipPercentage)) return fail(400, 'Tip must be 0, 5, 10 or 15 percent');
   if (!address?.postal_code || !/^\d{5}(-\d{4})?$/.test(address.postal_code)) return fail(400, 'Enter a 5 digit zip code for the delivery address');
 
   const badDate = lines.find((l) => typeof l.date !== 'string' || !DATE_RE.test(l.date));
@@ -140,6 +144,7 @@ async function prepare(
     address,
     minOrderValue: zip.config?.minCartValue,
     tipPercentage,
+    tipAmount: hasCustomTip ? (input.tipAmount as number) : undefined,
     waivePlatformFee: input.waivePlatformFee,
     discount: input.discount,
   });
@@ -174,7 +179,7 @@ export interface OfflinePreview {
 
 /** What the order would look like and cost, without saving anything. */
 export async function previewOfflineOrder(
-  input: Pick<OfflineOrderInput, 'lines' | 'address' | 'tipPercentage' | 'waivePlatformFee' | 'discount'>
+  input: Pick<OfflineOrderInput, 'lines' | 'address' | 'tipPercentage' | 'tipAmount' | 'waivePlatformFee' | 'discount'>
 ): Promise<{ ok: true; preview: OfflinePreview } | ServiceFailure> {
   const prepared = await prepare(input);
   if (!prepared.ok) return prepared;
@@ -710,6 +715,8 @@ export interface EditableOrder {
     tags: string[];
   }>;
   tipPercentage: number;
+  /** Set only when the tip is not exactly one of the standard percentages (dollars) */
+  tipAmount?: number;
   waivePlatformFee: boolean;
   /** Dollars off */
   discount: number;
@@ -777,6 +784,7 @@ export async function getOrderForEdit(orderId: string): Promise<{ ok: true; orde
       },
       lines,
       tipPercentage,
+      tipAmount: Math.abs((o.tip ?? 0) - Math.round(payable * tipPercentage) / 100) > 0.01 ? (o.tip ?? 0) : undefined,
       waivePlatformFee: Boolean((o as unknown as { platformFeeWaived?: boolean }).platformFeeWaived),
       discount: o.discount?.amount ?? 0,
       payKind: o.zellePending ? 'zelle' : 'link',
