@@ -382,6 +382,8 @@ export async function reconcile(options: { now?: Date; budgetMs?: number } = {})
   // 1. paid orders with an upcoming delivery day whose stop is not sent yet
   const read = await db.read<Order>('orders', {
     status: { $ne: 'cancelled' },
+    // an order marked Delivered by hand is finished: step 2 takes its stops off the route
+    $nor: [{ status: 'delivered', deliveredBy: { $ne: 'optimoroute' } }],
     $and: [{ $or: ROUTE_ORDER_PAYMENT_CLAUSES }, { $or: [{ 'items.deliveryDate': { $gte: today } }, { 'items.actualDeliveryDate': { $gte: today } }] }],
   } as never, { limit: 500 } as never);
   const orders = (read.success ? read.data ?? [] : []) as Order[];

@@ -26,13 +26,21 @@ export function dayOf(value: Date | string | undefined | null): string {
 /**
  * An order that should be on the route: paid, not cancelled, and with something still to deliver (a partial refund keeps it;
  * a full refund marks it refunded; an order whose items were all given back as store credit has nothing left to deliver).
+ * An order an admin marked Delivered by hand (a pickup, say) is finished too, so it comes off the route; an order OptimoRoute
+ * itself marked Delivered (deliveredBy 'optimoroute') keeps its completed stops as the record.
  */
-export function isRouteOrder(order: Pick<Order, 'status' | 'paymentStatus'> & Partial<Pick<Order, 'items' | 'creditsIssued' | 'countBeforePayment'>>): boolean {
+export function isRouteOrder(order: Pick<Order, 'status' | 'paymentStatus'> & Partial<Pick<Order, 'items' | 'creditsIssued' | 'countBeforePayment'>> & { deliveredBy?: string }): boolean {
   if (order.status === 'cancelled') return false;
+  if (isDeliveredByHand(order)) return false;
   // an admin can have an unpaid order counted from the start (Create Order: "count it before it is paid"); a failed or refunded payment never counts
   const countedEarly = order.countBeforePayment === true && order.paymentStatus !== 'failed' && order.paymentStatus !== 'refunded';
   if (order.paymentStatus !== 'paid' && !countedEarly) return false;
   return order.items ? hasItemsLeft({ items: order.items, creditsIssued: order.creditsIssued }) : true;
+}
+
+/** Marked Delivered by an admin, not by OptimoRoute's completion. */
+export function isDeliveredByHand(order: { status?: string; deliveredBy?: string }): boolean {
+  return order.status === 'delivered' && order.deliveredBy !== 'optimoroute';
 }
 
 /** The orders that go on the route, as a database condition (the same rule as isRouteOrder, before the items are looked at). */
