@@ -12,6 +12,7 @@ import { getOptionSpice, getSectionSpice } from '@/lib/comboSpice';
 const PST = 'America/Los_Angeles';
 import { getSiteUrl } from '@/lib/siteUrl';
 import { EMAIL_LOGO_CID } from '@/lib/emailLogo';
+import { APP_STORE_URL, EMAIL_BADGE_CID } from '@/lib/emailAppBadge';
 import { hasAmount } from '@/lib/orderTotalsDisplay';
 const SUPPORT = 'support@nikfoods.com';
 
@@ -397,6 +398,12 @@ export function getOrderConfirmationEmailTemplate(order: Order, profileCustomerD
         <a href="${ordersLink}" style="display:inline-block;padding:9px 30px;font-size:16px;font-weight:800;color:${C.onBrand};border-radius:14px;">View my order &rarr;</a>
       </td>
     </tr></table>
+  </td></tr>
+
+  <!-- Get the app (badge attached to the email, see lib/emailAppBadge.ts) -->
+  <tr><td class="px" align="center" bgcolor="${C.card}" style="padding:14px 32px 0;background:${C.card};">
+    <div style="font-size:14px;font-weight:800;color:${C.text};">Order faster in our app</div>
+    <a href="${APP_STORE_URL}" style="display:inline-block;margin-top:6px;"><img src="cid:${EMAIL_BADGE_CID}" alt="Download on the App Store" width="120" height="40" style="display:block;border:0;width:120px;height:40px;"></a>
   </td></tr>
 
   <!-- Help -->

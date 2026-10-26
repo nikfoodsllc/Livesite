@@ -18,6 +18,7 @@ import {
 // Initialize email analytics (this will be called when the module is imported)
 import '@/lib/emailAnalyticsInit';
 import { EMAIL_LOGO_CID, EMAIL_LOGO_FILENAME, EMAIL_LOGO_PNG_BASE64 } from '@/lib/emailLogo';
+import { EMAIL_BADGE_CID, EMAIL_BADGE_FILENAME, EMAIL_BADGE_PNG_BASE64 } from '@/lib/emailAppBadge';
 import { isQuoteOrder } from '@/lib/quoteOrder';
 import { markTestSubject } from '@/lib/emailSubject';
 import { getReplyTo } from '@/lib/replyTo';
@@ -48,6 +49,8 @@ type TransactionalEmailParams = {
   category?: string;
   /** Attach the NikFoods logo as an inline image (the HTML references it as src="cid:nikfoods-logo"). */
   inlineLogo?: boolean;
+  /** Also attach the App Store badge (the HTML references it as src="cid:app-store-badge"). */
+  inlineAppBadge?: boolean;
 };
 
 // Validate environment configuration
@@ -141,17 +144,17 @@ async function sendOneEmail(
       subject: markTestSubject(params.subject),
       html: params.html,
       category: params.category || 'Transactional',
-      attachments: params.inlineLogo
-        ? [
-            {
-              filename: EMAIL_LOGO_FILENAME,
-              type: 'image/png',
-              content: Buffer.from(EMAIL_LOGO_PNG_BASE64, 'base64'),
-              disposition: 'inline',
-              content_id: EMAIL_LOGO_CID,
-            },
-          ]
-        : undefined,
+      attachments:
+        params.inlineLogo || params.inlineAppBadge
+          ? [
+              ...(params.inlineLogo
+                ? [{ filename: EMAIL_LOGO_FILENAME, type: 'image/png', content: Buffer.from(EMAIL_LOGO_PNG_BASE64, 'base64'), disposition: 'inline' as const, content_id: EMAIL_LOGO_CID }]
+                : []),
+              ...(params.inlineAppBadge
+                ? [{ filename: EMAIL_BADGE_FILENAME, type: 'image/png', content: Buffer.from(EMAIL_BADGE_PNG_BASE64, 'base64'), disposition: 'inline' as const, content_id: EMAIL_BADGE_CID }]
+                : []),
+            ]
+          : undefined,
     });
 
     return { messageId: result.message_ids[0] };
@@ -167,16 +170,17 @@ async function sendOneEmail(
     replyTo: getReplyTo(),
     subject: markTestSubject(params.subject),
     html: params.html,
-    attachments: params.inlineLogo
-      ? [
-          {
-            filename: EMAIL_LOGO_FILENAME,
-            contentType: 'image/png',
-            content: Buffer.from(EMAIL_LOGO_PNG_BASE64, 'base64'),
-            contentId: EMAIL_LOGO_CID,
-          },
-        ]
-      : undefined,
+    attachments:
+      params.inlineLogo || params.inlineAppBadge
+        ? [
+            ...(params.inlineLogo
+              ? [{ filename: EMAIL_LOGO_FILENAME, contentType: 'image/png', content: Buffer.from(EMAIL_LOGO_PNG_BASE64, 'base64'), contentId: EMAIL_LOGO_CID }]
+              : []),
+            ...(params.inlineAppBadge
+              ? [{ filename: EMAIL_BADGE_FILENAME, contentType: 'image/png', content: Buffer.from(EMAIL_BADGE_PNG_BASE64, 'base64'), contentId: EMAIL_BADGE_CID }]
+              : []),
+          ]
+        : undefined,
   });
 
   return { messageId: result.data?.id };
@@ -531,6 +535,7 @@ export async function sendOrderConfirmationEmail(
       bcc: bccEmails.length > 0 ? bccEmails : undefined,
       category: 'Order Confirmation',
       inlineLogo: true,
+      inlineAppBadge: true,
     });
 
     const successStatus: EmailStatusInfo = {
