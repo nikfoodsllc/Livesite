@@ -19,13 +19,20 @@ interface SmsConsentFieldProps {
  */
 export default function SmsConsentField({ checked, onChange, disabled, hint }: SmsConsentFieldProps) {
   return (
-    <Box>
+    <Box sx={{ mt: 1, p: { xs: 1.5, sm: 2 }, borderRadius: 2, border: '1.5px solid #F2A94E', backgroundColor: '#FFF6E5' }}>
       <FormControlLabel
-        control={<Checkbox checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} sx={{ py: 0.25, pt: 0.1 }} />}
-        label={<Typography sx={{ fontSize: 14.5, fontWeight: 500, lineHeight: 1.4 }}>{SMS_CONSENT_LABEL}</Typography>}
+        control={
+          <Checkbox
+            checked={checked}
+            disabled={disabled}
+            onChange={(e) => onChange(e.target.checked)}
+            sx={{ p: 0.5, mr: 0.5, '& .MuiSvgIcon-root': { fontSize: 28 } }}
+          />
+        }
+        label={<Typography sx={{ fontSize: 15.5, fontWeight: 600, lineHeight: 1.4, color: '#1F1F1F' }}>{SMS_CONSENT_LABEL}</Typography>}
         sx={{ m: 0, alignItems: 'flex-start' }}
       />
-      <Typography sx={{ fontSize: 12.5, color: 'text.secondary', pl: '42px', mt: 0.25, lineHeight: 1.5 }}>
+      <Typography sx={{ fontSize: 13, color: '#4B4B4B', pl: '41px', mt: 0.5, lineHeight: 1.5 }}>
         {hint ?? SMS_CONSENT_SMALL_PRINT}{' '}
         <Link href="/terms#sms" style={{ color: 'inherit', textDecoration: 'underline' }}>Terms</Link>
         {' · '}

@@ -534,7 +534,7 @@ export default function CheckoutPage() {
   // what the pending order was created with, so a change before a payment retry can be sent along
   const sentInstructionsRef = useRef<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Credit Card');
-  const [tipPercentage, setTipPercentage] = useState(5);
+  const [tipPercentage, setTipPercentage] = useState(10);
   // a tip typed in dollars; when set it replaces the percentage
   const [customTip, setCustomTip] = useState<number | null>(null);
   const [orderCompleted, setOrderCompleted] = useState(false);
