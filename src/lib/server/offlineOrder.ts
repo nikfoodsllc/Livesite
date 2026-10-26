@@ -10,6 +10,7 @@ import {
   DEFAULT_MIN_CART_VALUE,
   getPlatformFee,
 } from '@/lib/cartLogic';
+import { parseCustomTip } from '@/lib/orderHelpers';
 
 /**
  * Builds the cart of an order an admin enters for a customer (a phone or in-person order).
@@ -251,6 +252,8 @@ export function buildOfflineCart(params: {
   address: OfflineAddressInput;
   minOrderValue?: number;
   tipPercentage: number;
+  /** A tip typed in dollars; used instead of the percentage when present */
+  tipAmount?: number;
   waivePlatformFee?: boolean;
   /** Dollars off the order (admin only). The Platform Fee, the tax and the tip are worked out on what is left. */
   discount?: number;
@@ -300,7 +303,8 @@ export function buildOfflineCart(params: {
   const payable = money(subtotal - discount);
   const platformFee = waivePlatformFee ? 0 : getPlatformFee(payable);
   const tax = calculateTax(payable, platformFee);
-  const tip = money((payable * tipPercentage) / 100);
+  const customTip = parseCustomTip(params.tipAmount);
+  const tip = customTip !== null ? customTip : money((payable * tipPercentage) / 100);
   const total = money(payable + platformFee + tax + tip);
 
   const cart: Cart = {
