@@ -184,7 +184,8 @@ export async function POST(request: NextRequest) {
     if (addressData.isDefault === true) {
       await db.update<IAddress>(
         'addresses',
-        { user: userObjectId, isDefault: true } as unknown as Filter<IAddress>,
+        // addresses store the user id as text (older ones may hold an ObjectId): match both
+        { user: { $in: [userObjectId.toString(), userObjectId] }, isDefault: true } as unknown as Filter<IAddress>,
         { $set: { isDefault: false, updatedAt: new Date() } }
       );
     }
@@ -436,6 +437,15 @@ export async function DELETE(request: NextRequest) {
         { error: 'Failed to delete address' },
         { status: 500 }
       );
+    }
+
+    // If the default was deleted, the newest remaining address becomes the default
+    if (existingAddress.data.isDefault) {
+      const remaining = await db.read<IAddress>('addresses', { user: userId } as unknown as Filter<IAddress>, { sort: { createdAt: -1 }, limit: 1 });
+      const next = remaining.success ? remaining.data?.[0] : undefined;
+      if (next?._id) {
+        await db.updateOne('addresses', { _id: new MongoObjectId(String(next._id)) } as unknown as Filter<IAddress>, { $set: { isDefault: true, updatedAt: new Date() } });
+      }
     }
 
     // Remove address from user's addresses array
