@@ -45,7 +45,7 @@ export default function AppDownloadBanner() {
       open={open}
       onClose={dismiss}
       aria-label="NikFoods app"
-      slotProps={{ paper: { sx: { m: 2, width: '100%', maxWidth: 520, borderRadius: 3, overflow: 'visible', position: 'relative', bgcolor: '#17120d' } } }}
+      slotProps={{ paper: { sx: { m: 2, width: '100%', maxWidth: { xs: 520, md: 780 }, borderRadius: 3, overflow: 'visible', position: 'relative', bgcolor: '#17120d' } } }}
     >
       <IconButton onClick={dismiss} aria-label="Close" size="small" sx={{ position: 'absolute', top: -12, right: -12, zIndex: 1, bgcolor: '#fff', color: '#17120d', boxShadow: 2, '&:hover': { bgcolor: '#f3f3f3' } }}>
         <IconX size={20} />
