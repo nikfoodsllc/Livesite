@@ -18,6 +18,10 @@ export interface BannerDoc {
   sequence?: number;
   /** how long it stays on show before the carousel moves on (seconds) */
   durationSeconds?: number;
+  /** 'popup' = the pop-up that opens with the site; anything else (older banners have none) = a home-page header banner */
+  placement?: 'header' | 'popup';
+  /** popup only: days it stays hidden after a customer closes it */
+  hideDays?: number;
 }
 
 export interface PublicBanner {
@@ -85,5 +89,33 @@ export function toPublicBanner(doc: BannerDoc): PublicBanner {
     categoryId: linkType === 'category' ? String(doc.categoryId ?? '') : '',
     url: linkType === 'url' && /^https:\/\//i.test(String(doc.url ?? '')) ? String(doc.url) : '',
     durationSeconds: bannerSeconds(doc.durationSeconds),
+  };
+}
+
+/** The pop-up that opens when the site loads (one picture, optional web link). */
+export interface PublicPopup {
+  id: string;
+  imageUrl: string;
+  linkType: 'none' | 'url';
+  url: string;
+  /** days it stays hidden after a customer closes it (1 to 365; 30 when the admin never set it) */
+  hideDays: number;
+}
+
+export const DEFAULT_POPUP_HIDE_DAYS = 30;
+
+export function popupHideDays(v: unknown): number {
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) && n >= 1 && n <= 365 ? n : DEFAULT_POPUP_HIDE_DAYS;
+}
+
+export function toPublicPopup(doc: BannerDoc): PublicPopup {
+  const url = /^https:\/\//i.test(String(doc.url ?? '')) ? String(doc.url) : '';
+  return {
+    id: String(doc._id ?? ''),
+    imageUrl: bannerImageUrl(doc.imageUrl),
+    linkType: doc.linkType === 'url' && url ? 'url' : 'none',
+    url: doc.linkType === 'url' ? url : '',
+    hideDays: popupHideDays(doc.hideDays),
   };
 }
