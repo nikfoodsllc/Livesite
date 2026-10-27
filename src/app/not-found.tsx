@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { Box, Container, Typography, Button } from "@mui/material";
 import { IconHome } from "@tabler/icons-react";
@@ -25,20 +27,20 @@ export default function NotFound() {
         <Typography variant="body1" color="text.secondary" sx={{ mb: 4, maxWidth: "500px" }}>
           Sorry, we couldn&apos;t find the page you&apos;re looking for. The page might have been removed, renamed, or is temporarily unavailable.
         </Typography>
-        <Link href="/" passHref legacyBehavior>
-          <Button
-            variant="contained"
-            size="large"
-            startIcon={<IconHome size={20} />}
-            sx={{
-              px: 4,
-              py: 1.5,
-              fontSize: "1.1rem",
-            }}
-          >
-            Back to Home
-          </Button>
-        </Link>
+        <Button
+          component={Link}
+          href="/"
+          variant="contained"
+          size="large"
+          startIcon={<IconHome size={20} />}
+          sx={{
+            px: 4,
+            py: 1.5,
+            fontSize: "1.1rem",
+          }}
+        >
+          Back to Home
+        </Button>
       </Box>
     </Container>
   );
