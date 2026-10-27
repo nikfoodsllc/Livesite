@@ -9,6 +9,7 @@ import DialogsProvider from "@/components/providers/DialogsProvider";
 import { NotificationProvider } from "@/components/common/NotificationSystem";
 import CrispChat from "@/components/CrispChat";
 import TimezoneWarningBanner from "@/components/common/TimezoneWarningBanner";
+import AppDownloadBanner from "@/components/common/AppDownloadBanner";
 import FirstTimeAddressPrompt from "@/components/layout/FirstTimeAddressPrompt";
 
 const inter = Inter({
@@ -41,6 +42,7 @@ export default function RootLayout({
               <ThemeProvider>
                 <NotificationProvider>
                   <Header />
+                  <AppDownloadBanner />
                   <TimezoneWarningBanner />
                   <FirstTimeAddressPrompt />
                   <DialogsProvider>
