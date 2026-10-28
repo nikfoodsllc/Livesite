@@ -23,6 +23,7 @@ import { DayOption } from '@/lib/dayAvailabilityClient';
 import { useNotifications, showSuccessNotification, showErrorNotification } from '@/components/common/NotificationSystem';
 import { PST_TIMEZONE, getPSTWeekday, createPSTDate } from '@/lib/timezone';
 import MenuSubscriptionSection from '@/components/home/MenuSubscriptionSection';
+import AppStoreSection from '@/components/home/AppStoreSection';
 import { colors } from '@/theme/colors';
 
 // Define types for the new API response structure
@@ -1493,6 +1494,9 @@ export default function Home() {
 
         {/* Banners the admin set up (the original hero when there are none) */}
         <HomeBanners onOpenCategory={(id) => setSelectedCategory(id)} />
+
+        {/* The app, right under the banners */}
+        <AppStoreSection />
 
         {/* Menu Subscription Section */}
         <MenuSubscriptionSection user={user} />
