@@ -865,7 +865,7 @@ export async function resendPaymentLink(
   }
   const payLink = buildPayLink(orderId, token);
   if (!sending) return { ok: true, payLink, emailSent: false, refreshed };
-  const sent = await sendPaymentLinkEmail(order, payLink, false);
+  const sent = await sendPaymentLinkEmail(order, payLink, false, options.keepCurrent === true);
   if (sent.success) {
     await db.updateOne('orders', { orderId } as never, { $set: { paymentLinkSentAt: now } } as never);
     await recordPaymentLinkEmailSent(orderId, sent);
