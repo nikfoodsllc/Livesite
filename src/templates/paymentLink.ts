@@ -18,7 +18,8 @@ const C = {
 };
 const SUPPORT = 'support@nikfoods.com';
 
-export function getPaymentLinkEmailSubject(order: Order): string {
+export function getPaymentLinkEmailSubject(order: Order, reminder = false): string {
+  if (reminder) return `Reminder For Payment - Offline NikFoods Order #${order.orderId}`;
   return `Payment Link - Offline NikFoods Order #${order.orderId}`;
 }
 
