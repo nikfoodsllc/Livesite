@@ -13,9 +13,9 @@ import { getReplyTo } from '@/lib/replyTo';
  */
 type SendResult = { success: boolean; error?: string; messageId?: string; provider?: 'resend' | 'mailtrap' };
 
-export async function sendPaymentLinkEmail(order: Order, payUrl: string, accountCreated: boolean): Promise<SendResult> {
+export async function sendPaymentLinkEmail(order: Order, payUrl: string, accountCreated: boolean, reminder = false): Promise<SendResult> {
   return deliverOfflineEmail(order, {
-    subject: getPaymentLinkEmailSubject(order),
+    subject: getPaymentLinkEmailSubject(order, reminder),
     html: getPaymentLinkEmailTemplate(order, payUrl, accountCreated),
     category: 'Payment Link',
     label: 'payment link',
