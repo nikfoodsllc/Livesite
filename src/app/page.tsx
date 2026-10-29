@@ -24,6 +24,7 @@ import { useNotifications, showSuccessNotification, showErrorNotification } from
 import { PST_TIMEZONE, getPSTWeekday, createPSTDate } from '@/lib/timezone';
 import MenuSubscriptionSection from '@/components/home/MenuSubscriptionSection';
 import AppStoreSection from '@/components/home/AppStoreSection';
+import CategoryRail from '@/components/home/CategoryRail';
 import BrandLoader from '@/components/common/BrandLoader';
 import { colors } from '@/theme/colors';
 
@@ -1100,17 +1101,6 @@ export default function Home() {
     refreshCart().catch(console.error);
   };
 
-  // Category scroll
-  const scrollCategories = (direction: 'left' | 'right') => {
-    const container = document.getElementById('categories-container');
-    if (container) {
-      const scrollAmount = 300;
-      container.scrollBy({
-        left: direction === 'left' ? -scrollAmount : scrollAmount,
-        behavior: 'smooth',
-      });
-    }
-  };
 
   const categoryGridSx = {
     display: 'grid',
@@ -1572,67 +1562,7 @@ export default function Home() {
         {/* Categories Section */}
         {categories.length > 0 && (
           <Container maxWidth="lg" sx={{ mt: { xs: 2, md: 3 }, mb: 6 }}>
-            <Box sx={{ position: 'relative' }}>
-              {/* Scroll Buttons - Desktop only */}
-              <IconButton
-                onClick={() => scrollCategories('left')}
-                sx={{
-                  position: 'absolute',
-                  left: -20,
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  backgroundColor: 'white',
-                  boxShadow: 2,
-                  zIndex: 2,
-                  display: { xs: 'none', md: 'flex' },
-                  '&:hover': { backgroundColor: 'white' },
-                }}
-              >
-                <IconChevronLeft size={20} color="#374151" />
-              </IconButton>
-
-              <Box
-                id="categories-container"
-                sx={{
-                  display: 'flex',
-                  gap: 2,
-                  overflowX: 'auto',
-                  py: 2,
-                  scrollbarWidth: 'none',
-                  '&::-webkit-scrollbar': { display: 'none' },
-                }}
-              >
-                {categories.map((category) => (
-                  <CategoryCard
-                    key={category._id}
-                    imageUrl={category.imageUrl}
-                    name={category.name}
-                    listingType={category.listingType || 'flat'}
-                    selected={selectedCategory === category._id}
-                    onClick={() =>
-                      setSelectedCategory(selectedCategory === category._id ? '' : category._id)
-                    }
-                  />
-                ))}
-              </Box>
-
-              <IconButton
-                onClick={() => scrollCategories('right')}
-                sx={{
-                  position: 'absolute',
-                  right: -20,
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  backgroundColor: 'white',
-                  boxShadow: 2,
-                  zIndex: 2,
-                  display: { xs: 'none', md: 'flex' },
-                  '&:hover': { backgroundColor: 'white' },
-                }}
-              >
-                <IconChevronRight size={20} color="#374151" />
-              </IconButton>
-            </Box>
+            <CategoryRail categories={categories} selectedCategory={selectedCategory} onSelect={(id) => setSelectedCategory(id)} />
           </Container>
         )}
 
