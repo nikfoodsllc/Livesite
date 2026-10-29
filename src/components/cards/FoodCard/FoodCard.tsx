@@ -169,9 +169,11 @@ export default function FoodCard({
                 top: 8,
                 right: 8,
                 backgroundColor: '#1F1712',
-                borderRadius: '50%',
-                width: 32,
+                borderRadius: 999,
+                minWidth: 32,
                 height: 32,
+                px: 1,
+                gap: 0.5,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -182,7 +184,14 @@ export default function FoodCard({
                 '&:hover': { backgroundColor: theme.palette.primary.dark, transform: 'scale(1.08)' },
               }}
             >
-              <IconShoppingCart size={17} color="#F6D58E" />
+              <IconShoppingCart size={16} color="#F6D58E" />
+              <Typography
+                component="span"
+                aria-label={`${badgeCount} in cart`}
+                sx={{ color: '#F6D58E', fontWeight: 700, fontSize: '0.8125rem', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}
+              >
+                {badgeCount}
+              </Typography>
             </Box>
           </Tooltip>
         )}

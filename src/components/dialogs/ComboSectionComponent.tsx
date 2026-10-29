@@ -130,7 +130,7 @@ export default function ComboSectionComponent({
         <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
           {section.title}
           {section.isRequired && (
-            <Typography component="span" sx={{ color: '#f89c35', ml: 0.5 }}>
+            <Typography component="span" sx={{ color: '#8A6420', ml: 0.5 }}>
               *
             </Typography>
           )}
@@ -161,7 +161,7 @@ export default function ComboSectionComponent({
                     sx={{
                       color: '#d1d5db',
                       '&.Mui-checked': {
-                        color: '#f89c35',
+                        color: '#8A6420',
                       },
                     }}
                   />
@@ -184,7 +184,7 @@ export default function ComboSectionComponent({
                       )}
                     </Box>
                     {item.price > 0 && (
-                      <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#f89c35' }}>
+                      <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#8A6420' }}>
                         +${item.price.toFixed(2)}
                       </Typography>
                     )}
@@ -192,7 +192,7 @@ export default function ComboSectionComponent({
                 }
                 sx={{
                   width: '100%',
-                  border: '1px solid #e5e7eb',
+                  border: '1px solid rgba(60, 35, 10, 0.12)',
                   borderRadius: 1,
                   mb: 1,
                   ml: 0,
@@ -201,12 +201,12 @@ export default function ComboSectionComponent({
                   px: 1.5,
                   cursor: 'pointer',
                   ...(isSelected && {
-                    borderColor: '#f89c35',
+                    borderColor: '#B8893B',
                     backgroundColor: '#fef9f3',
                   }),
                   '&:hover': {
-                    backgroundColor: '#fef3e7',
-                    borderColor: '#f89c35',
+                    backgroundColor: '#F7F0E3',
+                    borderColor: '#B8893B',
                     cursor: 'pointer',
                   },
                 }}
@@ -227,7 +227,7 @@ export default function ComboSectionComponent({
                   sx={{
                     color: '#d1d5db',
                     '&.Mui-checked': {
-                      color: '#f89c35',
+                      color: '#8A6420',
                     },
                   }}
                 />
@@ -250,7 +250,7 @@ export default function ComboSectionComponent({
                     )}
                   </Box>
                   {item.price > 0 && (
-                    <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#f89c35' }}>
+                    <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#8A6420' }}>
                       +${item.price.toFixed(2)}
                     </Typography>
                   )}
@@ -258,7 +258,7 @@ export default function ComboSectionComponent({
               }
               sx={{
                 width: '100%',
-                border: '1px solid #e5e7eb',
+                border: '1px solid rgba(60, 35, 10, 0.12)',
                 borderRadius: 1,
                 mb: 1,
                 ml: 0,
@@ -267,12 +267,12 @@ export default function ComboSectionComponent({
                 px: 1.5,
                 cursor: 'pointer',
                 ...(selectedItems === item._id && {
-                  borderColor: '#f89c35',
+                  borderColor: '#B8893B',
                   backgroundColor: '#fef9f3',
                 }),
                 '&:hover': {
-                  backgroundColor: '#fef3e7',
-                  borderColor: '#f89c35',
+                  backgroundColor: '#F7F0E3',
+                  borderColor: '#B8893B',
                   cursor: 'pointer',
                 },
               }}

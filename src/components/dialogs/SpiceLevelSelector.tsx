@@ -78,7 +78,7 @@ export default function SpiceLevelSelector({
                   sx={{
                     color: '#d1d5db',
                     '&.Mui-checked': {
-                      color: '#f89c35',
+                      color: '#8A6420',
                     },
                   }}
                 />
@@ -103,7 +103,7 @@ export default function SpiceLevelSelector({
               }
               sx={{
                 width: '100%',
-                border: '1px solid #e5e7eb',
+                border: '1px solid rgba(60, 35, 10, 0.12)',
                 borderRadius: 1,
                 mb: 1,
                 ml: 0,
@@ -111,8 +111,8 @@ export default function SpiceLevelSelector({
                 py: 0.5,
                 px: 1.5,
                 '&:hover': {
-                  backgroundColor: '#fef3e7',
-                  borderColor: '#f89c35',
+                  backgroundColor: '#F7F0E3',
+                  borderColor: '#B8893B',
                 },
               }}
             />
