@@ -1162,6 +1162,7 @@ export default function Home() {
             itemType={itemType}
             veg={item.veg}
             available={item.available}
+            atStockLimit={localCart.stockLeftFor(item) === 0}
           />
         );
       })}
@@ -1203,6 +1204,7 @@ export default function Home() {
             itemType={itemType}
             veg={item.veg}
             available={item.available}
+            atStockLimit={localCart.stockLeftFor(item) === 0}
           />
         );
       })}
@@ -1452,6 +1454,7 @@ export default function Home() {
                         itemType={itemType}
                         veg={item.veg}
                         available={item.available}
+                        atStockLimit={localCart.stockLeftFor(item) === 0}
                       />
                     );
                   })}

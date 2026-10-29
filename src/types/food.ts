@@ -16,6 +16,11 @@ export interface FoodItem {
   chefsPick?: boolean;
   /** the item has a special instructions box (set in the admin; off unless Yes) */
   allowInstructions?: boolean;
+  /** the order limit was reached: the item shows Out of stock and cannot be ordered (available is false too) */
+  soldOut?: boolean;
+  /** what is left of an item with an order limit, in `stockBase` (units, or ounces for a limit in pounds or ounces); missing when there is no limit */
+  stockRemaining?: number;
+  stockBase?: 'units' | 'oz';
   isDraft?: boolean;
   availableWeekDays?: string[];
   portions?: string[];

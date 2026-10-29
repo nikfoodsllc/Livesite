@@ -3,6 +3,7 @@ import { DayType } from '@/types/cart';
 import { LocalCart, LocalCartItem, LocalCartDay, CartCustomizations } from '@/types/localCart';
 import { generateAvailableDatesFromAPI } from './dayAvailabilityClient';
 import { getPSTDateString } from './timezone';
+import { STOCK_LIMIT_EVENT, formatAmount, lineAmounts, perUnitAmount, unitsThatFit, type StockLimitDetail, type StockLineInput } from './stockRules';
 
 const CART_STORAGE_KEY = 'nikfoods_guest_cart';
 /** where the cross-device sync remembers what it last matched (cleared together with the cart, see cartSync.ts) */
@@ -261,6 +262,14 @@ export function addItem(
 ): LocalCart {
   const cart = getCart();
 
+  // an item with an order limit cannot go above what is left (units already in the cart count)
+  const left = stockLeftFor(foodItem, customizations.selectedPortion);
+  if (left !== null && quantity > left) {
+    tellStockLimit(foodItem, left, customizations.selectedPortion);
+    quantity = left;
+    if (quantity <= 0) return cart;
+  }
+
   if (!cart.days[day]) {
     cart.days[day] = {
       day,
@@ -310,6 +319,43 @@ export function addItem(
   return cart;
 }
 
+/** What one food item already uses in the cart (on every day and line, also inside combos), in the base of its limit: units, or ounces. */
+export function amountInCart(foodItemId: string, base: 'units' | 'oz'): number {
+  const cart = getCart();
+  let total = 0;
+  for (const day of Object.values(cart.days)) {
+    for (const line of Object.values(day.items)) {
+      const a = lineAmounts(line as unknown as StockLineInput & { selectedPortion?: unknown }).get(foodItemId);
+      if (a) total += base === 'units' ? a.units : a.ounces;
+    }
+  }
+  return total;
+}
+
+/**
+ * How many more units of this serving of an item with an order limit can still go in the cart: what is left (the menu carries it as
+ * `stockRemaining`) minus what is already in the cart, divided by what one unit uses (1, or the ounces of the size). Null when the
+ * item has no limit, or when its size has no weight (the server checks those at checkout).
+ */
+export function stockLeftFor(foodItem: FoodItem, portion?: string): number | null {
+  if (typeof foodItem.stockRemaining !== 'number') return null;
+  const base = foodItem.stockBase === 'oz' ? 'oz' : 'units';
+  const room = Math.max(0, foodItem.stockRemaining - amountInCart(foodItem._id, base));
+  const per = perUnitAmount(portion, base === 'oz' ? 'oz' : 'units');
+  const fit = unitsThatFit(room, per);
+  return Number.isFinite(fit) ? fit : null;
+}
+
+/** Tells the customer what is left, in words ("2", "8 oz"). */
+function tellStockLimit(foodItem: FoodItem, left: number, portion?: string): void {
+  if (typeof window === 'undefined' || typeof window.dispatchEvent !== 'function' || typeof CustomEvent !== 'function') return;
+  const base = foodItem.stockBase === 'oz' ? 'oz' : 'units';
+  const room = Math.max(0, (foodItem.stockRemaining ?? 0) - amountInCart(foodItem._id, base));
+  const leftText = base === 'oz' ? formatAmount(room, 'oz') : String(left);
+  window.dispatchEvent(new CustomEvent<StockLimitDetail>(STOCK_LIMIT_EVENT, { detail: { name: foodItem.name, left: left, leftText } }));
+  void portion;
+}
+
 export function updateQuantity(day: DayType, lineId: string, newQuantity: number): LocalCart {
   const cart = getCart();
 
@@ -323,6 +369,15 @@ export function updateQuantity(day: DayType, lineId: string, newQuantity: number
   }
 
   const item = cart.days[day].items[lineId];
+  if (newQuantity > item.quantity) {
+    // an item with an order limit cannot go above what is left
+    const left = stockLeftFor(item.foodItem, item.selectedPortion);
+    if (left !== null && newQuantity - item.quantity > left) {
+      tellStockLimit(item.foodItem, left, item.selectedPortion);
+      newQuantity = item.quantity + left;
+      if (newQuantity === item.quantity) return cart;
+    }
+  }
   item.quantity = newQuantity;
   item.totalPrice = item.unitPrice * newQuantity;
 

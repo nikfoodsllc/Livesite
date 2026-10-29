@@ -17,6 +17,8 @@ interface QuantitySelectorProps {
   };
   size?: 'small' | 'medium';
   disabled?: boolean;
+  /** the + button is off (an item with an order limit has reached it) */
+  incrementDisabled?: boolean;
 }
 
 export default function QuantitySelector({
@@ -28,6 +30,7 @@ export default function QuantitySelector({
   isLoading = {},
   size = 'medium',
   disabled = false,
+  incrementDisabled = false,
 }: QuantitySelectorProps) {
   const theme = useTheme();
 
@@ -116,7 +119,7 @@ export default function QuantitySelector({
 
       <IconButton
         onClick={onIncrement}
-        disabled={isLoading.increment || disabled}
+        disabled={isLoading.increment || disabled || incrementDisabled}
         size="small"
         sx={{
           color: theme.palette.primary.main,
