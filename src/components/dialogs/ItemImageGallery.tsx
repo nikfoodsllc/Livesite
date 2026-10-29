@@ -97,7 +97,7 @@ export default function ItemImageGallery({ name, images }: { name: string; image
       {many && (
         <Box sx={{ position: 'absolute', bottom: 10, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 0.75, pointerEvents: 'none' }}>
           {list.map((_, i) => (
-            <Box key={i} sx={{ width: i === index ? 18 : 7, height: 7, borderRadius: 4, backgroundColor: i === index ? '#f89c35' : 'rgba(255,255,255,0.95)', boxShadow: '0 0 0 1px rgba(17,24,39,0.35)', transition: 'width .2s' }} />
+            <Box key={i} sx={{ width: i === index ? 18 : 7, height: 7, borderRadius: 4, backgroundColor: i === index ? '#B8893B' : 'rgba(255,255,255,0.95)', boxShadow: '0 0 0 1px rgba(17,24,39,0.35)', transition: 'width .2s' }} />
           ))}
         </Box>
       )}
