@@ -121,7 +121,7 @@ export default function ZipcodeEntry({
             '& .MuiOutlinedInput-root': {
               height: 36,
               '&.Mui-focused fieldset': {
-                borderColor: '#FF9F0D',
+                borderColor: '#B8893B',
               },
             },
             '& .MuiInputBase-input': {
@@ -136,12 +136,12 @@ export default function ZipcodeEntry({
           onClick={handleApply}
           disabled={isValidating || !zipcode.trim()}
           sx={{
-            bgcolor: '#FF9F0D',
+            bgcolor: '#1F1712',
             minWidth: 60,
             height: 36,
             fontSize: '0.75rem',
             '&:hover': {
-              bgcolor: '#e68f0c',
+              bgcolor: '#8A6420',
             },
             '&:disabled': {
               bgcolor: '#ccc',
@@ -180,7 +180,7 @@ export default function ZipcodeEntry({
           sx={{
             '& .MuiOutlinedInput-root': {
               '&.Mui-focused fieldset': {
-                borderColor: '#FF9F0D',
+                borderColor: '#B8893B',
               },
             },
           }}
@@ -190,10 +190,10 @@ export default function ZipcodeEntry({
           onClick={handleApply}
           disabled={isValidating || !zipcode.trim()}
           sx={{
-            bgcolor: '#FF9F0D',
+            bgcolor: '#1F1712',
             minWidth: 100,
             '&:hover': {
-              bgcolor: '#e68f0c',
+              bgcolor: '#8A6420',
             },
             '&:disabled': {
               bgcolor: '#ccc',

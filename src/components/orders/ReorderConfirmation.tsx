@@ -98,7 +98,7 @@ export default function ReorderConfirmation({ open, order, onClose }: ReorderCon
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <IconShoppingCart size={24} color="#FF9F0D" />
+          <IconShoppingCart size={24} color="#B8893B" />
           <Typography sx={{ fontSize: '20px', fontWeight: 700, color: '#111827' }}>
             Reorder Confirmation
           </Typography>
@@ -254,8 +254,8 @@ export default function ReorderConfirmation({ open, order, onClose }: ReorderCon
           disabled={loading}
           sx={{
             flex: 1,
-            backgroundColor: '#FF9F0D',
-            color: '#FFFFFF',
+            backgroundColor: '#1F1712',
+            color: '#F6D58E',
             fontSize: '16px',
             fontWeight: 600,
             textTransform: 'none',

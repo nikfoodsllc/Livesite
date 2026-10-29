@@ -216,7 +216,7 @@ const CheckoutPaymentDetails = forwardRef<
 
       {!stripe || !elements ? (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 2 }}>
-          <CircularProgress size={22} sx={{ color: '#FF9F0D' }} />
+          <CircularProgress size={22} sx={{ color: '#8A6420' }} />
           <Typography variant="body2" sx={{ color: '#666' }}>
             Loading payment options…
           </Typography>

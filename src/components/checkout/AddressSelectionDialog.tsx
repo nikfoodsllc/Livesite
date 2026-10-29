@@ -351,9 +351,9 @@ export default function AddressSelectionDialog({
                 px: 3,
                 py: 1.25,
                 borderRadius: '12px',
-                bgcolor: '#FF9F0D',
+                bgcolor: '#1F1712',
                 '&:hover': {
-                  bgcolor: '#e68f0c',
+                  bgcolor: '#8A6420',
                 },
                 '&:disabled': {
                   bgcolor: '#ccc',
@@ -388,7 +388,7 @@ export default function AddressSelectionDialog({
                           sx={{
                             color: isDisabled ? '#ccc' : '#666',
                             '&.Mui-checked': {
-                              color: '#FF9F0D',
+                              color: '#8A6420',
                             },
                             '&.Mui-disabled': {
                               color: '#ccc',
@@ -422,7 +422,7 @@ export default function AddressSelectionDialog({
                               e.stopPropagation();
                               setEditingAddress(address);
                             }}
-                            sx={{ textTransform: 'none', fontWeight: 600, color: '#FF9F0D', minWidth: 0, py: 0, ml: 'auto', mr: 1 }}
+                            sx={{ textTransform: 'none', fontWeight: 600, color: '#8A6420', minWidth: 0, py: 0, ml: 'auto', mr: 1 }}
                           >
                             Edit
                           </Button>
@@ -465,7 +465,7 @@ export default function AddressSelectionDialog({
                       borderColor: isDisabled
                         ? '#e0e0e0'
                         : selectedId === addressId
-                          ? '#FF9F0D'
+                          ? '#B8893B'
                           : '#EDEDED',
                       borderRadius: '8px',
                       p: 1.5,
@@ -476,8 +476,8 @@ export default function AddressSelectionDialog({
                       opacity: isDisabled ? 0.7 : 1,
                       cursor: isDisabled ? 'not-allowed' : 'pointer',
                       '&:hover': {
-                        borderColor: isDisabled ? '#e0e0e0' : '#FF9F0D',
-                        bgcolor: isDisabled ? '#f5f5f5' : 'rgba(255, 159, 13, 0.05)',
+                        borderColor: isDisabled ? '#e0e0e0' : '#B8893B',
+                        bgcolor: isDisabled ? '#f5f5f5' : 'rgba(184, 137, 59, 0.05)',
                       },
                     }}
                   />
@@ -501,10 +501,10 @@ export default function AddressSelectionDialog({
                 px: 2,
                 py: 1,
                 borderRadius: '8px',
-                color: '#FF9F0D',
-                bgcolor: 'rgba(255, 159, 13, 0.1)',
+                color: '#8A6420',
+                bgcolor: 'rgba(184, 137, 59, 0.1)',
                 '&:hover': {
-                  bgcolor: 'rgba(255, 159, 13, 0.2)',
+                  bgcolor: 'rgba(184, 137, 59, 0.2)',
                 },
                 '&:disabled': {
                   color: '#ccc',
@@ -547,9 +547,9 @@ export default function AddressSelectionDialog({
               px: 3,
               py: 1.25,
               borderRadius: '12px',
-              bgcolor: '#FF9F0D',
+              bgcolor: '#1F1712',
               '&:hover': {
-                bgcolor: '#e68f0c',
+                bgcolor: '#8A6420',
               },
               '&:disabled': {
                 bgcolor: '#ccc',

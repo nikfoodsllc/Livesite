@@ -197,9 +197,9 @@ export default function CartItemCard({ item }: CartItemCardProps) {
                     sx={{
                       height: 24,
                       fontSize: '0.75rem',
-                      backgroundColor: '#FFF4E4',
+                      backgroundColor: '#F7F0E3',
                       color: theme.palette.text.primary,
-                      border: '1px solid #FFE4B5',
+                      border: '1px solid #EBD9B4',
                     }}
                   />
                 )}
@@ -344,7 +344,7 @@ export default function CartItemCard({ item }: CartItemCardProps) {
                   display: 'flex',
                   alignItems: 'center',
                   gap: 0.5,
-                  backgroundColor: '#FFF4E4',
+                  backgroundColor: '#F7F0E3',
                   border: '1px solid #E0CAB6',
                   borderRadius: 1,
                   px: 0.5,
@@ -359,7 +359,7 @@ export default function CartItemCard({ item }: CartItemCardProps) {
                     color: theme.palette.primary.main,
                     p: 0.5,
                     '&:hover': {
-                      backgroundColor: 'rgba(248, 156, 53, 0.1)',
+                      backgroundColor: 'rgba(184, 137, 59, 0.1)',
                     },
                     '&:disabled': {
                       color: theme.palette.grey[400],
@@ -393,7 +393,7 @@ export default function CartItemCard({ item }: CartItemCardProps) {
                     color: theme.palette.primary.main,
                     p: 0.5,
                     '&:hover': {
-                      backgroundColor: 'rgba(248, 156, 53, 0.1)',
+                      backgroundColor: 'rgba(184, 137, 59, 0.1)',
                     },
                     '&:disabled': {
                       color: theme.palette.grey[400],

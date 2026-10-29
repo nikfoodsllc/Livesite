@@ -63,7 +63,7 @@ export default function OrderConfirmation({ order }: OrderConfirmationProps) {
         <Typography variant="body1" sx={{ color: '#666', mb: 2 }}>
           Thank you for your order.
         </Typography>
-        <Typography variant="h6" sx={{ color: '#FF9F0D', fontWeight: 600 }}>
+        <Typography variant="h6" sx={{ color: '#8A6420', fontWeight: 600 }}>
           Order ID: #{order.orderId}
         </Typography>
       </Paper>
@@ -89,8 +89,8 @@ export default function OrderConfirmation({ order }: OrderConfirmationProps) {
                   label={`Delivery on ${formatDeliveryDate(dayOrder.actualDeliveryDate || dayOrder.deliveryDate)}`}
                   size="small"
                   sx={{
-                    backgroundColor: '#FFF5E6',
-                    color: '#FF9F0D',
+                    backgroundColor: '#F7F0E3',
+                    color: '#8A6420',
                     fontWeight: 500,
                     fontSize: '0.75rem',
                     height: '24px',
@@ -215,7 +215,7 @@ export default function OrderConfirmation({ order }: OrderConfirmationProps) {
           <Typography variant="h6" sx={{ fontWeight: 600 }}>
             Total {order.paymentMethod === 'Cash on Delivery' ? 'to Pay' : 'Paid'}
           </Typography>
-          <Typography variant="h6" sx={{ fontWeight: 600, color: '#FF9F0D' }}>
+          <Typography variant="h6" sx={{ fontWeight: 600, color: '#8A6420' }}>
             ${cardTotalOf(order).toFixed(2)}
           </Typography>
         </Box>
@@ -232,8 +232,8 @@ export default function OrderConfirmation({ order }: OrderConfirmationProps) {
               width: 40,
               height: 40,
               borderRadius: '8px',
-              bgcolor: '#FFF5E6',
-              color: '#FF9F0D',
+              bgcolor: '#F7F0E3',
+              color: '#8A6420',
               flexShrink: 0,
             }}
           >
@@ -280,8 +280,8 @@ export default function OrderConfirmation({ order }: OrderConfirmationProps) {
               width: 40,
               height: 40,
               borderRadius: '8px',
-              bgcolor: '#FFF5E6',
-              color: '#FF9F0D',
+              bgcolor: '#F7F0E3',
+              color: '#8A6420',
               flexShrink: 0,
             }}
           >
@@ -301,7 +301,7 @@ export default function OrderConfirmation({ order }: OrderConfirmationProps) {
             {order.paymentMethod === 'Cash on Delivery' && (
               <Typography
                 variant="body2"
-                sx={{ color: '#FF9500', mt: 1, fontWeight: 500 }}
+                sx={{ color: '#8A6420', mt: 1, fontWeight: 500 }}
               >
                 Please keep ${order.totalPaid.toFixed(2)} ready for the delivery
                 person
@@ -327,11 +327,11 @@ export default function OrderConfirmation({ order }: OrderConfirmationProps) {
           startIcon={<IconHome size={20} />}
           onClick={() => router.push('/')}
           sx={{
-            bgcolor: '#FF9F0D',
-            color: '#fff',
+            bgcolor: '#1F1712',
+            color: '#F6D58E',
             py: 1.5,
             '&:hover': {
-              bgcolor: '#e68f0c',
+              bgcolor: '#8A6420',
             },
           }}
         >
@@ -344,12 +344,12 @@ export default function OrderConfirmation({ order }: OrderConfirmationProps) {
           startIcon={<IconReceipt size={20} />}
           onClick={() => router.push('/account/orders')}
           sx={{
-            borderColor: '#FF9F0D',
-            color: '#FF9F0D',
+            borderColor: '#B8893B',
+            color: '#8A6420',
             py: 1.5,
             '&:hover': {
-              borderColor: '#FF9F0D',
-              bgcolor: 'rgba(255, 159, 13, 0.05)',
+              borderColor: '#B8893B',
+              bgcolor: 'rgba(184, 137, 59, 0.05)',
             },
           }}
         >

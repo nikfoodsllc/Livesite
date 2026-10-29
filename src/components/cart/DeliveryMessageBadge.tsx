@@ -33,10 +33,10 @@ export default function DeliveryMessageBadge({ message, onClose }: DeliveryMessa
       case 'warning':
         return {
           icon: IconAlertTriangle,
-          backgroundColor: '#FFF4E4',
-          borderColor: '#FFB74D',
-          textColor: '#e65100',
-          iconColor: '#f57c00',
+          backgroundColor: '#F7F0E3',
+          borderColor: '#D9B26A',
+          textColor: '#8A6420',
+          iconColor: '#8A6420',
         };
       case 'error':
         return {

@@ -5,17 +5,17 @@
 
 export const colors = {
   // Brand colors
-  primary: '#f89c35',
-  primaryLight: '#fbb76a',
-  primaryDark: '#d47b1a',
+  primary: '#B8893B',
+  primaryLight: '#D9B26A',
+  primaryDark: '#8A6420',
 
   // UI colors
-  background: '#ffffff',
+  background: '#FBF7F0',
   backgroundDark: '#f5f5f5',
-  text: '#333333',
-  textLight: '#666666',
-  textDark: '#111111',
-  categoryCardBg: '#FFF4E4',
+  text: '#1F1712',
+  textLight: '#5C4F40',
+  textDark: '#1F1712',
+  categoryCardBg: '#F7F0E3',
 
   // Feedback colors
   success: '#4caf50',

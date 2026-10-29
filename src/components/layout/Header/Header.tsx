@@ -207,7 +207,7 @@ export default function Header({
                     backgroundColor: 'rgba(0, 0, 0, 0.04)',
                     transition: 'all 0.2s ease',
                     '&:hover': {
-                      backgroundColor: 'rgba(248, 156, 53, 0.12)',
+                      backgroundColor: 'rgba(184, 137, 59, 0.12)',
                       transform: 'translateY(-2px)',
                     },
                   }}
@@ -236,7 +236,7 @@ export default function Header({
                     backgroundColor: 'rgba(0, 0, 0, 0.04)',
                     transition: 'all 0.2s ease',
                     '&:hover': {
-                      backgroundColor: 'rgba(248, 156, 53, 0.12)',
+                      backgroundColor: 'rgba(184, 137, 59, 0.12)',
                       transform: 'translateY(-2px)',
                     },
                   }}
@@ -264,19 +264,19 @@ export default function Header({
                     onClick={openLoginDialog}
                     startIcon={<IconUser size={18} />}
                     sx={{
-                      backgroundColor: theme.palette.primary.main,
-                      color: '#fff',
+                      backgroundColor: '#1F1712',
+                      color: '#F6D58E',
                       textTransform: 'none',
                       fontWeight: 600,
                       px: 3,
                       py: 1.25,
                       borderRadius: '12px',
-                      boxShadow: '0 4px 12px rgba(248, 156, 53, 0.25)',
+                      boxShadow: '0 4px 12px rgba(184, 137, 59, 0.25)',
                       transition: 'all 0.2s ease',
                       '&:hover': {
                         backgroundColor: theme.palette.primary.dark,
                         transform: 'translateY(-2px)',
-                        boxShadow: '0 6px 20px rgba(248, 156, 53, 0.35)',
+                        boxShadow: '0 6px 20px rgba(184, 137, 59, 0.35)',
                       },
                     }}
                   >
@@ -298,7 +298,7 @@ export default function Header({
                     height: 44,
                     transition: 'all 0.2s ease',
                     '&:hover': {
-                      backgroundColor: 'rgba(248, 156, 53, 0.12)',
+                      backgroundColor: 'rgba(184, 137, 59, 0.12)',
                     },
                   }}
                 >
@@ -336,7 +336,7 @@ export default function Header({
                     '&:hover': {
                       backgroundColor: vegOnly
                         ? 'rgba(76, 175, 80, 0.2)'
-                        : 'rgba(248, 156, 53, 0.12)',
+                        : 'rgba(184, 137, 59, 0.12)',
                     },
                   }}
                   onClick={() => setVegOnly(!vegOnly)}
@@ -369,7 +369,7 @@ export default function Header({
                       height: 44,
                       transition: 'all 0.2s ease',
                       '&:hover': {
-                        backgroundColor: 'rgba(248, 156, 53, 0.12)',
+                        backgroundColor: 'rgba(184, 137, 59, 0.12)',
                       },
                     }}
                   >
@@ -430,10 +430,10 @@ export default function Header({
                   sx={{
                     borderRadius: '12px',
                     py: 1.5,
-                    backgroundColor: theme.palette.primary.main,
-                    color: '#fff',
+                    backgroundColor: '#1F1712',
+                    color: '#F6D58E',
                     '&:hover': {
-                      backgroundColor: theme.palette.primary.dark,
+                      backgroundColor: '#3A2A14',
                     },
                   }}
                 >

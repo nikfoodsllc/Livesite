@@ -115,7 +115,7 @@ export default function AddressCard({ address, onEdit, onDelete }: AddressCardPr
               label={`Apt: ${address.apartment}`}
               size="small"
               sx={{
-                backgroundColor: '#FFF5E6',
+                backgroundColor: '#F7F0E3',
                 color: theme.palette.primary.main,
                 border: '1px solid #FFE5B4',
                 fontWeight: 500,
@@ -128,7 +128,7 @@ export default function AddressCard({ address, onEdit, onDelete }: AddressCardPr
               label={`Gate Code: ${address.entrance}`}
               size="small"
               sx={{
-                backgroundColor: '#FFF5E6',
+                backgroundColor: '#F7F0E3',
                 color: theme.palette.primary.main,
                 border: '1px solid #FFE5B4',
                 fontWeight: 500,
@@ -215,7 +215,7 @@ export default function AddressCard({ address, onEdit, onDelete }: AddressCardPr
             color: theme.palette.primary.main,
             '&:hover': {
               borderColor: theme.palette.primary.dark,
-              backgroundColor: 'rgba(255, 159, 13, 0.08)',
+              backgroundColor: 'rgba(184, 137, 59, 0.08)',
             },
           }}
         >

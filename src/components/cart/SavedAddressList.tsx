@@ -242,7 +242,7 @@ export default function SavedAddressList({
   if (isLoading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-        <CircularProgress size={32} sx={{ color: '#FF9F0D' }} />
+        <CircularProgress size={32} sx={{ color: '#8A6420' }} />
       </Box>
     );
   }
@@ -267,9 +267,9 @@ export default function SavedAddressList({
           startIcon={<IconPlus size={18} />}
           onClick={() => setShowAddDialog(true)}
           sx={{
-            bgcolor: '#FF9F0D',
+            bgcolor: '#1F1712',
             '&:hover': {
-              bgcolor: '#e68f0c',
+              bgcolor: '#8A6420',
             },
           }}
         >
@@ -314,7 +314,7 @@ export default function SavedAddressList({
                       sx={{
                         color: isDisabled ? '#ccc' : '#666',
                         '&.Mui-checked': {
-                          color: '#FF9F0D',
+                          color: '#8A6420',
                         },
                         '&.Mui-disabled': {
                           color: '#ccc',
@@ -366,7 +366,7 @@ export default function SavedAddressList({
                   borderColor: isDisabled
                     ? '#e0e0e0'
                     : selectedAddressId === addressId
-                      ? '#FF9F0D'
+                      ? '#B8893B'
                       : '#EDEDED',
                   borderRadius: '8px',
                   p: 1.5,
@@ -378,10 +378,10 @@ export default function SavedAddressList({
                   '&:hover': {
                     borderColor: isDisabled
                       ? '#e0e0e0'
-                      : '#FF9F0D',
+                      : '#B8893B',
                     bgcolor: isDisabled
                       ? '#f5f5f5'
-                      : 'rgba(255, 159, 13, 0.05)',
+                      : 'rgba(184, 137, 59, 0.05)',
                   },
                 }}
               />
@@ -397,11 +397,11 @@ export default function SavedAddressList({
         onClick={() => setShowAddDialog(true)}
         sx={{
           mt: 2,
-          borderColor: '#FF9F0D',
-          color: '#FF9F0D',
+          borderColor: '#B8893B',
+          color: '#8A6420',
           '&:hover': {
-            borderColor: '#FF9F0D',
-            bgcolor: 'rgba(255, 159, 13, 0.05)',
+            borderColor: '#B8893B',
+            bgcolor: 'rgba(184, 137, 59, 0.05)',
           },
         }}
       >

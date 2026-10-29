@@ -36,7 +36,7 @@ export default function StoreCreditSection({ balance, applied, checked, onChange
         onChange={(event) => onChange(event.target.checked)}
         disabled={locked}
         slotProps={{ input: { 'aria-label': 'Use store credit' } }}
-        sx={{ '& .MuiSwitch-switchBase.Mui-checked': { color: '#FF9F0D' }, '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: '#FF9F0D' } }}
+        sx={{ '& .MuiSwitch-switchBase.Mui-checked': { color: '#8A6420' }, '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: '#1F1712' } }}
       />
     </Paper>
   );

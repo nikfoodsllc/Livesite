@@ -96,8 +96,8 @@ export default function CartPreviewSidebar({
           {summary && summary.itemCount > 0 && (
             <Box
               sx={{
-                backgroundColor: theme.palette.primary.main,
-                color: 'white',
+                backgroundColor: '#1F1712',
+                color: '#F6D58E',
                 borderRadius: '50%',
                 minWidth: 24,
                 height: 24,
@@ -161,7 +161,7 @@ export default function CartPreviewSidebar({
                   width: 80,
                   height: 80,
                   borderRadius: '50%',
-                  backgroundColor: '#FFF4E4',
+                  backgroundColor: '#F7F0E3',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -310,8 +310,8 @@ export default function CartPreviewSidebar({
                 height: 44,
                 borderRadius: 2,
                 '&:hover': {
-                  backgroundColor: theme.palette.primary.main,
-                  color: 'white',
+                  backgroundColor: '#1F1712',
+                  color: '#F6D58E',
                   borderColor: theme.palette.primary.main,
                 },
               }}

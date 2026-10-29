@@ -164,7 +164,7 @@ function ChangePasswordSection() {
               color: theme.palette.primary.main,
               '&:hover': {
                 borderColor: theme.palette.primary.dark,
-                backgroundColor: 'rgba(255, 159, 13, 0.08)',
+                backgroundColor: 'rgba(184, 137, 59, 0.08)',
               },
             }}
           >
@@ -293,7 +293,7 @@ export default function LoginCredentialsCard() {
               color: theme.palette.primary.main,
               '&:hover': {
                 borderColor: theme.palette.primary.dark,
-                backgroundColor: 'rgba(255, 159, 13, 0.08)',
+                backgroundColor: 'rgba(184, 137, 59, 0.08)',
               },
             }}
           >

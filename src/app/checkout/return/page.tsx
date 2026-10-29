@@ -93,7 +93,7 @@ function CheckoutReturnInner() {
         py: 6,
       }}
     >
-      <CircularProgress sx={{ color: '#FF9F0D' }} />
+      <CircularProgress sx={{ color: '#8A6420' }} />
       <Typography variant="body1" color="text.secondary">
         {message}
       </Typography>
@@ -106,7 +106,7 @@ export default function CheckoutReturnPage() {
     <Suspense
       fallback={
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
-          <CircularProgress sx={{ color: '#FF9F0D' }} />
+          <CircularProgress sx={{ color: '#8A6420' }} />
         </Box>
       }
     >

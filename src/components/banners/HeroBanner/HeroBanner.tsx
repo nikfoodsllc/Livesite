@@ -73,7 +73,7 @@ export default function HeroBanner() {
             }}
           >
             Your American Source for
-            <Box component="span" sx={{ display: 'block', fontStyle: 'italic', fontWeight: 500, color: '#B8893B' }}>
+            <Box component="span" sx={{ display: 'block', fontStyle: 'italic', fontWeight: 500, color: '#8A6420' }}>
               Delicious Indian Food.
             </Box>
           </Typography>

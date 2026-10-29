@@ -106,12 +106,12 @@ export default function MinOrderValueDisplay({
           mt: 2,
           background: meetsMinimum
             ? 'linear-gradient(135deg, #F0FDF4 0%, #ECFDF5 100%)'
-            : 'linear-gradient(135deg, #FFF9F2 0%, #FFF6E9 100%)',
-          border: meetsMinimum ? '2px solid #10B981' : '2px solid #FF9F0D',
+            : 'linear-gradient(135deg, #FBF4E6 0%, #FFF6E9 100%)',
+          border: meetsMinimum ? '2px solid #10B981' : '2px solid #B8893B',
           borderRadius: 2,
           boxShadow: meetsMinimum
             ? '0 4px 12px rgba(16, 185, 129, 0.15)'
-            : '0 4px 12px rgba(255, 159, 13, 0.15)',
+            : '0 4px 12px rgba(184, 137, 59, 0.15)',
           position: 'relative',
           overflow: 'hidden',
           '&::before': {
@@ -123,7 +123,7 @@ export default function MinOrderValueDisplay({
             height: '4px',
             background: meetsMinimum
               ? 'linear-gradient(90deg, #10B981 0%, #34D399 100%)'
-              : 'linear-gradient(90deg, #FF9F0D 0%, #FFB84D 100%)',
+              : 'linear-gradient(90deg, #B8893B 0%, #FFB84D 100%)',
           },
         }}
       >
@@ -137,7 +137,7 @@ export default function MinOrderValueDisplay({
                 width: 48,
                 height: 48,
                 borderRadius: '50%',
-                backgroundColor: meetsMinimum ? '#10B981' : '#FF9F0D',
+                backgroundColor: meetsMinimum ? '#10B981' : '#B8893B',
                 flexShrink: 0,
               }}
             >
@@ -161,7 +161,7 @@ export default function MinOrderValueDisplay({
                 variant={isMobile ? 'body1' : 'h6'}
                 sx={{
                   fontWeight: meetsMinimum ? 700 : 600,
-                  color: meetsMinimum ? '#10B981' : '#FF9F0D',
+                  color: meetsMinimum ? '#10B981' : '#B8893B',
                   mb: 1,
                   fontSize: isMobile ? '1rem' : '1.1rem',
                 }}
@@ -193,7 +193,7 @@ export default function MinOrderValueDisplay({
                     <Box sx={{
                       height: '100%',
                       width: `${Math.min(100, (currentSubtotal / minValue) * 100)}%`,
-                      backgroundColor: '#FF9F0D',
+                      backgroundColor: '#1F1712',
                       transition: 'width 0.3s ease'
                     }} />
                   </Box>
@@ -209,7 +209,7 @@ export default function MinOrderValueDisplay({
                   mb: 1,
                 }}
               >
-                Minimum order amount: <Box component="span" sx={{ color: meetsMinimum ? '#10B981' : '#FF9F0D' }}>
+                Minimum order amount: <Box component="span" sx={{ color: meetsMinimum ? '#10B981' : '#B8893B' }}>
                   ${formattedMinValue}
                 </Box>
               </Typography>
@@ -255,12 +255,12 @@ export default function MinOrderValueDisplay({
       sx={{
         width: '100%',
         mb: 2,
-        backgroundColor: meetsMinimum ? '#F0FDF4' : '#FFF9F2',
-        borderColor: meetsMinimum ? '#10B981' : '#FF9F0D',
+        backgroundColor: meetsMinimum ? '#F0FDF4' : '#FBF4E6',
+        borderColor: meetsMinimum ? '#10B981' : '#B8893B',
         borderWidth: 1,
         borderStyle: 'solid',
         '& .MuiAlert-icon': {
-          color: meetsMinimum ? '#10B981' : '#FF9F0D',
+          color: meetsMinimum ? '#10B981' : '#B8893B',
         },
         '& .MuiAlert-message': {
           width: '100%',

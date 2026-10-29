@@ -182,8 +182,8 @@ export default function DeliveryLocationBar({
 
   const fieldBorder = {
     '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(184, 137, 59, 0.45)' },
-    '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#FF9F0D' },
-    '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#FF9F0D' },
+    '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#B8893B' },
+    '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#B8893B' },
   };
 
   const zipcodeControl = (
@@ -318,7 +318,7 @@ export default function DeliveryLocationBar({
           }}
         >
           {user && isLoadingAddresses ? (
-            <CircularProgress size={20} sx={{ color: '#FF9F0D' }} />
+            <CircularProgress size={20} sx={{ color: '#8A6420' }} />
           ) : hasSavedAddresses ? (
             addressControl
           ) : (
