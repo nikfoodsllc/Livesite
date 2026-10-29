@@ -214,7 +214,7 @@ export default function OrderDetailsDialog({ open, order, onClose }: OrderDetail
                         {/* Notes */}
                         {item.notes && (
                           <Typography sx={{ fontSize: '11px', color: '#059669', mt: 0.5, fontStyle: 'italic' }}>
-                            Note: {item.notes}
+                            Instructions: {item.notes}
                           </Typography>
                         )}
                       </Box>

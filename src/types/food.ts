@@ -14,6 +14,8 @@ export interface FoodItem {
   available: boolean;
   /** Chef's Pick (mobile app only) */
   chefsPick?: boolean;
+  /** the item has a special instructions box (set in the admin; off unless Yes) */
+  allowInstructions?: boolean;
   isDraft?: boolean;
   availableWeekDays?: string[];
   portions?: string[];

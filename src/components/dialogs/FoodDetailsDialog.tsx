@@ -10,6 +10,7 @@ import {
   Checkbox,
   FormControlLabel,
   Button,
+  TextField,
   useMediaQuery,
   useTheme,
 } from '@mui/material';
@@ -17,6 +18,7 @@ import Image from 'next/image';
 import { FoodItem } from '@/types/food';
 import { DayType, SpiceLevel } from '@/types/cart';
 import { CartCustomizations } from '@/types/localCart';
+import { INSTRUCTIONS_MAX, cleanItemInstructions } from '@/lib/itemInstructions';
 import VegIndicator from '@/components/common/VegIndicator';
 import * as localCart from '@/lib/localStorageCart';
 import { generateAvailableDatesFromAPI, DayOption } from '@/lib/dayAvailabilityClient';
@@ -94,6 +96,7 @@ export default function FoodDetailsDialog({
   const [selectedPortion, setSelectedPortion] = useState(0);
   const [selectedSpiceLevel, setSelectedSpiceLevel] = useState('');
   const [useEcoContainer, setUseEcoContainer] = useState(false);
+  const [instructions, setInstructions] = useState('');
 
   const [comboSelections, setComboSelections] = useState<Record<string, string[]>>({});
 
@@ -140,6 +143,7 @@ export default function FoodDetailsDialog({
     setSelectedPortion(0);
     setSelectedSpiceLevel('');
     setUseEcoContainer(false);
+    setInstructions('');
   }, [open, foodItem, currentQuantity, dayGroup]);
 
   // Re-initialize combo selections when foodItem changes (for new items)
@@ -517,6 +521,8 @@ export default function FoodDetailsDialog({
       isEcoFriendlyContainer: useEcoContainer,
       ecoContainerCharge: useEcoContainer ? foodItem.ecoContainerCharge : undefined,
       comboSelections: pruneComboSpice(foodItem, finalComboSelections),
+      // what the customer wrote in the Special instructions box (only items that have the box)
+      notes: foodItem.allowInstructions ? cleanItemInstructions(instructions) : undefined,
     };
 
     console.log('[FoodDetailsDialog] Created customizations:', {
@@ -542,6 +548,7 @@ export default function FoodDetailsDialog({
     setSelectedPortion(0);
     setSelectedSpiceLevel('');
     setUseEcoContainer(false);
+    setInstructions('');
     setComboSelections({});
     onClose();
   };
@@ -711,6 +718,24 @@ export default function FoodDetailsDialog({
                   />
                 );
               })}
+            </Box>
+          )}
+          {/* Special instructions (only for items that have the box) */}
+          {foodItem.allowInstructions && (
+            <Box sx={{ mb: 2 }}>
+              <TextField
+                fullWidth
+                multiline
+                minRows={2}
+                maxRows={4}
+                label="Special instructions (optional)"
+                placeholder="For example: less salt"
+                value={instructions}
+                onChange={(e) => setInstructions(e.target.value.slice(0, INSTRUCTIONS_MAX))}
+                helperText={`${instructions.length}/${INSTRUCTIONS_MAX}`}
+                slotProps={{ htmlInput: { maxLength: INSTRUCTIONS_MAX, 'aria-label': 'Special instructions' } }}
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px', backgroundColor: '#FFFFFF' } }}
+              />
             </Box>
           )}
         </Box>

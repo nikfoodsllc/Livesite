@@ -260,6 +260,7 @@ export async function buildHomeMenu(): Promise<HomeMenuPayload> {
         available: foodItem.available,
         // marked in the admin (Food Items > Chef's Pick); the mobile app shows these in its Chef's Pick row, the website does not use it
         chefsPick: foodItem.chefsPick === true,
+        allowInstructions: foodItem.allowInstructions === true,
         url: foodItem.url || foodItem.imageUrl || '',
         ...publicImageFields(foodItem),
         public_id: foodItem.public_id || '',
