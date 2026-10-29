@@ -28,6 +28,8 @@ interface FoodCardProps {
   itemType?: 'simple' | 'portions' | 'combo';
   veg?: boolean;
   available?: boolean;
+  /** nothing more of this item can go in the cart (its order limit is reached): the + button is off */
+  atStockLimit?: boolean;
 }
 
 export default function FoodCard({
@@ -45,6 +47,7 @@ export default function FoodCard({
   itemType,
   veg,
   available = true,
+  atStockLimit = false,
 }: FoodCardProps) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -351,6 +354,7 @@ export default function FoodCard({
               onDecrement={onDecrement}
               isLoading={isLoading}
               size="small"
+              incrementDisabled={atStockLimit}
               disabled={!available}
             />
           </Box>

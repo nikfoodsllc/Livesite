@@ -44,3 +44,38 @@ export function closedItemsNotice(serverMessage: string, removedCount: number, l
     ? `${base} ${removed}, so you can continue with the rest of your order.`
     : `${base} ${removed}, so your cart is now empty.`;
 }
+
+/** An item the server refused because it is sold out or has less left than the cart asks for. */
+export interface OutOfStockInfo {
+  foodItemId: string;
+  name: string;
+  /** what is left, in words ("2", "1.5 lb"); 0 or less left means sold out */
+  remainingText: string;
+  remainingBase: number;
+}
+
+/** The refused items from a 409 OUT_OF_STOCK response (anything without an id and a name is ignored). */
+export function parseOutOfStock(value: unknown): OutOfStockInfo[] {
+  if (!Array.isArray(value)) return [];
+  const out: OutOfStockInfo[] = [];
+  for (const entry of value) {
+    if (!entry || typeof entry !== 'object') continue;
+    const { foodItemId, name, remainingText, remainingBase } = entry as Record<string, unknown>;
+    if (typeof foodItemId !== 'string' || typeof name !== 'string' || !name.trim()) continue;
+    out.push({ foodItemId, name: name.trim(), remainingText: typeof remainingText === 'string' ? remainingText : '', remainingBase: typeof remainingBase === 'number' ? remainingBase : 0 });
+  }
+  return out;
+}
+
+/**
+ * The red banner when items sold out (or are short) while the customer was on checkout, one item per line:
+ *
+ *   These sold out, so they’ve been removed from your cart:
+ *
+ *   Item 1
+ *   Item 2 (only 1 left)
+ */
+export function outOfStockNotice(items: OutOfStockInfo[]): string {
+  const lines = items.map((i) => (i.remainingBase > 0 && i.remainingText ? `${i.name} (only ${i.remainingText} left)` : i.name));
+  return `Some items sold out, so they’ve been removed from your cart:\n\n${lines.join('\n')}`;
+}

@@ -154,6 +154,7 @@ export default function ComboSectionComponent({
             return (
               <FormControlLabel
                 key={item._id}
+                disabled={Boolean((item.item as { soldOut?: boolean }).soldOut)}
                 control={
                   <Checkbox
                     checked={isSelected}
@@ -172,6 +173,9 @@ export default function ComboSectionComponent({
                       <Typography sx={{ color: '#374151', fontWeight: 500 }}>
                         {item.item.name}
                       </Typography>
+                      {(item.item as { soldOut?: boolean }).soldOut && (
+                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#B91C1C' }}>Out of stock</Typography>
+                      )}
                       {item.portion && (
                         <Typography sx={{ fontSize: '0.875rem', color: '#6B7280' }}>
                           ({item.portion})
@@ -222,6 +226,7 @@ export default function ComboSectionComponent({
             <FormControlLabel
               key={item._id}
               value={item._id}
+              disabled={Boolean((item.item as { soldOut?: boolean }).soldOut)}
               control={
                 <Radio
                   sx={{
@@ -238,6 +243,9 @@ export default function ComboSectionComponent({
                     <Typography sx={{ color: '#374151', fontWeight: 500 }}>
                       {item.item.name}
                     </Typography>
+                    {(item.item as { soldOut?: boolean }).soldOut && (
+                      <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#B91C1C' }}>Out of stock</Typography>
+                    )}
                     {item.portion && (
                       <Typography sx={{ fontSize: '0.875rem', color: '#6B7280' }}>
                         ({item.portion})

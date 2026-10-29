@@ -13,6 +13,7 @@ import {
 } from '@/lib/server/menu/categories';
 import { populateComboSections } from '@/lib/server/menu/comboSections';
 import { publicImageFields } from '@/lib/server/menu/itemImages';
+import { markSoldOutOptions, stockRemainingByFood } from '@/lib/server/stock';
 
 interface CategoryFoodMapping {
   categoryId: MongoObjectId | { toString(): string };
@@ -201,6 +202,10 @@ export async function buildHomeMenu(): Promise<HomeMenuPayload> {
     }
   }
 
+  // items that reached their order limit (set in the admin) show Out of stock and cannot be ordered
+  const stockLeft = await stockRemainingByFood(foodItems as Array<{ _id: unknown; stockThreshold?: unknown; stockUnit?: unknown; stockResetAt?: unknown; stockResetMode?: unknown; stockResetTime?: unknown; createdAt?: unknown }>);
+  const soldOut = new Set([...stockLeft.entries()].filter(([, r]) => r.base <= 0).map(([id]) => id));
+
   const foodById = new Map<string, Document>();
   for (const foodItem of foodItems) {
     foodById.set(foodItem._id.toString(), foodItem);
@@ -248,6 +253,7 @@ export async function buildHomeMenu(): Promise<HomeMenuPayload> {
       let populatedSections: Array<Record<string, unknown>> = [];
       if (foodItem.hasCombo && foodItem.sections && foodItem.sections.length > 0) {
         populatedSections = await populateComboSections(foodItem.sections, foodById);
+        await markSoldOutOptions(populatedSections);
       }
 
       foodItemMap.set(foodItemIdStr, {
@@ -257,7 +263,10 @@ export async function buildHomeMenu(): Promise<HomeMenuPayload> {
         short_description: foodItem.short_description || '',
         price: foodItem.price,
         veg: foodItem.veg,
-        available: foodItem.available,
+        available: foodItem.available && !soldOut.has(foodItemIdStr),
+        ...(soldOut.has(foodItemIdStr) ? { soldOut: true } : {}),
+        // units left of an item with an order limit (the + button stops there); missing when the item has no limit
+        ...(stockLeft.has(foodItemIdStr) ? { stockRemaining: stockLeft.get(foodItemIdStr)!.base, stockBase: stockLeft.get(foodItemIdStr)!.baseUnit } : {}),
         // marked in the admin (Food Items > Chef's Pick); the mobile app shows these in its Chef's Pick row, the website does not use it
         chefsPick: foodItem.chefsPick === true,
         allowInstructions: foodItem.allowInstructions === true,

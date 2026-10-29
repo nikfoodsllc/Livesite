@@ -31,6 +31,7 @@ import { syncOrderSafely } from '@/lib/server/optimoRoute/sync';
 import { clearUserCartSafely } from '@/lib/server/userCart';
 import { markDraftConverted } from '@/lib/server/checkoutDrafts';
 import { keepAllowedInstructions } from '@/lib/server/itemInstructions';
+import { findOutOfStockLines, outOfStockMessage } from '@/lib/server/stock';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 if (!stripeSecretKey) {
@@ -177,6 +178,15 @@ export async function POST(request: NextRequest) {
     if (closedItems.length > 0) {
       return NextResponse.json(
         { success: false, error: closedLinesMessage(closedItems), code: 'ORDER_CUTOFF_CLOSED', closedItems, closedDates: legacyClosedDates(closedItems) },
+        { status: 409 }
+      );
+    }
+
+    // An item with an order limit (set in the admin) cannot be ordered past what is left
+    const shortItems = await findOutOfStockLines(cart.days.flatMap((day) => day.items.map((item) => ({ foodItem: item.foodItem as never, quantity: item.quantity, comboSelections: item.comboSelections, selectedPortion: item.selectedPortion }))));
+    if (shortItems.length > 0) {
+      return NextResponse.json(
+        { success: false, error: outOfStockMessage(shortItems), code: 'OUT_OF_STOCK', outOfStock: shortItems },
         { status: 409 }
       );
     }

@@ -17,6 +17,8 @@ import { IconTrash, IconPlus, IconMinus, IconLeaf } from '@tabler/icons-react';
 import VegIndicator from '@/components/common/VegIndicator';
 import { CartItem } from '@/types/cart';
 import { useCart } from '@/contexts/CartContext';
+import { stockLeftFor } from '@/lib/localStorageCart';
+import type { FoodItem } from '@/types/food';
 import { formatSpiceLevel } from '@/utils/formatters';
 import { comboQuantityText } from '@/lib/comboQuantity';
 import { comboSpiceText } from '@/lib/comboSpiceText';
@@ -387,7 +389,7 @@ export default function CartItemCard({ item }: CartItemCardProps) {
 
                 <IconButton
                   onClick={handleIncrement}
-                  disabled={loadingAction !== null}
+                  disabled={loadingAction !== null || stockLeftFor(item.foodItem as unknown as FoodItem, item.selectedPortion) === 0}
                   size="small"
                   sx={{
                     color: theme.palette.primary.main,

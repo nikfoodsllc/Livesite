@@ -10,6 +10,7 @@ import { NotificationProvider } from "@/components/common/NotificationSystem";
 import CrispChat from "@/components/CrispChat";
 import TimezoneWarningBanner from "@/components/common/TimezoneWarningBanner";
 import FirstTimeAddressPrompt from "@/components/layout/FirstTimeAddressPrompt";
+import StockLimitNotice from "@/components/common/StockLimitNotice";
 
 const playfair = Playfair_Display({
   subsets: ["latin"],
@@ -50,6 +51,7 @@ export default function RootLayout({
                   <Header />
                   <TimezoneWarningBanner />
                   <FirstTimeAddressPrompt />
+                  <StockLimitNotice />
                   <DialogsProvider>
                     {children}
                   </DialogsProvider>
