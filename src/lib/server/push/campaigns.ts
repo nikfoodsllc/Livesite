@@ -19,6 +19,8 @@ export interface CampaignRow {
   sent: number;
   failed: number;
   mode: string;
+  /** sent to customers the admin picked by hand */
+  selected: boolean;
 }
 
 async function campaigns() {
@@ -38,6 +40,7 @@ export async function recentCampaigns(limit = 10): Promise<CampaignRow[]> {
     sent: Number(r.sent ?? 0),
     failed: Number(r.failed ?? 0),
     mode: String(r.mode ?? ''),
+    selected: r.selected === true,
   }));
 }
 
@@ -66,6 +69,39 @@ export async function sendMenuCampaign(input: { title: unknown; body: unknown; a
   const summary = await sendPush({ userIds: audience.userIds, kind: 'menu', title: text.title, body: text.body, data: { type: 'menu' }, log: { campaignId, event: 'menu_campaign' } });
   await c.insertOne({ _id, kind: 'menu', title: text.title, body: text.body, sentAt: new Date(), by: input.adminId, byName: input.adminName ?? '', audience: audience.userIds.length, sent: summary.sent, failed: summary.failed, removed: summary.removed, mode: summary.mode, errors: summary.errors } as never);
   return { ok: true, summary, campaignId };
+}
+
+/** Most customers one hand-picked send can go to. */
+export const MAX_SELECTED = 500;
+
+/** Keeps the picked customers who really have the app with a phone registered; counts the rest. Ids only. */
+export function pickSelectedAudience(selected: unknown, withApp: string[]): { userIds: string[]; unavailable: number } {
+  const wanted = Array.isArray(selected) ? [...new Set(selected.map((v) => String(v ?? '').trim()).filter(Boolean))] : [];
+  const have = new Set(withApp);
+  const userIds = wanted.filter((id) => have.has(id)).slice(0, MAX_SELECTED);
+  return { userIds, unavailable: wanted.length - userIds.length };
+}
+
+/**
+ * Sends the admin's text to customers chosen by hand (not the whole list). Only customers with the app and a phone registered can be
+ * reached; a customer who switched menu alerts off in the app is skipped, like in a send to everyone (the summary says how many).
+ * No "sent a moment ago" guard: a different set of people is a different message.
+ */
+export async function sendSelectedCampaign(input: { title: unknown; body: unknown; userIds: unknown; adminId: string; adminName?: string }): Promise<CampaignResult & { unavailable?: number }> {
+  const text = checkText(input.title, input.body);
+  if (!text.ok) return { ok: false, status: 400, error: text.error };
+  if (!Array.isArray(input.userIds) || input.userIds.length === 0) return { ok: false, status: 400, error: 'Choose at least one customer.' };
+  if (input.userIds.length > MAX_SELECTED) return { ok: false, status: 400, error: `Choose at most ${MAX_SELECTED} customers at a time.` };
+  const mode = pushMode();
+  if (mode === 'off') return { ok: false, status: 409, code: 'off', error: 'Notifications are switched off on this site (PUSH).' };
+  const picked = pickSelectedAudience(input.userIds, await usersWithTokens());
+  if (picked.userIds.length === 0) return { ok: false, status: 409, code: 'nobody', error: 'None of the chosen customers can get a notification right now (they need the app with notifications allowed).' };
+  const _id = new ObjectId();
+  const campaignId = String(_id);
+  const summary = await sendPush({ userIds: picked.userIds, kind: 'menu', title: text.title, body: text.body, data: { type: 'menu' }, log: { campaignId, event: 'selected_campaign' } });
+  const c = await campaigns();
+  await c.insertOne({ _id, kind: 'selected', title: text.title, body: text.body, sentAt: new Date(), by: input.adminId, byName: input.adminName ?? '', audience: picked.userIds.length, sent: summary.sent, failed: summary.failed, removed: summary.removed, mode: summary.mode, errors: summary.errors, selected: true } as never);
+  return { ok: true, summary, campaignId, unavailable: picked.unavailable };
 }
 
 // ---------------------------------------------------------------------------------------------
