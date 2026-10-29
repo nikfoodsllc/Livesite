@@ -526,6 +526,31 @@ export function removeClosedLines(closed: Array<{ date: string; foodItemId?: str
   return { removed, linesLeft, cart };
 }
 
+/**
+ * The server refused the order because these items sold out (or have less left than the cart asks for). Removes every line that uses
+ * one of them (a combo line too, when one of its parts is the item). A day left without items is removed as well.
+ */
+export function removeSoldOutLines(foodItemIds: string[]): { removed: number; linesLeft: number; cart: LocalCart } {
+  const cart = getCart();
+  const ids = new Set(foodItemIds);
+  let removed = 0;
+  for (const dayKey of Object.keys(cart.days) as DayType[]) {
+    const day = cart.days[dayKey];
+    if (!day) continue;
+    for (const [lineId, line] of Object.entries(day.items)) {
+      const uses = [...lineAmounts(line as unknown as StockLineInput & { selectedPortion?: unknown }).keys()].some((id) => ids.has(id));
+      if (uses) {
+        delete day.items[lineId];
+        removed += 1;
+      }
+    }
+    if (Object.keys(day.items).length === 0) delete cart.days[dayKey];
+  }
+  if (removed > 0) saveCart(cart);
+  const linesLeft = Object.values(cart.days).reduce((sum, d) => sum + Object.keys(d.items).length, 0);
+  return { removed, linesLeft, cart };
+}
+
 export function clearDay(day: DayType): LocalCart {
   const cart = getCart();
 

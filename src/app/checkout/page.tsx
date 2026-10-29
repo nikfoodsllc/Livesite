@@ -36,7 +36,7 @@ import { IAddress } from '@/types/auth';
 import { ZipcodeConfig } from '@/types/zipcode';
 import * as localCart from '@/lib/localStorageCart';
 import { emptyCartEverywhere } from '@/lib/cartSync';
-import { closedItemsNotice, parseClosedItems } from '@/lib/closedDaysNotice';
+import { closedItemsNotice, outOfStockNotice, parseClosedItems, parseOutOfStock } from '@/lib/closedDaysNotice';
 import { calculateDeliveryDates, type DayDeliveryInfo } from '@/lib/deliveryCalculator';
 import { DEFAULT_MIN_CART_VALUE } from '@/lib/cartLogic';
 import { reportPaymentError } from '@/lib/checkout/reportPaymentError';
@@ -1027,7 +1027,19 @@ export default function CheckoutPage() {
    * response was this kind of refusal (so nothing else should react).
    */
   const handleClosedDays = useCallback(
-    async (status: number, data: { code?: string; error?: string; closedItems?: unknown } | null): Promise<boolean> => {
+    async (status: number, data: { code?: string; error?: string; closedItems?: unknown; outOfStock?: unknown } | null): Promise<boolean> => {
+      // an item sold out while the customer was here: same treatment, with its own wording
+      if (status === 409 && data?.code === 'OUT_OF_STOCK') {
+        const short = parseOutOfStock(data.outOfStock);
+        if (short.length > 0) {
+          localCart.removeSoldOutLines(short.map((i) => i.foodItemId));
+          setClosedNotice(outOfStockNotice(short));
+          setError('');
+          await refreshCart();
+          if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+          return true;
+        }
+      }
       if (status !== 409 || data?.code !== 'ORDER_CUTOFF_CLOSED') return false;
       const closed = parseClosedItems(data.closedItems);
       const { removed, linesLeft } = localCart.removeClosedLines(closed);
