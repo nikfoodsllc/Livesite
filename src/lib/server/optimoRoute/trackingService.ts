@@ -2,7 +2,7 @@ import { db } from '@/lib/server/db';
 import { optimoMode } from './config';
 import { completionDetails, stopSchedule } from './client';
 import { pacificToday } from './sync';
-import { trackingFor, type Tracking } from './trackingRules';
+import { isDoNotNotify, trackingFor, type Tracking } from './trackingRules';
 
 interface OrderLite {
   orderId: string;
@@ -54,12 +54,14 @@ export async function deliveryTracking(orderId: string, userId: string, now: Dat
     const stop = (await stops.findOne({ date: today, orderIds: orderId, state: { $in: ['sent', 'adopted'] } } as never, { projection: { optimoId: 1 } })) as { optimoId?: string } | null;
     if (!stop?.optimoId) return base;
     const [schedule, completion] = await Promise.all([stopSchedule(stop.optimoId), completionDetails([stop.optimoId])]);
+    // without the stop's communication preference we cannot tell whether this customer may see tracking: show only "delivery today"
+    if (!schedule.ok) return base;
     const done = completion.ok ? completion.data?.[stop.optimoId] : undefined;
     const value = trackingFor({
       dates,
       today,
       orderStatus: order.status,
-      stop: { liveArrival: schedule.ok ? schedule.data?.liveArrival : null, status: done?.status, endUtc: done?.endUtc, trackingUrl: safeTrackingUrl(done?.trackingUrl) },
+      stop: { liveArrival: schedule.data?.liveArrival, doNotNotify: isDoNotNotify(schedule.data?.notificationPreference), status: done?.status, endUtc: done?.endUtc, trackingUrl: safeTrackingUrl(done?.trackingUrl) },
     });
     cache.set(orderId, { at: now.getTime(), value });
     return value;

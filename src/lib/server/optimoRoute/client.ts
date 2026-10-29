@@ -261,11 +261,24 @@ export async function completionDetails(ids: string[]): Promise<OptimoResult<Rec
 }
 
 /** The planned and live arrival of one stop, by OptimoRoute order id (read only). liveArrival is null until routes were sent to drivers. */
-export async function stopSchedule(id: string): Promise<OptimoResult<{ liveArrival: string | null; plannedArrival?: string }>> {
-  const result = await call<{ orders?: Array<{ scheduleInformation?: { arrivalTimeDt?: string; liveEstimate?: { arrivalTimeDt?: string | null } | null } }> }>('search_orders', { orders: [{ id }], includeScheduleInformation: true });
+export async function stopSchedule(id: string): Promise<OptimoResult<{ liveArrival: string | null; plannedArrival?: string; notificationPreference?: string }>> {
+  const result = await call<{ orders?: Array<{ data?: { notificationPreference?: string }; scheduleInformation?: { arrivalTimeDt?: string; liveEstimate?: { arrivalTimeDt?: string | null } | null } }> }>('search_orders', { orders: [{ id }], includeOrderData: true, includeScheduleInformation: true });
   if (!result.ok) return { ok: false, code: result.code, message: result.message };
-  const info = result.data?.orders?.[0]?.scheduleInformation;
-  return { ok: true, data: { liveArrival: info?.liveEstimate?.arrivalTimeDt ?? null, plannedArrival: info?.arrivalTimeDt } };
+  const first = result.data?.orders?.[0];
+  const info = first?.scheduleInformation;
+  return { ok: true, data: { liveArrival: info?.liveEstimate?.arrivalTimeDt ?? null, plannedArrival: info?.arrivalTimeDt, notificationPreference: first?.data?.notificationPreference } };
+}
+
+/** The communication preference of stops (both, email, sms, dont_notify), by OptimoRoute order id (read only; 100 ids per call). */
+export async function notificationPreferences(ids: string[]): Promise<OptimoResult<Record<string, string>>> {
+  const out: Record<string, string> = {};
+  for (let i = 0; i < ids.length; i += 100) {
+    const chunk = ids.slice(i, i + 100);
+    const result = await call<{ orders?: Array<{ id?: string | number; data?: { notificationPreference?: string } }> }>('search_orders', { orders: chunk.map((id) => ({ id })), includeOrderData: true });
+    if (!result.ok) return { ok: false, code: result.code, message: result.message };
+    for (const o of result.data?.orders ?? []) if (o.id !== undefined && o.data?.notificationPreference) out[String(o.id)] = o.data.notificationPreference;
+  }
+  return { ok: true, data: out };
 }
 
 /** The drivers and their stops, in route order, of one day (read only). */
