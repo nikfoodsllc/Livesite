@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
-import { Box, Container, Typography, CircularProgress, useTheme, useMediaQuery, Button } from '@mui/material';
+import BrandLoader from '@/components/common/BrandLoader';
+import { Box, Container, Typography, useTheme, useMediaQuery, Button } from '@mui/material';
 import { IconArrowLeft } from '@tabler/icons-react';
 import { useRouter } from 'next/navigation';
 import Footer from '@/components/layout/Footer';
@@ -106,10 +107,7 @@ export default function CartPage() {
       <>
         <Container maxWidth="xl" sx={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Box sx={{ textAlign: 'center' }}>
-            <CircularProgress size={60} sx={{ color: theme.palette.primary.main, mb: 2 }} />
-            <Typography variant="h6" sx={{ color: theme.palette.text.secondary }}>
-              Loading your cart...
-            </Typography>
+            <BrandLoader />
           </Box>
         </Container>
         <Footer />

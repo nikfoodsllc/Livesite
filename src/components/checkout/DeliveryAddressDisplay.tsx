@@ -50,11 +50,11 @@ export default function DeliveryAddressDisplay({
               variant="outlined"
               onClick={onLoginClick}
               sx={{
-                borderColor: '#FF9F0D',
-                color: '#FF9F0D',
+                borderColor: '#B8893B',
+                color: '#8A6420',
                 '&:hover': {
-                  borderColor: '#FF9F0D',
-                  bgcolor: 'rgba(255, 159, 13, 0.05)',
+                  borderColor: '#B8893B',
+                  bgcolor: 'rgba(184, 137, 59, 0.05)',
                 },
               }}
             >
@@ -64,10 +64,10 @@ export default function DeliveryAddressDisplay({
               variant="contained"
               onClick={onSignupClick}
               sx={{
-                bgcolor: '#FF9F0D',
-                color: '#fff',
+                bgcolor: '#1F1712',
+                color: '#F6D58E',
                 '&:hover': {
-                  bgcolor: '#e68f0c',
+                  bgcolor: '#8A6420',
                 },
               }}
             >
@@ -91,11 +91,11 @@ export default function DeliveryAddressDisplay({
           variant="outlined"
           onClick={onChangeAddress}
           sx={{
-            borderColor: '#FF9F0D',
-            color: '#FF9F0D',
+            borderColor: '#B8893B',
+            color: '#8A6420',
             '&:hover': {
-              borderColor: '#FF9F0D',
-              bgcolor: 'rgba(255, 159, 13, 0.05)',
+              borderColor: '#B8893B',
+              bgcolor: 'rgba(184, 137, 59, 0.05)',
             },
           }}
         >
@@ -118,8 +118,8 @@ export default function DeliveryAddressDisplay({
       sx={{
         p: 3,
         mb: 3,
-        border: isZipcodeAddress || isIncompleteAddress ? '2px solid #FF9F0D' : '1px solid #EDEDED',
-        bgcolor: isZipcodeAddress || isIncompleteAddress ? '#FFF5E6' : 'inherit',
+        border: isZipcodeAddress || isIncompleteAddress ? '2px solid #B8893B' : '1px solid #EDEDED',
+        bgcolor: isZipcodeAddress || isIncompleteAddress ? '#F7F0E3' : 'inherit',
       }}
     >
       <Box
@@ -138,9 +138,9 @@ export default function DeliveryAddressDisplay({
           startIcon={<IconEdit size={16} />}
           onClick={onChangeAddress}
           sx={{
-            color: '#FF9F0D',
+            color: '#8A6420',
             '&:hover': {
-              bgcolor: 'rgba(255, 159, 13, 0.05)',
+              bgcolor: 'rgba(184, 137, 59, 0.05)',
             },
           }}
         >
@@ -157,8 +157,8 @@ export default function DeliveryAddressDisplay({
             width: 40,
             height: 40,
             borderRadius: '8px',
-            bgcolor: '#FFF5E6',
-            color: '#FF9F0D',
+            bgcolor: '#F7F0E3',
+            color: '#8A6420',
             flexShrink: 0,
           }}
         >
@@ -168,7 +168,7 @@ export default function DeliveryAddressDisplay({
           {isZipcodeAddress || isIncompleteAddress ? (
             // Display for incomplete address (zipcode-based or placeholder)
             <>
-              <Typography variant="body1" sx={{ mb: 0.5, fontWeight: 600, color: '#FF9F0D' }}>
+              <Typography variant="body1" sx={{ mb: 0.5, fontWeight: 600, color: '#8A6420' }}>
                 {isZipcodeAddress ? `Delivery to Zipcode: ${address.zipCode}` : 'Incomplete Delivery Address'}
               </Typography>
               <Alert

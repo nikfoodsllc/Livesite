@@ -168,14 +168,14 @@ export default function AddReviewDialog({
                     setError(null);
                   }}
                   size="large"
-                  icon={<IconStar size={32} fill="#FF9F0D" color="#FF9F0D" />}
+                  icon={<IconStar size={32} fill="#B8893B" color="#B8893B" />}
                   emptyIcon={<IconStar size={32} color="#D1D5DB" />}
                   sx={{
                     '& .MuiRating-iconFilled': {
-                      color: '#FF9F0D',
+                      color: '#8A6420',
                     },
                     '& .MuiRating-iconHover': {
-                      color: '#FF9F0D',
+                      color: '#8A6420',
                     },
                   }}
                 />
@@ -221,10 +221,10 @@ export default function AddReviewDialog({
                     borderRadius: '8px',
                     fontSize: '14px',
                     '&:hover fieldset': {
-                      borderColor: '#FF9F0D',
+                      borderColor: '#B8893B',
                     },
                     '&.Mui-focused fieldset': {
-                      borderColor: '#FF9F0D',
+                      borderColor: '#B8893B',
                     },
                   },
                 }}
@@ -264,8 +264,8 @@ export default function AddReviewDialog({
             disabled={submitting || rating === 0}
             sx={{
               flex: 1,
-              backgroundColor: '#FF9F0D',
-              color: '#FFFFFF',
+              backgroundColor: '#1F1712',
+              color: '#F6D58E',
               fontSize: '16px',
               fontWeight: 600,
               textTransform: 'none',

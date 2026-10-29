@@ -103,8 +103,8 @@ export default function OrderCard({
               size="small"
               onClick={() => onUpdateItem(order)}
               sx={{
-                borderColor: '#FF9F0D',
-                color: '#FF9F0D',
+                borderColor: '#B8893B',
+                color: '#8A6420',
                 fontSize: { xs: '12px', sm: '13px' },
                 fontWeight: 600,
                 textTransform: 'none',
@@ -166,8 +166,8 @@ export default function OrderCard({
               variant="contained"
               onClick={() => onTrackOrder(order)}
               sx={{
-                backgroundColor: '#FF9F0D',
-                color: '#FFFFFF',
+                backgroundColor: '#1F1712',
+                color: '#F6D58E',
                 fontSize: { xs: '13px', sm: '14px' },
                 fontWeight: 600,
                 textTransform: 'none',
@@ -189,8 +189,8 @@ export default function OrderCard({
               variant="contained"
               onClick={() => onReorder(order)}
               sx={{
-                backgroundColor: '#FF9F0D',
-                color: '#FFFFFF',
+                backgroundColor: '#1F1712',
+                color: '#F6D58E',
                 fontSize: { xs: '13px', sm: '14px' },
                 fontWeight: 600,
                 textTransform: 'none',
@@ -211,8 +211,8 @@ export default function OrderCard({
             variant="outlined"
             onClick={() => onViewDetails(order)}
             sx={{
-              borderColor: '#FF9F0D',
-              color: '#FF9F0D',
+              borderColor: '#B8893B',
+              color: '#8A6420',
               fontSize: { xs: '13px', sm: '14px' },
               fontWeight: 600,
               textTransform: 'none',
@@ -234,8 +234,8 @@ export default function OrderCard({
               variant="outlined"
               onClick={() => onAddReview(order)}
               sx={{
-                borderColor: '#FF9F0D',
-                color: '#FF9F0D',
+                borderColor: '#B8893B',
+                color: '#8A6420',
                 fontSize: { xs: '13px', sm: '14px' },
                 fontWeight: 600,
                 textTransform: 'none',

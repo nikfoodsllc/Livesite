@@ -649,7 +649,7 @@ export default function AddressDialog({
             px: 3,
             py: 1.25,
             borderRadius: '12px',
-            backgroundColor: theme.palette.primary.main,
+            backgroundColor: '#1F1712',
             '&:hover': {
               backgroundColor:
                 theme.palette.primary.dark,

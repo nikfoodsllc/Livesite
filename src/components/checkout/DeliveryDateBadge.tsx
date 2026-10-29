@@ -59,11 +59,11 @@ export default function DeliveryDateBadge({ dayInfo }: DeliveryDateBadgeProps) {
         mt: 0.5,
       }}
     >
-      <IconCalendar size={14} style={{ color: '#FF9F0D' }} />
+      <IconCalendar size={14} style={{ color: '#8A6420' }} />
       <Typography
         variant="caption"
         sx={{
-          color: '#FF9F0D',
+          color: '#8A6420',
           fontSize: '0.75rem',
           fontWeight: 500,
         }}

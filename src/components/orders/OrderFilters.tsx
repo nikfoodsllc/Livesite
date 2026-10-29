@@ -44,7 +44,7 @@ export default function OrderFilters({ selectedFilter, onFilterChange }: OrderFi
             label={filter.label}
             onClick={() => onFilterChange(filter.value)}
             sx={{
-              backgroundColor: isSelected ? '#FF9F0D' : '#FFFFFF',
+              backgroundColor: isSelected ? '#B8893B' : '#FFFFFF',
               color: isSelected ? '#FFFFFF' : '#6B7280',
               border: isSelected ? 'none' : '1px solid #E5E7EB',
               fontWeight: isSelected ? 600 : 500,

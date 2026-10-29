@@ -104,7 +104,7 @@ export default function AccountNavigation() {
               },
             },
             '& .MuiTabs-indicator': {
-              backgroundColor: theme.palette.primary.main,
+              backgroundColor: '#1F1712',
               height: 3,
             },
           }}
@@ -156,12 +156,12 @@ export default function AccountNavigation() {
                   py: 1.5,
                   px: 2,
                   backgroundColor: isActive
-                    ? 'rgba(255, 159, 13, 0.1)'
+                    ? 'rgba(184, 137, 59, 0.1)'
                     : 'transparent',
                   '&:hover': {
                     backgroundColor: isLogout
                       ? 'rgba(211, 47, 47, 0.08)'
-                      : 'rgba(255, 159, 13, 0.08)',
+                      : 'rgba(184, 137, 59, 0.08)',
                   },
                   transition: 'all 0.2s ease',
                 }}

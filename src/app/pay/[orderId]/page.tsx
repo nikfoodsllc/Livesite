@@ -22,7 +22,7 @@ const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY 
 // same look as the checkout page's payment form (see app/checkout/page.tsx)
 const stripeAppearance: StripeElementsOptions['appearance'] = {
   theme: 'stripe',
-  variables: { colorPrimary: '#FF9F0D' },
+  variables: { colorPrimary: '#B8893B' },
   rules: { '.AccordionItem': { fontSize: '20px' } },
 };
 
@@ -81,7 +81,7 @@ function Header({ orderId }: { orderId?: string }) {
 }
 
 // colours of the website's checkout page
-const C = { text: '#333', body: '#666', muted: '#999', brand: '#FF9F0D', green: '#28a745' };
+const C = { text: '#333', body: '#666', muted: '#999', brand: '#B8893B', green: '#28a745' };
 
 const longDay = (date: string) => new Date(`${date}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 const shortDay = (date: string) => new Date(`${date}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'UTC' });
@@ -200,7 +200,7 @@ function OrderSummary({ data }: { data: PayData }) {
 /** A small orange icon tile like the one the checkout page puts next to the address. */
 function IconTile({ children }: { children: React.ReactNode }) {
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: '8px', bgcolor: '#FFF5E6', color: '#FF9F0D', flexShrink: 0 }}>
+    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: '8px', bgcolor: '#F7F0E3', color: '#8A6420', flexShrink: 0 }}>
       {children}
     </Box>
   );
@@ -260,7 +260,7 @@ function AddressEditor({ data, token, onSaved, onCancel }: { data: PayData; toke
       {error && <Alert severity="error" sx={{ gridColumn: { sm: '1 / -1' } }}>{error}</Alert>}
       <Box sx={{ gridColumn: { sm: '1 / -1' }, display: 'flex', gap: 1.5, justifyContent: 'flex-end' }}>
         <Button onClick={onCancel} disabled={saving} sx={{ textTransform: 'none', color: '#666' }}>Cancel</Button>
-        <Button variant="contained" onClick={save} disabled={saving} sx={{ textTransform: 'none', fontWeight: 600, bgcolor: '#FF9F0D', '&:hover': { bgcolor: '#e68f0c' } }}>
+        <Button variant="contained" onClick={save} disabled={saving} sx={{ textTransform: 'none', fontWeight: 600, bgcolor: '#1F1712', '&:hover': { bgcolor: '#3A2A14' } }}>
           {saving ? 'Saving…' : 'Save address'}
         </Button>
       </Box>
@@ -303,7 +303,7 @@ function DeliveryDetails({ data, token, onChanged }: { data: PayData; token: str
             Delivery Address
           </Typography>
           {!editing && (
-            <Button size="small" startIcon={<IconEdit size={16} />} onClick={() => setEditing(true)} sx={{ textTransform: 'none', fontWeight: 600, color: '#FF9F0D' }}>
+            <Button size="small" startIcon={<IconEdit size={16} />} onClick={() => setEditing(true)} sx={{ textTransform: 'none', fontWeight: 600, color: '#8A6420' }}>
               Edit
             </Button>
           )}
@@ -391,7 +391,7 @@ function CreditPanel({ data, token, onChanged, onPaid }: { data: PayData; token:
           onClick={() => void call('pay')}
           disabled={busy}
           startIcon={busy ? <CircularProgress size={20} sx={{ color: '#fff' }} /> : null}
-          sx={{ bgcolor: '#FF9F0D', color: '#fff', py: 1.5, fontSize: '16px', fontWeight: 600, '&:hover': { bgcolor: '#e68f0c' }, '&:disabled': { bgcolor: '#ccc', color: '#666' } }}
+          sx={{ bgcolor: '#1F1712', color: '#F6D58E', py: 1.5, fontSize: '16px', fontWeight: 600, '&:hover': { bgcolor: '#3A2A14' }, '&:disabled': { bgcolor: '#ccc', color: '#666' } }}
         >
           {busy ? 'Processing…' : 'Place order'}
         </Button>
@@ -471,7 +471,7 @@ function PayForm({ data, token, onPaid, onClosed }: { data: PayData; token: stri
         )}
         {!stripe || !elements ? (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 2 }}>
-            <CircularProgress size={22} sx={{ color: '#FF9F0D' }} />
+            <CircularProgress size={22} sx={{ color: '#8A6420' }} />
             <Typography variant="body2" sx={{ color: '#666' }}>Loading payment options…</Typography>
           </Box>
         ) : (
@@ -501,7 +501,7 @@ function PayForm({ data, token, onPaid, onClosed }: { data: PayData; token: stri
         onClick={pay}
         disabled={busy || !stripe || !elements || !complete}
         startIcon={busy ? <CircularProgress size={20} sx={{ color: '#fff' }} /> : null}
-        sx={{ bgcolor: '#FF9F0D', color: '#fff', py: 1.5, fontSize: '16px', fontWeight: 600, '&:hover': { bgcolor: '#e68f0c' }, '&:disabled': { bgcolor: '#ccc', color: '#666' } }}
+        sx={{ bgcolor: '#1F1712', color: '#F6D58E', py: 1.5, fontSize: '16px', fontWeight: 600, '&:hover': { bgcolor: '#3A2A14' }, '&:disabled': { bgcolor: '#ccc', color: '#666' } }}
       >
         {busy ? 'Processing…' : `Pay ${money(Math.max(0, (data.total ?? 0) - (data.credit?.used ?? 0)))}`}
       </Button>
@@ -575,7 +575,7 @@ function PayInner() {
     return (
       <Page>
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
-          <CircularProgress sx={{ color: '#FF9F0D' }} />
+          <CircularProgress sx={{ color: '#8A6420' }} />
         </Box>
       </Page>
     );
@@ -614,7 +614,7 @@ function PayInner() {
       <Page>
         <Header />
         <Paper elevation={0} sx={{ p: 4, border: '1px solid #EDEDED', borderRadius: '12px', textAlign: 'center' }}>
-          <CircularProgress size={26} sx={{ color: '#FF9F0D', mb: 1 }} />
+          <CircularProgress size={26} sx={{ color: '#8A6420', mb: 1 }} />
           <Typography sx={{ fontWeight: 700 }}>Confirming your payment…</Typography>
           <Typography sx={{ color: '#555', fontSize: 14 }}>This takes a few seconds. Please do not close this page.</Typography>
         </Paper>

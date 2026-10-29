@@ -194,8 +194,8 @@ export default function UpdateItemDialog({ open, order, onClose }: UpdateItemDia
           variant="contained"
           fullWidth
           sx={{
-            backgroundColor: '#FF9F0D',
-            color: '#FFFFFF',
+            backgroundColor: '#1F1712',
+            color: '#F6D58E',
             fontSize: '16px',
             fontWeight: 600,
             textTransform: 'none',

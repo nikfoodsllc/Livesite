@@ -129,7 +129,7 @@ function SuccessPageContent() {
               textAlign: 'center',
             }}
           >
-            <CircularProgress sx={{ color: '#FF9F0D', mb: 3 }} />
+            <CircularProgress sx={{ color: '#8A6420', mb: 3 }} />
             <Typography variant="h6" sx={{ fontWeight: 600, mb: 1, color: '#333' }}>
               Loading Your Order Details
             </Typography>
@@ -219,11 +219,11 @@ function SuccessPageContent() {
                     router.push('/login?redirect=' + encodeURIComponent(window.location.pathname + window.location.search));
                   }}
                   sx={{
-                    bgcolor: '#FF9F0D',
-                    color: '#fff',
+                    bgcolor: '#1F1712',
+                    color: '#F6D58E',
                     py: 1.5,
                     '&:hover': {
-                      bgcolor: '#e68f0c',
+                      bgcolor: '#3A2A14',
                     },
                   }}
                 >
@@ -237,11 +237,11 @@ function SuccessPageContent() {
                   startIcon={<IconHome size={20} />}
                   onClick={() => router.push('/')}
                   sx={{
-                    bgcolor: '#FF9F0D',
-                    color: '#fff',
+                    bgcolor: '#1F1712',
+                    color: '#F6D58E',
                     py: 1.5,
                     '&:hover': {
-                      bgcolor: '#e68f0c',
+                      bgcolor: '#3A2A14',
                     },
                   }}
                 >
@@ -256,12 +256,12 @@ function SuccessPageContent() {
                 startIcon={<IconReceipt size={20} />}
                 onClick={() => router.push('/account/orders')}
                 sx={{
-                  borderColor: '#FF9F0D',
-                  color: '#FF9F0D',
+                  borderColor: '#B8893B',
+                  color: '#8A6420',
                   py: 1.5,
                   '&:hover': {
-                    borderColor: '#FF9F0D',
-                    bgcolor: 'rgba(255, 159, 13, 0.05)',
+                    borderColor: '#B8893B',
+                    bgcolor: 'rgba(184, 137, 59, 0.05)',
                   },
                 }}
               >
@@ -275,12 +275,12 @@ function SuccessPageContent() {
                 startIcon={<IconRefresh size={20} />}
                 onClick={() => window.location.reload()}
                 sx={{
-                  borderColor: '#FF9F0D',
-                  color: '#FF9F0D',
+                  borderColor: '#B8893B',
+                  color: '#8A6420',
                   py: 1.5,
                   '&:hover': {
-                    borderColor: '#FF9F0D',
-                    bgcolor: 'rgba(255, 159, 13, 0.05)',
+                    borderColor: '#B8893B',
+                    bgcolor: 'rgba(184, 137, 59, 0.05)',
                   },
                 }}
               >
@@ -307,7 +307,7 @@ function SuccessPageContent() {
                   borderRadius: 1,
                   textAlign: 'center',
                   fontWeight: 600,
-                  color: '#FF9F0D'
+                  color: '#8A6420'
                 }}
               >
                 #{orderId}
@@ -359,11 +359,11 @@ function SuccessPageContent() {
                 startIcon={<IconHome size={20} />}
                 onClick={() => router.push('/')}
                 sx={{
-                  bgcolor: '#FF9F0D',
-                  color: '#fff',
+                  bgcolor: '#1F1712',
+                  color: '#F6D58E',
                   py: 1.5,
                   '&:hover': {
-                    bgcolor: '#e68f0c',
+                    bgcolor: '#3A2A14',
                   },
                 }}
               >
@@ -375,12 +375,12 @@ function SuccessPageContent() {
                 startIcon={<IconReceipt size={20} />}
                 onClick={() => router.push('/account/orders')}
                 sx={{
-                  borderColor: '#FF9F0D',
-                  color: '#FF9F0D',
+                  borderColor: '#B8893B',
+                  color: '#8A6420',
                   py: 1.5,
                   '&:hover': {
-                    borderColor: '#FF9F0D',
-                    bgcolor: 'rgba(255, 159, 13, 0.05)',
+                    borderColor: '#B8893B',
+                    bgcolor: 'rgba(184, 137, 59, 0.05)',
                   },
                 }}
               >
@@ -414,7 +414,7 @@ export default function SuccessPage() {
             minHeight: '60vh',
           }}
         >
-          <CircularProgress sx={{ color: '#FF9F0D' }} />
+          <CircularProgress sx={{ color: '#8A6420' }} />
         </Box>
       }
     >

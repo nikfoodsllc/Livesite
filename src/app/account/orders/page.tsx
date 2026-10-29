@@ -188,7 +188,7 @@ export default function OrdersPage() {
             py: 8,
           }}
         >
-          <CircularProgress sx={{ color: '#FF9F0D' }} />
+          <CircularProgress sx={{ color: '#8A6420' }} />
         </Box>
       )}
 

@@ -121,7 +121,7 @@ export default function OrderDetailsDialog({ open, order, onClose }: OrderDetail
                 <Typography
                   sx={{
                     fontSize: '13px',
-                    color: '#FF9F0D',
+                    color: '#8A6420',
                     fontWeight: 500,
                   }}
                 >
@@ -375,8 +375,8 @@ export default function OrderDetailsDialog({ open, order, onClose }: OrderDetail
           variant="contained"
           fullWidth
           sx={{
-            backgroundColor: '#FF9F0D',
-            color: '#FFFFFF',
+            backgroundColor: '#1F1712',
+            color: '#F6D58E',
             fontSize: '16px',
             fontWeight: 600,
             textTransform: 'none',

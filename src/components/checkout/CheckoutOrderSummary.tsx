@@ -79,7 +79,7 @@ export default function CheckoutOrderSummary({
                   variant="subtitle2"
                   sx={{
                     fontWeight: 600,
-                    color: '#FF9F0D',
+                    color: '#8A6420',
                   }}
                 >
                   {/*
@@ -225,7 +225,7 @@ export default function CheckoutOrderSummary({
           <Typography variant="h6" sx={{ fontWeight: 600 }}>
             Total
           </Typography>
-          <Typography variant="h6" sx={{ fontWeight: 600, color: '#FF9F0D' }}>
+          <Typography variant="h6" sx={{ fontWeight: 600, color: '#8A6420' }}>
             ${total.toFixed(2)}
           </Typography>
         </Box>

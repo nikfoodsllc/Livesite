@@ -42,15 +42,15 @@ export default function QuantitySelector({
         onClick={onAdd}
         disabled={isLoading.add || disabled}
         sx={{
-          backgroundColor: theme.palette.primary.main,
-          color: '#ffffff',
+          backgroundColor: '#1F1712',
+          color: '#F6D58E',
           textTransform: 'none',
           fontWeight: 600,
           height: buttonHeight,
           minWidth: 80,
           fontSize,
           '&:hover': {
-            backgroundColor: theme.palette.primary.dark,
+            backgroundColor: '#3A2A14',
           },
           '&:disabled': {
             backgroundColor: theme.palette.grey[300],
@@ -73,7 +73,7 @@ export default function QuantitySelector({
         display: 'flex',
         alignItems: 'center',
         gap: 1,
-        backgroundColor: '#FFF4E4',
+        backgroundColor: '#F7F0E3',
         border: '1px solid #E0CAB6',
         borderRadius: 1,
         px: 0.5,
@@ -88,7 +88,7 @@ export default function QuantitySelector({
           color: theme.palette.primary.main,
           p: 0.5,
           '&:hover': {
-            backgroundColor: 'rgba(248, 156, 53, 0.1)',
+            backgroundColor: 'rgba(184, 137, 59, 0.1)',
           },
           '&:disabled': {
             color: theme.palette.grey[400],
@@ -122,7 +122,7 @@ export default function QuantitySelector({
           color: theme.palette.primary.main,
           p: 0.5,
           '&:hover': {
-            backgroundColor: 'rgba(248, 156, 53, 0.1)',
+            backgroundColor: 'rgba(184, 137, 59, 0.1)',
           },
           '&:disabled': {
             color: theme.palette.grey[400],

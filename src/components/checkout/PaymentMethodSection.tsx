@@ -53,11 +53,11 @@ export default function PaymentMethodSection({
             sx={{
               p: 2,
               border: '2px solid',
-              borderColor: selectedMethod === method.value ? '#FF9F0D' : '#EDEDED',
+              borderColor: selectedMethod === method.value ? '#B8893B' : '#EDEDED',
               cursor: 'pointer',
               transition: 'all 0.2s',
               '&:hover': {
-                borderColor: selectedMethod === method.value ? '#FF9F0D' : '#ccc',
+                borderColor: selectedMethod === method.value ? '#B8893B' : '#ccc',
               },
             }}
           >
@@ -68,7 +68,7 @@ export default function PaymentMethodSection({
                 value={method.value}
                 sx={{
                   color: '#666',
-                  '&.Mui-checked': { color: '#FF9F0D' },
+                  '&.Mui-checked': { color: '#8A6420' },
                 }}
               />
               <Box
@@ -80,7 +80,7 @@ export default function PaymentMethodSection({
                   height: 40,
                   borderRadius: '8px',
                   bgcolor: '#FAFAFA',
-                  color: selectedMethod === method.value ? '#FF9F0D' : '#666',
+                  color: selectedMethod === method.value ? '#B8893B' : '#666',
                 }}
               >
                 {method.icon}
