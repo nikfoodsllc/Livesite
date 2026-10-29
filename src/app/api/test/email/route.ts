@@ -5,6 +5,7 @@ import { formatAPITimestamp } from '@/lib/apiDateFormat';
 import { requireAdmin } from '@/lib/adminAuth';
 import { sendCartReminderEmail } from '@/lib/cartReminderEmail';
 import { sendStoreCreditEmail } from '@/lib/storeCreditEmail';
+import { adminFoodItemsUrl, sendStockAlertEmail } from '@/lib/stockAlertEmail';
 
 /**
  * POST /api/test/email
@@ -144,6 +145,29 @@ export async function POST(request: NextRequest) {
         break;
       }
 
+      case 'stock-low':
+      case 'stock-out': {
+        // a sample team stock email (made-up item), sent only to the address given; nothing is saved
+        const out = type === 'stock-out';
+        const sent = await sendStockAlertEmail(
+          {
+            kind: out ? 'out' : 'low',
+            itemName: 'Gajar Ka Halwa (16Oz)',
+            imageUrl: 'https://res.cloudinary.com/demo/image/upload/sample.jpg',
+            limitText: '20',
+            orderedText: out ? '20' : '18',
+            leftText: out ? '0' : '2',
+            usedPercent: out ? 100 : 90,
+            alertPercent: 10,
+            resetText: 'The count resets every day at 3:00 AM (Pacific)',
+            adminUrl: adminFoodItemsUrl(),
+          },
+          [String(testEmail)]
+        );
+        result = { success: sent.success, error: sent.error };
+        break;
+      }
+
       case 'payment-failed':
         const failedOrder: Order = orderData || {
           _id: 'test-order-id',
@@ -183,7 +207,7 @@ export async function POST(request: NextRequest) {
 
       default:
         return NextResponse.json(
-          { success: false, error: 'Invalid test type. Use: password-reset, password-reset-confirmation, order-confirmation, payment-failed, cart-reminder, store-credit, or store-credit-full' },
+          { success: false, error: 'Invalid test type. Use: password-reset, password-reset-confirmation, order-confirmation, payment-failed, cart-reminder, stock-low, stock-out, store-credit, or store-credit-full' },
           { status: 400 }
         );
     }
