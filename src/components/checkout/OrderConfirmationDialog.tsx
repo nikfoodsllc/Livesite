@@ -272,6 +272,11 @@ export default function OrderConfirmationDialog({
                         )}
                       </Box>
                     )}
+                    {item.notes && (
+                      <Typography sx={{ fontSize: '11px', color: '#059669', fontStyle: 'italic', display: 'block', mt: 0.5, wordBreak: 'break-word' }}>
+                        Instructions: {item.notes}
+                      </Typography>
+                    )}
                   </Box>
                 ))}
               </Box>

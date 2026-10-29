@@ -424,7 +424,7 @@ export default function CartItemCard({ item }: CartItemCardProps) {
                   fontStyle: 'italic',
                 }}
               >
-                Note: {item.notes}
+                Instructions: {item.notes}
               </Typography>
             )}
           </Box>
