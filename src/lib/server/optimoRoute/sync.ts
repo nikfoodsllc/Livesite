@@ -1,4 +1,5 @@
 import { db } from '@/lib/server/db';
+import { checkStockAlertsSafe } from '@/lib/server/stockAlerts';
 import type { Order } from '@/types/order';
 import { optimoMode } from './config';
 import { createStop, deleteStop, geocodeAddress, searchOrdersForDate, setStopPin, updateStopDetails } from './client';
@@ -301,6 +302,8 @@ export async function updateOrderStopsAddress(orderId: string, options: { now?: 
 
 /** For payment handlers: never throws, and gives up waiting after a few seconds (the reconcile job finishes the rest). */
 export async function syncOrderSafely(orderId: string, waitMs = 9000): Promise<void> {
+  // every place that calls this is a moment an order started to count, so the team's low-stock emails are checked here too
+  await checkStockAlertsSafe(orderId);
   if (optimoMode() === 'off') return;
   try {
     await Promise.race([
