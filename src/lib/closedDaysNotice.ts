@@ -68,14 +68,22 @@ export function parseOutOfStock(value: unknown): OutOfStockInfo[] {
 }
 
 /**
- * The red banner when items sold out (or are short) while the customer was on checkout, one item per line:
+ * The red banner when items sold out (or have less left than the cart asks for) while the customer was on checkout. Items that are
+ * gone and items that are only short get their own heading, one item per line:
  *
- *   These sold out, so they’ve been removed from your cart:
+ *   Sold out, so they’ve been removed from your cart:
  *
  *   Item 1
+ *
+ *   Not enough left, so they’ve been removed from your cart:
+ *
  *   Item 2 (only 1 left)
  */
 export function outOfStockNotice(items: OutOfStockInfo[]): string {
-  const lines = items.map((i) => (i.remainingBase > 0 && i.remainingText ? `${i.name} (only ${i.remainingText} left)` : i.name));
-  return `Some items sold out, so they’ve been removed from your cart:\n\n${lines.join('\n')}`;
+  const gone = items.filter((i) => !(i.remainingBase > 0));
+  const short = items.filter((i) => i.remainingBase > 0);
+  const blocks: string[] = [];
+  if (gone.length > 0) blocks.push(`Sold out, so they’ve been removed from your cart:\n\n${gone.map((i) => i.name).join('\n')}`);
+  if (short.length > 0) blocks.push(`Not enough left, so they’ve been removed from your cart:\n\n${short.map((i) => (i.remainingText ? `${i.name} (only ${i.remainingText} left)` : i.name)).join('\n')}`);
+  return blocks.join('\n\n');
 }
