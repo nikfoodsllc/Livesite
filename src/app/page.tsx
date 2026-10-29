@@ -719,6 +719,12 @@ export default function Home() {
       return;
     }
 
+    // An item with a Special instructions box opens its details first, so the customer can write them
+    if (foodItem.allowInstructions) {
+      handleOpenDialog(foodItem, dayGroup);
+      return;
+    }
+
     // If dayGroup is provided, use it directly (day-wise category with correct day)
     if (dayGroup) {
       handleAddToDayWiseCategory(foodItem, dayGroup);
