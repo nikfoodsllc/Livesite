@@ -182,12 +182,12 @@ export default function CheckoutPaymentStep({
               ) : null
             }
             sx={{
-              bgcolor: '#FF9F0D',
-              color: '#fff',
+              bgcolor: '#1F1712',
+              color: '#F6D58E',
               py: 1.5,
               fontSize: '16px',
               fontWeight: 600,
-              '&:hover': { bgcolor: '#e68f0c' },
+              '&:hover': { bgcolor: '#8A6420' },
               '&:disabled': { bgcolor: '#ccc', color: '#666' },
             }}
           >

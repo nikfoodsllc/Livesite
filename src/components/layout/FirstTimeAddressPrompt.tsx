@@ -273,14 +273,14 @@ export default function FirstTimeAddressPrompt() {
                   px: { xs: 2, sm: 3 },
                   py: 1,
                   borderRadius: '12px',
-                  backgroundColor: theme.palette.primary.main,
+                  backgroundColor: '#1F1712',
                   fontSize: { xs: '0.875rem', sm: '0.9rem' },
-                  boxShadow: '0 2px 8px rgba(248, 156, 53, 0.25)',
+                  boxShadow: '0 2px 8px rgba(184, 137, 59, 0.25)',
                   transition: 'all 0.2s ease',
                   '&:hover': {
-                    backgroundColor: theme.palette.primary.dark,
+                    backgroundColor: '#3A2A14',
                     transform: 'translateY(-1px)',
-                    boxShadow: '0 4px 12px rgba(248, 156, 53, 0.35)',
+                    boxShadow: '0 4px 12px rgba(184, 137, 59, 0.35)',
                   },
                 }}
               >

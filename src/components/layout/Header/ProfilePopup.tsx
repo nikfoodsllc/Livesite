@@ -64,7 +64,7 @@ export default function ProfilePopup() {
           transition: 'all 0.2s',
           '&:hover': {
             borderColor: 'primary.main',
-            backgroundColor: 'rgba(255, 159, 13, 0.05)',
+            backgroundColor: 'rgba(184, 137, 59, 0.05)',
           },
         }}
       >
@@ -72,7 +72,7 @@ export default function ProfilePopup() {
           sx={{
             width: 32,
             height: 32,
-            bgcolor: 'primary.main',
+            bgcolor: '#1F1712',
             fontSize: '14px',
             fontWeight: 600,
           }}
@@ -111,7 +111,7 @@ export default function ProfilePopup() {
               sx={{
                 width: 48,
                 height: 48,
-                bgcolor: 'primary.main',
+                bgcolor: '#1F1712',
                 fontSize: '18px',
                 fontWeight: 600,
               }}
@@ -155,7 +155,7 @@ export default function ProfilePopup() {
               px: 2.5,
               py: 1.25,
               '&:hover': {
-                backgroundColor: 'rgba(255, 159, 13, 0.08)',
+                backgroundColor: 'rgba(184, 137, 59, 0.08)',
               },
             }}
           >
@@ -178,7 +178,7 @@ export default function ProfilePopup() {
               px: 2.5,
               py: 1.25,
               '&:hover': {
-                backgroundColor: 'rgba(255, 159, 13, 0.08)',
+                backgroundColor: 'rgba(184, 137, 59, 0.08)',
               },
             }}
           >
@@ -201,7 +201,7 @@ export default function ProfilePopup() {
               px: 2.5,
               py: 1.25,
               '&:hover': {
-                backgroundColor: 'rgba(255, 159, 13, 0.08)',
+                backgroundColor: 'rgba(184, 137, 59, 0.08)',
               },
             }}
           >

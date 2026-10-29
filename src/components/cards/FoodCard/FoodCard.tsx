@@ -50,255 +50,310 @@ export default function FoodCard({
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { openCartPreview } = useHeader();
 
-  const cardWidth = isMobile ? 160 : 180;
-  const imageSize = isMobile ? 80 : 100;
   const badgeCount = inCartCount ?? quantity;
 
   return (
     <Card
       sx={{
-        width: cardWidth,
-        borderRadius: 3,
-        boxShadow: '10px 10px 20px rgba(0, 0, 0, 0.1)',
+        width: '100%',
+        maxWidth: isMobile ? 190 : 230,
+        borderRadius: '18px',
+        backgroundColor: '#FFFEFB',
+        border: '1px solid rgba(60, 35, 10, 0.08)',
+        boxShadow: '0 1px 2px rgba(60, 35, 10, 0.05), 0 14px 28px -14px rgba(60, 35, 10, 0.2)',
         cursor: onClick && available ? 'pointer' : 'default',
         position: 'relative',
-        transition: 'transform 0.2s, box-shadow 0.2s',
-        opacity: available ? 1 : 0.7,
+        overflow: 'hidden',
+        transition: 'transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.35s ease',
+        opacity: available ? 1 : 0.75,
+        '& .food-photo img': { transition: 'transform 0.6s cubic-bezier(0.22, 1, 0.36, 1)' },
         '&:hover': onClick && available
           ? {
-            transform: 'translateY(-4px)',
-            boxShadow: '10px 14px 24px rgba(0, 0, 0, 0.15)',
+            transform: 'translateY(-3px)',
+            boxShadow: '0 2px 4px rgba(60, 35, 10, 0.06), 0 22px 36px -16px rgba(60, 35, 10, 0.3)',
+            '& .food-photo img': { transform: 'scale(1.05)' },
           }
           : {},
+        '&:active': onClick && available ? { transform: 'scale(0.985)' } : {},
       }}
       onClick={available ? onClick : undefined}
     >
-      {/* Shopping Cart Indicator - Show if item is in cart */}
-      {badgeCount > 0 && (
-        <Tooltip title="View in cart" arrow placement="top">
-          <Box
-            onClick={(e) => {
-              e.stopPropagation();
-              openCartPreview();
-            }}
+      {/* Photo */}
+      <Box
+        className="food-photo"
+        sx={{
+          position: 'relative',
+          width: '100%',
+          aspectRatio: '1 / 1',
+          overflow: 'hidden',
+          background: 'linear-gradient(135deg, #F4EBDD 0%, #EADFCB 100%)',
+        }}
+      >
+        {imageUrl ? (
+          <Image
+            src={imageUrl}
+            alt={name}
+            fill
+            sizes="(max-width: 600px) 50vw, 230px"
+            style={{ objectFit: 'cover' }}
+          />
+        ) : (
+          <Typography
             sx={{
               position: 'absolute',
-              top: 8,
-              right: 8,
-              backgroundColor: theme.palette.primary.main,
-              borderRadius: '50%',
-              width: 32,
-              height: 32,
+              inset: 0,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              zIndex: 2,
-              cursor: 'pointer',
-              transition: 'all 0.2s ease-in-out',
-              '&:hover': {
-                backgroundColor: theme.palette.primary.dark,
-                transform: 'scale(1.1)',
-              },
+              color: 'rgba(60, 35, 10, 0.35)',
+              fontSize: '0.75rem',
             }}
           >
-            <IconShoppingCart size={18} color="#ffffff" />
-          </Box>
-        </Tooltip>
-      )}
+            No Image
+          </Typography>
+        )}
 
-      {/* Item Type Indicator - Show for combo and portion items */}
-      {itemType && itemType !== 'simple' && (
-        <Tooltip
-          title={itemType === 'combo' ? 'Combo Item' : 'Portions Available'}
-          arrow
-          placement="top"
-        >
+        {/* soft fade so the chips stay readable on any photo */}
+        <Box
+          sx={{
+            position: 'absolute',
+            inset: 0,
+            pointerEvents: 'none',
+            background: 'linear-gradient(180deg, rgba(20, 10, 0, 0.16) 0%, rgba(20, 10, 0, 0) 32%)',
+          }}
+        />
+
+        {/* Item type chip (combo / sizes) */}
+        {itemType && itemType !== 'simple' && (
+          <Tooltip
+            title={itemType === 'combo' ? 'Combo Item' : 'Portions Available'}
+            arrow
+            placement="top"
+          >
+            <Box
+              sx={{
+                position: 'absolute',
+                top: 10,
+                left: 10,
+                px: 1,
+                py: 0.25,
+                borderRadius: 999,
+                backgroundColor: 'rgba(255, 252, 245, 0.82)',
+                backdropFilter: 'blur(8px)',
+                WebkitBackdropFilter: 'blur(8px)',
+                border: '1px solid rgba(255, 255, 255, 0.6)',
+                color: '#3A2A14',
+                fontSize: '0.6875rem',
+                fontWeight: 600,
+                letterSpacing: '0.04em',
+                lineHeight: 1.5,
+                zIndex: 2,
+                userSelect: 'none',
+              }}
+            >
+              {itemType === 'combo' ? 'Combo' : 'Sizes'}
+            </Box>
+          </Tooltip>
+        )}
+
+        {/* Cart indicator - shown when the item is in the cart */}
+        {badgeCount > 0 && (
+          <Tooltip title="View in cart" arrow placement="top">
+            <Box
+              onClick={(e) => {
+                e.stopPropagation();
+                openCartPreview();
+              }}
+              sx={{
+                position: 'absolute',
+                top: 8,
+                right: 8,
+                backgroundColor: '#1F1712',
+                borderRadius: 999,
+                minWidth: 32,
+                height: 32,
+                px: 1,
+                gap: 0.5,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 2,
+                cursor: 'pointer',
+                boxShadow: '0 4px 10px rgba(20, 10, 0, 0.35)',
+                transition: 'transform 0.2s ease, background-color 0.2s ease',
+                '&:hover': { backgroundColor: theme.palette.primary.dark, transform: 'scale(1.08)' },
+              }}
+            >
+              <IconShoppingCart size={16} color="#F6D58E" />
+              <Typography
+                component="span"
+                aria-label={`${badgeCount} in cart`}
+                sx={{ color: '#F6D58E', fontWeight: 700, fontSize: '0.8125rem', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}
+              >
+                {badgeCount}
+              </Typography>
+            </Box>
+          </Tooltip>
+        )}
+
+        {/* Veg / Non-veg mark */}
+        {veg !== undefined && (
           <Box
             sx={{
               position: 'absolute',
-              top: 8,
-              left: 8,
-              backgroundColor: 'rgba(0, 0, 0, 0.08)',
-              borderRadius: '50%',
-              width: 28,
-              height: 28,
+              bottom: 10,
+              left: 10,
+              width: 18,
+              height: 18,
+              borderRadius: '4px',
+              backgroundColor: '#FFFEFB',
+              border: `1.5px solid ${veg ? '#2E8B4F' : '#C0392B'}`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              boxShadow: '0 2px 6px rgba(20, 10, 0, 0.2)',
               zIndex: 2,
+            }}
+          >
+            <Box
+              sx={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                backgroundColor: veg ? '#2E8B4F' : '#C0392B',
+              }}
+            />
+          </Box>
+        )}
+
+        {/* Out of Stock Overlay */}
+        {!available && (
+          <Box
+            sx={{
+              position: 'absolute',
+              inset: 0,
+              backgroundColor: 'rgba(31, 23, 18, 0.62)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 3,
             }}
           >
             <Typography
               sx={{
-                fontSize: '0.875rem',
+                color: '#ffffff',
+                fontSize: isMobile ? '0.6875rem' : '0.75rem',
                 fontWeight: 600,
-                color: 'rgba(0, 0, 0, 0.5)',
-                userSelect: 'none',
+                textAlign: 'center',
+                lineHeight: 1.3,
+                textTransform: 'uppercase',
+                letterSpacing: '0.14em',
               }}
             >
-              {itemType === 'combo' ? 'C' : 'P'}
+              OUT OF
+              <br />
+              STOCK
             </Typography>
           </Box>
-        </Tooltip>
-      )}
+        )}
+      </Box>
 
       <CardContent
         sx={{
           pt: 1.5,
           pb: 1.5,
-          px: 2,
-          textAlign: 'center',
+          px: isMobile ? 1.25 : 1.75,
+          textAlign: 'left',
           '&:last-child': { pb: 1.5 },
         }}
       >
-        {/* Circular Image */}
-        <Box
-          sx={{
-            display: 'flex',
-            justifyContent: 'center',
-            mb: 1.5,
-            position: 'relative',
-          }}
-        >
-          <Box
-            sx={{
-              width: imageSize,
-              height: imageSize,
-              borderRadius: '50%',
-              overflow: 'hidden',
-              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-              backgroundColor: '#f5f5f5',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            {imageUrl ? (
-              <Image
-                src={imageUrl}
-                alt={name}
-                width={imageSize}
-                height={imageSize}
-                style={{
-                  objectFit: 'cover',
-                }}
-              />
-            ) : (
-              <Typography
-                variant="body2"
-                sx={{
-                  color: theme.palette.text.disabled,
-                  fontSize: '0.75rem',
-                }}
-              >
-                No Image
-              </Typography>
-            )}
-          </Box>
-
-          {/* Veg/Non-Veg Indicator */}
-          {veg !== undefined && (
-            <Box
-              sx={{
-                position: 'absolute',
-                bottom: 0,
-                right: `calc(50% - ${imageSize / 2}px - 4px)`,
-                width: 16,
-                height: 16,
-                borderRadius: '50%',
-                backgroundColor: veg ? '#4caf50' : '#f44336',
-                border: '2px solid white',
-                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
-              }}
-            />
-          )}
-
-          {/* Out of Stock Overlay */}
-          {!available && (
-            <Box
-              sx={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: 'rgba(0, 0, 0, 0.6)',
-                borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                zIndex: 1,
-              }}
-            >
-              <Typography
-                sx={{
-                  color: '#ffffff',
-                  fontSize: isMobile ? '0.625rem' : '0.75rem',
-                  fontWeight: 700,
-                  textAlign: 'center',
-                  lineHeight: 1.2,
-                  textTransform: 'uppercase',
-                  letterSpacing: 0.5,
-                }}
-              >
-                OUT OF
-                <br />
-                STOCK
-              </Typography>
-            </Box>
-          )}
-        </Box>
-
         {/* Food Name */}
         <Typography
           variant="body1"
           sx={{
             fontWeight: 600,
-            fontSize: isMobile ? '0.813rem' : '0.875rem',
+            fontSize: isMobile ? '0.8125rem' : '0.9rem',
+            lineHeight: 1.3,
+            letterSpacing: '-0.005em',
             mb: 0.75,
-            color: theme.palette.text.primary,
+            color: '#1F1712',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             display: '-webkit-box',
             WebkitLineClamp: 2,
             WebkitBoxOrient: 'vertical',
-            minHeight: isMobile ? 36 : 40,
+            minHeight: isMobile ? 34 : 38,
+            textWrap: 'balance',
           }}
         >
           {name}
         </Typography>
 
-        {/* Price */}
-        <Typography
-          variant="h6"
-          sx={{
-            fontWeight: 700,
-            fontSize: isMobile ? '0.875rem' : '1rem',
-            color: theme.palette.primary.main,
-            mb: 1,
-          }}
-        >
-          {price != null ? `$${price.toFixed(2)}` : 'Price not available'}
-        </Typography>
-
-        {/* Quantity Selector */}
+        {/* Price + stepper */}
         <Box
           sx={{
             display: 'flex',
-            justifyContent: 'center',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 1,
+            flexWrap: 'wrap',
           }}
-          onClick={(e) => e.stopPropagation()} // Prevent card click when interacting with buttons
         >
-          <QuantitySelector
-            quantity={alwaysShowAdd ? 0 : quantity}
-            alwaysShowAdd={alwaysShowAdd}
-            onAdd={onAdd}
-            onIncrement={onIncrement}
-            onDecrement={onDecrement}
-            isLoading={isLoading}
-            size={isMobile ? 'small' : 'medium'}
-            disabled={!available}
-          />
+          <Typography
+            sx={{
+              fontFamily: 'var(--font-inter), system-ui, sans-serif',
+              fontWeight: 700,
+              fontSize: isMobile ? '0.9375rem' : '1.0625rem',
+              color: theme.palette.primary.dark,
+              fontVariantNumeric: 'lining-nums tabular-nums',
+              lineHeight: 1,
+            }}
+          >
+            {price != null ? `$${price.toFixed(2)}` : 'Price not available'}
+          </Typography>
+
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              flex: '1 1 auto',
+              // Add button and stepper restyled for this card only
+              '& .MuiButton-root': {
+                minWidth: isMobile ? 58 : 66,
+                height: 30,
+                borderRadius: 999,
+                backgroundColor: '#1F1712',
+                color: '#F6D58E',
+                fontWeight: 600,
+                fontSize: '0.8125rem',
+                letterSpacing: '0.02em',
+                px: 1.75,
+                transition: 'background-color 0.2s ease, transform 0.15s ease',
+                '&:hover': { backgroundColor: '#3A2A14' },
+                '&:active': { transform: 'scale(0.96)' },
+                '&:disabled': { backgroundColor: '#E6DED1', color: '#9A8F80' },
+              },
+              '& .MuiBox-root': {
+                height: 30,
+                borderRadius: 999,
+                backgroundColor: '#F7F0E3',
+                borderColor: '#E4D6BC',
+              },
+              '& .MuiIconButton-root': { color: '#1F1712' },
+            }}
+            onClick={(e) => e.stopPropagation()} // Prevent card click when interacting with buttons
+          >
+            <QuantitySelector
+              quantity={alwaysShowAdd ? 0 : quantity}
+              alwaysShowAdd={alwaysShowAdd}
+              onAdd={onAdd}
+              onIncrement={onIncrement}
+              onDecrement={onDecrement}
+              isLoading={isLoading}
+              size="small"
+              disabled={!available}
+            />
+          </Box>
         </Box>
       </CardContent>
     </Card>

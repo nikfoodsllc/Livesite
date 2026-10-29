@@ -78,12 +78,12 @@ export default function TipSection({
                 py: 1.5,
                 flexDirection: 'column',
                 gap: 0.5,
-                borderColor: isSelected ? '#FF9F0D' : '#EDEDED',
-                bgcolor: isSelected ? '#FF9F0D' : 'transparent',
+                borderColor: isSelected ? '#B8893B' : '#EDEDED',
+                bgcolor: isSelected ? '#B8893B' : 'transparent',
                 color: isSelected ? '#fff' : '#333',
                 '&:hover': {
-                  bgcolor: isSelected ? '#FF9F0D' : '#FAFAFA',
-                  borderColor: '#FF9F0D',
+                  bgcolor: isSelected ? '#B8893B' : '#FAFAFA',
+                  borderColor: '#B8893B',
                 },
               }}
             >

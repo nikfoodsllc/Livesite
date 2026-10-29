@@ -64,7 +64,7 @@ export default function StoreCreditCard() {
           <Typography sx={{ fontSize: '22px', fontWeight: 700, color: '#111827' }}>{money(balance)}</Typography>
         </Box>
         {history.length > 0 && (
-          <Button onClick={() => setOpen((v) => !v)} sx={{ textTransform: 'none', fontWeight: 600, color: '#FF9F0D' }}>
+          <Button onClick={() => setOpen((v) => !v)} sx={{ textTransform: 'none', fontWeight: 600, color: '#8A6420' }}>
             {open ? 'Hide' : 'History'}
           </Button>
         )}

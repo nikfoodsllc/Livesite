@@ -266,9 +266,9 @@ export default function DaySelectionPopup({
                 textAlign: 'center',
                 py: 4,
                 px: 2,
-                backgroundColor: '#FFF8EE',
+                backgroundColor: '#FBF4E6',
                 borderRadius: 2,
-                border: '1px dashed #FFB648',
+                border: '1px dashed #D9B26A',
               }}
             >
               <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
@@ -290,12 +290,12 @@ export default function DaySelectionPopup({
                     p: 1.5,
                     border: `1.5px solid ${isSelected ? theme.palette.primary.main : '#E0E0E0'}`,
                     borderRadius: 2,
-                    backgroundColor: isSelected ? '#FFF4E4' : '#ffffff',
+                    backgroundColor: isSelected ? '#F7F0E3' : '#ffffff',
                     transition: 'all 0.2s ease',
                     cursor: 'pointer',
                     '&:hover': {
                       borderColor: theme.palette.primary.main,
-                      backgroundColor: isSelected ? '#FFF4E4' : '#FAFAFA',
+                      backgroundColor: isSelected ? '#F7F0E3' : '#FAFAFA',
                     },
                   }}
                   onClick={() => handleDayToggle(dayOption.date)}
@@ -335,7 +335,7 @@ export default function DaySelectionPopup({
                         display: 'flex',
                         alignItems: 'center',
                         gap: 0.5,
-                        backgroundColor: '#FFF8EE',
+                        backgroundColor: '#FBF4E6',
                         border: '1px solid #E0CAB6',
                         borderRadius: 1,
                         px: 0.5,

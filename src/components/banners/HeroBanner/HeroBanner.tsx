@@ -16,9 +16,10 @@ export default function HeroBanner() {
       sx={{
         position: 'relative',
         height: 400,
-        backgroundColor: '#FFF9F2',
+        background: 'radial-gradient(ellipse at 78% 45%, #F3E4C4 0%, #FBF7F0 62%)',
         overflow: 'hidden',
         mb: { xs: 2, md: 4 },
+        borderBottom: '1px solid rgba(184, 137, 59, 0.3)',
       }}
     >
       {/* Background Pattern Overlay */}
@@ -32,7 +33,7 @@ export default function HeroBanner() {
           backgroundImage: 'url(/images/pattern-bg.png)',
           backgroundSize: 'cover',
           backgroundPosition: 'center',
-          opacity: 0.8,
+          opacity: 0.25,
         }}
       />
 
@@ -58,25 +59,34 @@ export default function HeroBanner() {
             gap: 2,
           }}
         >
-          {/* Banner Text Image */}
-          <Box
-            component="img"
-            src="/images/banner-text.png"
-            alt="Authentic Indian Food"
+          {/* Headline */}
+          <Typography
+            component="h1"
             sx={{
-              width: 400,
-              height: 100,
-              objectFit: 'contain',
+              fontFamily: 'var(--font-display), Georgia, serif',
+              fontWeight: 600,
+              fontSize: { md: '2.75rem', lg: '3.5rem' },
+              lineHeight: 1.1,
+              letterSpacing: '-0.005em',
+              color: '#1F1712',
+              textWrap: 'balance',
             }}
-          />
+          >
+            Your American Source for
+            <Box component="span" sx={{ display: 'block', fontStyle: 'italic', fontWeight: 500, color: '#8A6420' }}>
+              Delicious Indian Food.
+            </Box>
+          </Typography>
+          <Box aria-hidden sx={{ width: 64, height: '1px', background: 'linear-gradient(90deg, #B8893B, rgba(184,137,59,0))' }} />
           <Typography
             variant="h6"
             sx={{
               fontWeight: 400,
               fontSize: { md: '1rem', lg: '1.125rem' },
-              color: theme.palette.text.secondary,
-              maxWidth: 500,
-              lineHeight: 1.6,
+              color: '#5C4F40',
+              maxWidth: 480,
+              lineHeight: 1.7,
+              textWrap: 'pretty',
             }}
           >
             Order your favorite curries, biryanis, and more for convenient delivery across Greater Seattle Region and we do free deliveries too!
@@ -94,31 +104,31 @@ export default function HeroBanner() {
             pr: 0,
           }}
         >
-          {/* Decorative Circle 1 */}
+          {/* Gold rings behind the plate */}
           <Box
+            aria-hidden
             sx={{
               position: 'absolute',
-              width: 300,
-              height: 300,
+              width: 440,
+              height: 440,
               borderRadius: '50%',
-              backgroundColor: theme.palette.primary.light,
-              opacity: 0.2,
-              top: '10%',
-              right: '20%',
+              border: '1px solid rgba(184, 137, 59, 0.45)',
+              top: '50%',
+              right: 30,
+              transform: 'translateY(-50%)',
             }}
           />
-
-          {/* Decorative Circle 2 */}
           <Box
+            aria-hidden
             sx={{
               position: 'absolute',
-              width: 200,
-              height: 200,
+              width: 500,
+              height: 500,
               borderRadius: '50%',
-              backgroundColor: theme.palette.primary.main,
-              opacity: 0.15,
-              bottom: '15%',
-              right: '40%',
+              border: '1px solid rgba(184, 137, 59, 0.2)',
+              top: '50%',
+              right: 0,
+              transform: 'translateY(-50%)',
             }}
           />
 
@@ -130,9 +140,11 @@ export default function HeroBanner() {
             sx={{
               position: 'relative',
               zIndex: 1,
-              width: 500,
-              height: 500,
+              width: 440,
+              height: 440,
+              marginRight: '30px',
               objectFit: 'cover',
+              filter: 'drop-shadow(0 28px 30px rgba(60, 35, 10, 0.3))',
             }}
           />
         </Box>

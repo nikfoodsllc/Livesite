@@ -31,7 +31,7 @@ export default function EmptyCart() {
           width: isMobile ? 120 : 160,
           height: isMobile ? 120 : 160,
           borderRadius: '50%',
-          backgroundColor: '#FFF4E4',
+          backgroundColor: '#F7F0E3',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -78,8 +78,8 @@ export default function EmptyCart() {
         onClick={handleContinueShopping}
         endIcon={<IconArrowRight size={20} />}
         sx={{
-          backgroundColor: theme.palette.primary.main,
-          color: '#ffffff',
+          backgroundColor: '#1F1712',
+          color: '#F6D58E',
           textTransform: 'none',
           fontWeight: 600,
           fontSize: isMobile ? '1rem' : '1.05rem',
@@ -87,7 +87,7 @@ export default function EmptyCart() {
           py: 1.5,
           borderRadius: 2,
           '&:hover': {
-            backgroundColor: theme.palette.primary.dark,
+            backgroundColor: '#3A2A14',
           },
         }}
       >

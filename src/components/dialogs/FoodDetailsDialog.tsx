@@ -563,8 +563,10 @@ export default function FoodDetailsDialog({
           width: isMobile ? '100%' : '700px',
           maxWidth: '100vw',
           maxHeight: '85vh',
-          borderRadius: isMobile ? 0 : 2,
+          borderRadius: isMobile ? 0 : '24px',
           m: 0,
+          backgroundColor: '#FFFEFB',
+          boxShadow: '0 40px 80px -24px rgba(31, 23, 18, 0.45)',
         },
       }}
     >
@@ -585,10 +587,13 @@ export default function FoodDetailsDialog({
             top: 20,
             right: 16,
             zIndex: 10,
-            backgroundColor: 'white',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+            backgroundColor: 'rgba(255, 252, 245, 0.9)',
+            backdropFilter: 'blur(8px)',
+            boxShadow: '0 4px 14px rgba(31, 23, 18, 0.25)',
+            transition: 'transform 0.2s ease, background-color 0.2s ease',
             '&:hover': {
-              backgroundColor: '#f3f4f6',
+              backgroundColor: '#FFFEFB',
+              transform: 'scale(1.06)',
             },
           }}
         >
@@ -603,8 +608,8 @@ export default function FoodDetailsDialog({
           sx={{
             flex: 1,
             overflowY: 'auto',
-            pt: 1.25,
-            px: { xs: 2, sm: 5.25 },
+            pt: 2.5,
+            px: { xs: 2.5, sm: 5.25 },
             pb: 10,
           }}
         >
@@ -612,11 +617,11 @@ export default function FoodDetailsDialog({
           <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, mb: 1.5 }}>
             <VegIndicator isVeg={foodItem.veg} size={18} />
             <Box sx={{ flex: 1 }}>
-              <Typography variant="h5" sx={{ fontWeight: 600, mb: 0.5, fontSize: '1.25rem' }}>
+              <Typography variant="h5" sx={{ fontFamily: 'var(--font-display), Georgia, serif', fontWeight: 600, mb: 0.5, fontSize: { xs: '1.5rem', sm: '1.75rem' }, lineHeight: 1.2, color: '#1F1712', textWrap: 'balance' }}>
                 {foodItem.name}
               </Typography>
               {foodItem.price != null && (
-                <Typography variant="h6" sx={{ color: '#f89c35', fontWeight: 600, fontSize: '1.125rem' }}>
+                <Typography variant="h6" sx={{ fontFamily: 'var(--font-inter), system-ui, sans-serif', color: '#8A6420', fontWeight: 700, fontSize: '1.125rem', fontVariantNumeric: 'tabular-nums' }}>
                   {foodItem.portions && foodItem.portions.length > 0 ? 'Starting at ' : ''}
                   {`$${foodItem.price.toFixed(2)}`}
                 </Typography>
@@ -628,7 +633,7 @@ export default function FoodDetailsDialog({
           {foodItem.description && (
             <Typography
               variant="body1"
-              sx={{ color: '#374151', mb: 2.5, mt: 1, lineHeight: 1.6 }}
+              sx={{ color: '#5C4F40', mb: 3, mt: 1.5, lineHeight: 1.7, fontSize: '0.9688rem', textWrap: 'pretty' }}
             >
               {foodItem.description}
             </Typography>
@@ -662,9 +667,9 @@ export default function FoodDetailsDialog({
                     checked={useEcoContainer}
                     onChange={(e) => setUseEcoContainer(e.target.checked)}
                     sx={{
-                      color: '#d1d5db',
+                      color: '#CBBFA9',
                       '&.Mui-checked': {
-                        color: '#f89c35',
+                        color: '#8A6420',
                       },
                     }}
                   />
@@ -673,7 +678,7 @@ export default function FoodDetailsDialog({
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Typography>Use Eco-Friendly Container</Typography>
                     {foodItem.ecoContainerCharge && (
-                      <Typography sx={{ color: '#f89c35', fontWeight: 600 }}>
+                      <Typography sx={{ color: '#8A6420', fontWeight: 600 }}>
                         +${foodItem.ecoContainerCharge.toFixed(2)}
                       </Typography>
                     )}
@@ -686,7 +691,7 @@ export default function FoodDetailsDialog({
           {/* Combo Sections */}
           {foodItem.hasCombo && foodItem.sections && foodItem.sections.length > 0 && (
             <Box sx={{ mb: 2 }}>
-              <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+              <Typography variant="h6" sx={{ fontFamily: 'var(--font-display), Georgia, serif', fontWeight: 600, fontSize: '1.25rem', color: '#1F1712', mb: 2 }}>
                 Customize Your Combo
               </Typography>
               {foodItem.sections.map((section) => {
@@ -714,8 +719,8 @@ export default function FoodDetailsDialog({
         <Box
           sx={{
             flexShrink: 0,
-            backgroundColor: 'white',
-            borderTop: '1px solid #F0F0F0',
+            backgroundColor: '#FFFEFB',
+            borderTop: '1px solid rgba(184, 137, 59, 0.3)',
             pt: 1.5,
             px: { xs: 2, sm: 5.25 },
             pb: 2,
@@ -723,7 +728,7 @@ export default function FoodDetailsDialog({
             justifyContent: 'flex-end',
             alignItems: 'center',
             gap: 2,
-            boxShadow: '0 -2px 4px rgba(0,0,0,0.05)',
+            boxShadow: '0 -12px 24px -16px rgba(60, 35, 10, 0.25)',
           }}
         >
           {quantity === 0 ? (
@@ -732,19 +737,22 @@ export default function FoodDetailsDialog({
               onClick={handleAddToCart}
               disabled={false}
               sx={{
-                backgroundColor: '#f89c35',
-                color: 'white',
+                backgroundColor: '#1F1712',
+                color: '#F6D58E',
                 textTransform: 'none',
                 fontWeight: 600,
+                letterSpacing: '0.02em',
                 px: 4,
                 py: 1.5,
-                borderRadius: 2,
+                borderRadius: 999,
+                transition: 'background-color 0.2s ease, transform 0.15s ease',
                 '&:hover': {
-                  backgroundColor: '#e08929',
+                  backgroundColor: '#3A2A14',
                 },
+                '&:active': { transform: 'scale(0.98)' },
                 '&.Mui-disabled': {
-                  backgroundColor: '#e5e7eb',
-                  color: '#9ca3af',
+                  backgroundColor: '#E6DED1',
+                  color: '#9A8F80',
                 },
               }}
             >
@@ -756,18 +764,18 @@ export default function FoodDetailsDialog({
                 display: 'flex',
                 alignItems: 'center',
                 gap: 1.5,
-                backgroundColor: '#f89c35',
-                borderRadius: 2,
-                px: 2,
-                py: 1,
+                backgroundColor: '#1F1712',
+                borderRadius: 999,
+                px: 1.5,
+                py: 0.5,
               }}
             >
               <IconButton
                 onClick={() => handleQuantityChange(Math.max(0, quantity - 1))}
                 sx={{
-                  color: 'white',
+                  color: '#F6D58E',
                   '&:hover': {
-                    backgroundColor: 'rgba(255,255,255,0.1)',
+                    backgroundColor: 'rgba(246,213,142,0.12)',
                   },
                 }}
               >
@@ -775,7 +783,7 @@ export default function FoodDetailsDialog({
               </IconButton>
               <Typography
                 sx={{
-                  color: 'white',
+                  color: '#F6D58E',
                   fontWeight: 600,
                   minWidth: '40px',
                   textAlign: 'center',
@@ -787,9 +795,9 @@ export default function FoodDetailsDialog({
                 onClick={() => handleQuantityChange(quantity + 1)}
                 disabled={spiceRequiredIncomplete}
                 sx={{
-                  color: 'white',
+                  color: '#F6D58E',
                   '&:hover': {
-                    backgroundColor: 'rgba(255,255,255,0.1)',
+                    backgroundColor: 'rgba(246,213,142,0.12)',
                   },
                   '&.Mui-disabled': {
                     color: 'rgba(255,255,255,0.4)',

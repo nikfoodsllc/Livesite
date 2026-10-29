@@ -11,7 +11,7 @@ function FailurePageContent() {
   const error = searchParams.get('error') || 'An unexpected error occurred during checkout';
 
   return (
-    <Box sx={{ bgcolor: '#FAFAFA', minHeight: '100vh', py: 4 }}>
+    <Box sx={{ bgcolor: '#FFFFFF', minHeight: '100vh', py: 4 }}>
       <Container maxWidth="md">
         {/* Error Header */}
         <Paper
@@ -60,7 +60,7 @@ function FailurePageContent() {
         </Paper>
 
         {/* Help Section */}
-        <Paper elevation={0} sx={{ p: 3, mb: 3, border: '1px solid #EDEDED', bgcolor: '#FFF5E6' }}>
+        <Paper elevation={0} sx={{ p: 3, mb: 3, border: '1px solid #EDEDED', bgcolor: '#F7F0E3' }}>
           <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
             Need Help?
           </Typography>
@@ -100,11 +100,11 @@ function FailurePageContent() {
             startIcon={<IconRefresh size={20} />}
             onClick={() => router.push('/checkout')}
             sx={{
-              bgcolor: '#FF9F0D',
-              color: '#fff',
+              bgcolor: '#1F1712',
+              color: '#F6D58E',
               py: 1.5,
               '&:hover': {
-                bgcolor: '#e68f0c',
+                bgcolor: '#3A2A14',
               },
             }}
           >
@@ -117,12 +117,12 @@ function FailurePageContent() {
             startIcon={<IconHome size={20} />}
             onClick={() => router.push('/')}
             sx={{
-              borderColor: '#FF9F0D',
-              color: '#FF9F0D',
+              borderColor: '#B8893B',
+              color: '#8A6420',
               py: 1.5,
               '&:hover': {
-                borderColor: '#FF9F0D',
-                bgcolor: 'rgba(255, 159, 13, 0.05)',
+                borderColor: '#B8893B',
+                bgcolor: 'rgba(184, 137, 59, 0.05)',
               },
             }}
           >
@@ -146,7 +146,7 @@ export default function FailurePage() {
             minHeight: '60vh',
           }}
         >
-          <CircularProgress sx={{ color: '#FF9F0D' }} />
+          <CircularProgress sx={{ color: '#8A6420' }} />
         </Box>
       }
     >

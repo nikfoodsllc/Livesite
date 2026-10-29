@@ -181,9 +181,9 @@ export default function DeliveryLocationBar({
     : 'To get best delivery experience, provide your zip code';
 
   const fieldBorder = {
-    '& .MuiOutlinedInput-notchedOutline': { borderColor: '#F3D9B1' },
-    '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#FF9F0D' },
-    '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#FF9F0D' },
+    '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(184, 137, 59, 0.45)' },
+    '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#B8893B' },
+    '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#B8893B' },
   };
 
   const zipcodeControl = (
@@ -208,14 +208,14 @@ export default function DeliveryLocationBar({
         onClick={handleZipcodeSubmit}
         disabled={isValidatingZipcode || !zipcodeInput.trim()}
         sx={{
-          bgcolor: '#FF9F0D',
+          bgcolor: '#1F1712',
           minWidth: 72,
           height: 40,
           borderRadius: 2,
           boxShadow: 'none',
           textTransform: 'none',
           fontWeight: 600,
-          '&:hover': { bgcolor: '#e68f0c', boxShadow: 'none' },
+          '&:hover': { bgcolor: '#3A2A14', boxShadow: 'none' },
           '&:disabled': { bgcolor: '#E6E6E6', color: '#9A9A9A' },
         }}
       >
@@ -260,8 +260,9 @@ export default function DeliveryLocationBar({
     <Box className={className} sx={{ width: '100%' }}>
       <Box
         sx={{
-          bgcolor: '#FFF8EC',
-          border: '1px solid #F3D9B1',
+          bgcolor: '#FFFEFB',
+          border: '1px solid rgba(184, 137, 59, 0.35)',
+          boxShadow: '0 1px 2px rgba(60, 35, 10, 0.05), 0 14px 28px -16px rgba(60, 35, 10, 0.2)',
           borderRadius: 3,
           p: { xs: 1.5, sm: 2 },
           display: 'grid',
@@ -284,14 +285,14 @@ export default function DeliveryLocationBar({
               width: 40,
               height: 40,
               borderRadius: '50%',
-              bgcolor: '#FF9F0D',
+              bgcolor: '#1F1712',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               flexShrink: 0,
             }}
           >
-            <IconMapPin size={22} color="#fff" />
+            <IconMapPin size={22} color="#F6D58E" />
           </Box>
           <Box sx={{ minWidth: 0 }}>
             <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1F1F1F', lineHeight: 1.3 }}>
@@ -317,7 +318,7 @@ export default function DeliveryLocationBar({
           }}
         >
           {user && isLoadingAddresses ? (
-            <CircularProgress size={20} sx={{ color: '#FF9F0D' }} />
+            <CircularProgress size={20} sx={{ color: '#8A6420' }} />
           ) : hasSavedAddresses ? (
             addressControl
           ) : (
@@ -332,7 +333,7 @@ export default function DeliveryLocationBar({
               gridArea: 'pill',
               justifySelf: { xs: 'start', sm: 'end' },
               bgcolor: '#fff',
-              border: '1px solid #F3D9B1',
+              border: '1px solid rgba(184, 137, 59, 0.35)',
               borderRadius: 999,
               px: 1.75,
               py: 0.5,

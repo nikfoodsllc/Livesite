@@ -229,7 +229,7 @@ export default function LoginDialog({ open, onClose, onSwitchToSignup, onSwitchT
                 <InputAdornment position="start">
                   <IconMail
                     size={20}
-                    color={emailFocused ? '#FF9F0D' : '#666'}
+                    color={emailFocused ? '#B8893B' : '#666'}
                   />
                 </InputAdornment>
               ),
@@ -238,21 +238,21 @@ export default function LoginDialog({ open, onClose, onSwitchToSignup, onSwitchT
               '& .MuiOutlinedInput-root': {
                 height: 56,
                 borderRadius: '12px',
-                backgroundColor: emailFocused ? '#FFF9F2' : '#FAFAFA',
+                backgroundColor: emailFocused ? '#FBF4E6' : '#FAFAFA',
                 transition: 'all 0.2s ease',
                 '& fieldset': {
                   borderWidth: 2,
                   borderColor: '#E8E8E8',
                 },
                 '&:hover fieldset': {
-                  borderColor: emailFocused ? '#FF9F0D' : '#D0D0D0',
+                  borderColor: emailFocused ? '#B8893B' : '#D0D0D0',
                 },
                 '&.Mui-focused': {
-                  backgroundColor: '#FFF9F2',
-                  boxShadow: '0 0 0 4px rgba(255, 159, 13, 0.1)',
+                  backgroundColor: '#FBF4E6',
+                  boxShadow: '0 0 0 4px rgba(184, 137, 59, 0.1)',
                 },
                 '&.Mui-focused fieldset': {
-                  borderColor: '#FF9F0D',
+                  borderColor: '#B8893B',
                 },
               },
               '& input': {
@@ -286,7 +286,7 @@ export default function LoginDialog({ open, onClose, onSwitchToSignup, onSwitchT
                   <InputAdornment position="start">
                     <IconLock
                       size={20}
-                      color={passwordFocused ? '#FF9F0D' : '#666'}
+                      color={passwordFocused ? '#B8893B' : '#666'}
                     />
                   </InputAdornment>
                 ),
@@ -310,21 +310,21 @@ export default function LoginDialog({ open, onClose, onSwitchToSignup, onSwitchT
                 '& .MuiOutlinedInput-root': {
                   height: 56,
                   borderRadius: '12px',
-                  backgroundColor: passwordFocused ? '#FFF9F2' : '#FAFAFA',
+                  backgroundColor: passwordFocused ? '#FBF4E6' : '#FAFAFA',
                   transition: 'all 0.2s ease',
                   '& fieldset': {
                     borderWidth: 2,
                     borderColor: '#E8E8E8',
                   },
                   '&:hover fieldset': {
-                    borderColor: passwordFocused ? '#FF9F0D' : '#D0D0D0',
+                    borderColor: passwordFocused ? '#B8893B' : '#D0D0D0',
                   },
                   '&.Mui-focused': {
-                    backgroundColor: '#FFF9F2',
-                    boxShadow: '0 0 0 4px rgba(255, 159, 13, 0.1)',
+                    backgroundColor: '#FBF4E6',
+                    boxShadow: '0 0 0 4px rgba(184, 137, 59, 0.1)',
                   },
                   '&.Mui-focused fieldset': {
-                    borderColor: '#FF9F0D',
+                    borderColor: '#B8893B',
                   },
                 },
                 '& input': {
@@ -346,7 +346,7 @@ export default function LoginDialog({ open, onClose, onSwitchToSignup, onSwitchT
                 underline="none"
                 sx={{
                   fontSize: 14,
-                  color: '#FF9F0D',
+                  color: '#8A6420',
                   fontWeight: 600,
                   '&:hover': {
                     color: '#FF6B35',
@@ -370,13 +370,13 @@ export default function LoginDialog({ open, onClose, onSwitchToSignup, onSwitchT
               fontSize: 16,
               fontWeight: 700,
               textTransform: 'none',
-              background: 'linear-gradient(135deg, #FF9F0D 0%, #FF6B35 100%)',
-              boxShadow: '0 6px 24px rgba(255, 159, 13, 0.4)',
+              background: 'linear-gradient(135deg, #B8893B 0%, #FF6B35 100%)',
+              boxShadow: '0 6px 24px rgba(184, 137, 59, 0.4)',
               transition: 'all 0.3s ease',
               '&:hover': {
                 transform: 'translateY(-2px)',
-                boxShadow: '0 8px 32px rgba(255, 159, 13, 0.5)',
-                background: 'linear-gradient(135deg, #FF9F0D 0%, #FF6B35 100%)',
+                boxShadow: '0 8px 32px rgba(184, 137, 59, 0.5)',
+                background: 'linear-gradient(135deg, #B8893B 0%, #FF6B35 100%)',
               },
               '&:active': {
                 transform: 'scale(0.98)',
@@ -410,7 +410,7 @@ export default function LoginDialog({ open, onClose, onSwitchToSignup, onSwitchT
                 onClick={onSwitchToSignup}
                 underline="none"
                 sx={{
-                  color: '#FF9F0D',
+                  color: '#8A6420',
                   fontWeight: 700,
                   '&:hover': {
                     color: '#FF6B35',
@@ -446,7 +446,7 @@ export default function LoginDialog({ open, onClose, onSwitchToSignup, onSwitchT
                   color: '#666',
                   fontWeight: 600,
                   '&:hover': {
-                    color: '#FF9F0D',
+                    color: '#8A6420',
                   },
                 }}
               >
@@ -460,7 +460,7 @@ export default function LoginDialog({ open, onClose, onSwitchToSignup, onSwitchT
                   color: '#666',
                   fontWeight: 600,
                   '&:hover': {
-                    color: '#FF9F0D',
+                    color: '#8A6420',
                   },
                 }}
               >

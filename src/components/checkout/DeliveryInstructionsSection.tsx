@@ -21,7 +21,7 @@ export default function DeliveryInstructionsSection({ value, onChange, saved }: 
   return (
     <Paper elevation={0} sx={{ p: 3, mb: 3, border: '1px solid #EDEDED' }}>
       <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
-        <IconNotes size={20} style={{ color: '#FF9F0D' }} />
+        <IconNotes size={20} style={{ color: '#8A6420' }} />
         Delivery Instructions <Typography component="span" variant="body2" sx={{ color: '#666', fontWeight: 400 }}>(optional)</Typography>
       </Typography>
       <TextField

@@ -57,7 +57,7 @@ const stripePromise = loadStripe(
 const stripeAppearance: StripeElementsOptions['appearance'] = {
   theme: 'stripe',
   variables: {
-    colorPrimary: '#FF9F0D',
+    colorPrimary: '#B8893B',
   },
   rules: {
     // Stripe has no icon-size setting; the payment method rows (label + icons, incl. the
@@ -313,7 +313,7 @@ function CheckoutFormContent({
                   gap: 1.5,
                 }}
               >
-                <CircularProgress size={22} sx={{ color: '#FF9F0D' }} />
+                <CircularProgress size={22} sx={{ color: '#8A6420' }} />
                 <Typography variant="body2" sx={{ color: '#666' }}>
                   Loading payment options…
                 </Typography>
@@ -381,13 +381,13 @@ function CheckoutFormContent({
               )
             }
             sx={{
-              bgcolor: '#FF9F0D',
-              color: '#fff',
+              bgcolor: '#1F1712',
+              color: '#F6D58E',
               py: 1.5,
               fontSize: '16px',
               fontWeight: 600,
               '&:hover': {
-                bgcolor: '#e68f0c',
+                bgcolor: '#8A6420',
               },
               '&:disabled': {
                 bgcolor: '#ccc',
@@ -463,13 +463,13 @@ function CheckoutFormContent({
           sx={{
             display: { xs: 'none', md: 'block' },
             mt: 2,
-            bgcolor: '#FF9F0D',
-            color: '#fff',
+            bgcolor: '#1F1712',
+            color: '#F6D58E',
             py: 1.5,
             fontSize: '16px',
             fontWeight: 600,
             '&:hover': {
-              bgcolor: '#e68f0c',
+              bgcolor: '#8A6420',
             },
             '&:disabled': {
               bgcolor: '#ccc',
@@ -1404,12 +1404,12 @@ export default function CheckoutPage() {
 
   if (closedNotice && (!cart || cart.days.length === 0)) {
     return (
-      <Box sx={{ bgcolor: '#FAFAFA', minHeight: '60vh', py: 4 }}>
+      <Box sx={{ bgcolor: '#FFFFFF', minHeight: '60vh', py: 4 }}>
         <Container maxWidth="sm">
           <Alert severity="error" sx={{ mb: 3, whiteSpace: 'pre-line' }} onClose={() => setClosedNotice(null)} role="alert">
             {closedNotice}
           </Alert>
-          <Button variant="contained" onClick={() => router.push('/')} sx={{ bgcolor: '#FF9F0D', '&:hover': { bgcolor: '#E68A00' }, textTransform: 'none' }}>
+          <Button variant="contained" onClick={() => router.push('/')} sx={{ bgcolor: '#1F1712', '&:hover': { bgcolor: '#8A6420' }, textTransform: 'none' }}>
             Back to the menu
           </Button>
         </Container>
@@ -1427,7 +1427,7 @@ export default function CheckoutPage() {
           minHeight: '60vh',
         }}
       >
-        <CircularProgress sx={{ color: '#FF9F0D' }} />
+        <CircularProgress sx={{ color: '#8A6420' }} />
       </Box>
     );
   }
@@ -1442,13 +1442,13 @@ export default function CheckoutPage() {
           minHeight: '60vh',
         }}
       >
-        <CircularProgress sx={{ color: '#FF9F0D' }} />
+        <CircularProgress sx={{ color: '#8A6420' }} />
       </Box>
     ); // Will redirect
   }
 
   return (
-    <Box sx={{ bgcolor: '#FAFAFA', minHeight: '100vh', py: 4 }}>
+    <Box sx={{ bgcolor: '#FFFFFF', minHeight: '100vh', py: 4 }}>
       <Container maxWidth="lg">
         {/* Header */}
         <Box sx={{ mb: 4 }}>

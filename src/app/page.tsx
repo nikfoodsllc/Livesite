@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { Box, Container, Typography, IconButton, CircularProgress, Skeleton, Tabs, Tab, GlobalStyles } from '@mui/material';
-import { IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
+import { Box, Container, Typography, IconButton, CircularProgress, Skeleton, Tabs, Tab, GlobalStyles, InputBase } from '@mui/material';
+import { IconChevronLeft, IconChevronRight, IconSearch, IconX } from '@tabler/icons-react';
 import Footer from '@/components/layout/Footer';
 import DeliveryLocationBar from '@/components/layout/DeliveryLocationBar';
 import HomeBanners from '@/components/banners/HomeBanners';
@@ -24,6 +24,7 @@ import { useNotifications, showSuccessNotification, showErrorNotification } from
 import { PST_TIMEZONE, getPSTWeekday, createPSTDate } from '@/lib/timezone';
 import MenuSubscriptionSection from '@/components/home/MenuSubscriptionSection';
 import AppStoreSection from '@/components/home/AppStoreSection';
+import BrandLoader from '@/components/common/BrandLoader';
 import { colors } from '@/theme/colors';
 
 // Define types for the new API response structure
@@ -94,21 +95,32 @@ function resolveSubCategoriesForDisplay(
     .filter((x): x is CategoryDisplay => !!x);
 }
 
+const INK = '#1F1712';
+const IVORY = '#FBF7F0';
+const GOLD = '#B8893B';
+const displayFont = 'var(--font-display), Georgia, serif';
+
 const subCategoryHeadingBoxSx = {
-  mb: 2,
-  pl: 2,
-  py: 1,
-  borderLeft: '4px solid',
-  borderColor: colors.primary,
-  borderRadius: '0 10px 10px 0',
+  mb: 2.5,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 1.5,
+  '&::after': {
+    content: '""',
+    flex: 1,
+    height: '1px',
+    background: 'linear-gradient(90deg, rgba(184, 137, 59, 0.45), rgba(184, 137, 59, 0))',
+  },
 } as const;
 
 const subCategoryTitleSx = {
-  fontWeight: 600,
-  color: colors.primaryDark,
-  fontSize: { xs: '0.8rem', sm: '0.9rem', md: '1rem' },
-  lineHeight: 1.35,
-  letterSpacing: '-0.02em',
+  fontFamily: displayFont,
+  fontWeight: 500,
+  fontStyle: 'italic',
+  color: GOLD,
+  fontSize: { xs: '1.0625rem', sm: '1.1875rem', md: '1.3125rem' },
+  lineHeight: 1.3,
+  letterSpacing: '0.005em',
 } as const;
 
 const subCategoryTabsSx = {
@@ -255,21 +267,31 @@ function flattenCategoriesWithSubs(categories: CategoryDisplay[]): CategoryDispl
   return out;
 }
 
+/** Every typed word must appear in the item's name (case-insensitive). An empty search keeps everything. */
+function matchesSearch(item: FoodItem, search: string): boolean {
+  const words = search.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return true;
+  const hay = `${item.name ?? ''}`.toLowerCase();
+  return words.every((w) => hay.includes(w));
+}
+
 function applyCategoryDisplayFilters(
   category: CategoryDisplay,
   vegOnly: boolean,
-  availableDates: DayOption[]
+  availableDates: DayOption[],
+  search = ''
 ): CategoryDisplay {
   const subCategories = category.subCategories?.map((sub) =>
-    applyCategoryDisplayFilters(sub, vegOnly, availableDates)
+    applyCategoryDisplayFilters(sub, vegOnly, availableDates, search)
   );
 
   const listingType = category.listingType || 'flat';
 
   if (listingType === 'flat') {
-    const filteredFoodItems = vegOnly
+    const filteredFoodItems = (vegOnly
       ? (category.foodItems || []).filter((item) => item.veg !== false)
-      : (category.foodItems || []);
+      : (category.foodItems || [])
+    ).filter((item) => matchesSearch(item, search));
 
     return {
       ...category,
@@ -284,9 +306,10 @@ function applyCategoryDisplayFilters(
   const dayGroups = Object.entries(dayWiseItems)
     .filter(([, items]) => items && items.length > 0)
     .map(([dateString, items]) => {
-      const filteredItems = vegOnly
+      const filteredItems = (vegOnly
         ? items.filter((item) => item.veg !== false)
-        : items.slice();
+        : items.slice()
+      ).filter((item) => matchesSearch(item, search));
       const forDay = filterFoodItemsForDate(filteredItems, dateString, availableDates);
 
       const dateOption = availableDates.find((d) => d.date === dateString);
@@ -417,6 +440,8 @@ export default function Home() {
   const { refreshCart } = useCart();
   const { showNotification } = useNotifications();
   const { vegOnly, setVegOnly } = useHeader();
+  const [searchQuery, setSearchQuery] = useState('');
+  const searching = searchQuery.trim().length > 0;
   const { user } = useAuth();
 
   const [selectedCategory, setSelectedCategory] = useState<string>('');
@@ -546,9 +571,9 @@ export default function Home() {
       : foodItemsByCategory;
 
     return filteredCategories.map((category) =>
-      applyCategoryDisplayFilters(category, vegOnly, availableDates)
+      applyCategoryDisplayFilters(category, vegOnly, availableDates, searchQuery)
     );
-  }, [foodItemsByCategory, selectedCategory, vegOnly, availableDates]);
+  }, [foodItemsByCategory, selectedCategory, vegOnly, availableDates, searchQuery]);
 
   const menuSectionsToRender = useMemo(() => {
     const parents = selectedCategory
@@ -574,7 +599,7 @@ export default function Home() {
       }
 
       const displayCategory = merged
-        ? applyCategoryDisplayFilters(merged, vegOnly, availableDates)
+        ? applyCategoryDisplayFilters(merged, vegOnly, availableDates, searchQuery)
         : null;
 
       const childIds = (cat.children ?? []).map((c) => c._id);
@@ -595,6 +620,7 @@ export default function Home() {
     vegOnly,
     availableDates,
     loadingCategoryItems,
+    searchQuery,
   ]);
 
   // Get quantity for food item (sum across all dates, or specific date if provided)
@@ -619,12 +645,14 @@ export default function Home() {
 
     // Sum across all available dates from cache
     // Convert date strings back to DayType for cart operations
-    const dates = Array.from(dayOptionsCache.values());
-    return dates.reduce((total, dateOption) => {
-      if (!dateOption.day) return total;
-      const dayType = dateOption.day as DayType;
-      return total + localCart.getDayQuantity(dayType, foodItemId);
-    }, 0);
+    // The cart is keyed by weekday, and two dates can share one (two Tuesdays), so count each weekday once
+    const weekdays = new Set<DayType>();
+    for (const dateOption of dayOptionsCache.values()) {
+      if (dateOption.day) weekdays.add(dateOption.day as DayType);
+    }
+    let total = 0;
+    for (const dayType of weekdays) total += localCart.getDayQuantity(dayType, foodItemId);
+    return total;
   };
 
   // Helper function to find which category a food item belongs to and its listing type
@@ -1092,7 +1120,7 @@ export default function Home() {
       md: 'repeat(4, 1fr)',
       lg: 'repeat(5, 1fr)',
     },
-    gap: 3,
+    gap: { xs: 2, md: 3.5 },
     justifyItems: 'center',
   } as const;
 
@@ -1275,18 +1303,22 @@ export default function Home() {
               position: 'sticky',
               top: { xs: 64, md: 72 },
               zIndex: 10,
-              bgcolor: colors.background,
-              pt: 1,
-              mb: 2,
+              bgcolor: IVORY,
+              pt: 1.25,
+              pb: 0.5,
+              mb: 2.5,
+              borderBottom: '1px solid rgba(184, 137, 59, 0.35)',
             }}
           >
             <Typography
               variant="h5"
               sx={{
-                fontWeight: 700,
-                color: colors.primaryDark,
-                borderBottom: `2px solid ${colors.primary}`,
-                pb: 1,
+                fontFamily: displayFont,
+                fontWeight: 600,
+                color: INK,
+                letterSpacing: '0.005em',
+                fontSize: { xs: '1.25rem', md: '1.5rem' },
+                pb: 0.75,
                 display: 'inline-block',
               }}
             >
@@ -1443,12 +1475,7 @@ export default function Home() {
     return (
       <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1, py: 8 }}>
-          <Box
-            component="img"
-            src="/images/prepare-food.gif"
-            alt="Loading menu..."
-            sx={{ width: 120, height: 'auto' }}
-          />
+          <BrandLoader />
         </Box>
         <Footer />
       </Box>
@@ -1485,6 +1512,7 @@ export default function Home() {
       <GlobalStyles
         styles={{
           'html, body': { overflowX: 'clip' },
+          body: { backgroundColor: IVORY },
           'html:has(.MuiModal-root:not(.MuiModal-hidden))': { overflow: 'hidden' },
         }}
       />
@@ -1504,6 +1532,41 @@ export default function Home() {
         {/* Delivery Location Bar */}
         <Container maxWidth="lg" sx={{ mt: { xs: 3, md: 1.5 }, mb: { xs: 2, md: 2.5 } }}>
           <DeliveryLocationBar />
+        </Container>
+
+        {/* Menu search */}
+        <Container maxWidth="lg" sx={{ mb: { xs: 1, md: 1.5 } }}>
+          <Box
+            role="search"
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1.25,
+              height: 52,
+              px: 2.25,
+              borderRadius: 999,
+              backgroundColor: '#FFFEFB',
+              border: '1px solid rgba(184, 137, 59, 0.35)',
+              boxShadow: '0 1px 2px rgba(60, 35, 10, 0.05), 0 14px 28px -16px rgba(60, 35, 10, 0.2)',
+              transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
+              '&:focus-within': { borderColor: GOLD, boxShadow: '0 0 0 3px rgba(184, 137, 59, 0.18)' },
+            }}
+          >
+            <IconSearch size={20} color={GOLD} aria-hidden />
+            <InputBase
+              fullWidth
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search the menu"
+              inputProps={{ 'aria-label': 'Search the menu', enterKeyHint: 'search', autoComplete: 'off', style: { fontSize: '1rem' } }}
+              sx={{ color: INK, '& input::placeholder': { color: '#8C7E6C', opacity: 1 } }}
+            />
+            {searchQuery && (
+              <IconButton aria-label="Clear search" size="small" onClick={() => setSearchQuery('')} sx={{ color: '#5C4F40' }}>
+                <IconX size={18} />
+              </IconButton>
+            )}
+          </Box>
         </Container>
   
         {/* Categories Section */}
@@ -1593,32 +1656,47 @@ export default function Home() {
                   const hasContent = category ? categoryOrSubsHaveItems(category) : false;
                   const parentReady = !!category && !isParentLoading;
 
+                  // while searching, categories with no match are left out
+                  if (searching && parentReady && !hasContent && !subsStillLoading) return null;
+
                   return (
                     <Box key={meta._id} sx={{ mb: 8 }}>
                       <Box
                         sx={{
-                          borderLeft: '4px solid',
-                          borderColor: 'primary.main',
-                          pl: 2,
-                          py: 1,
-                          mt: { xs: 4, md: 6 },
-                          mb: { xs: 3, md: 4 },
+                          mt: { xs: 5, md: 8 },
+                          mb: { xs: 3, md: 4.5 },
+                          textAlign: 'center',
                         }}
                       >
                         <Typography
                           variant="h4"
                           sx={{
+                            fontFamily: displayFont,
                             fontWeight: 600,
-                            color: 'primary.main',
-                            fontSize: { xs: '1.25rem', sm: '1.5rem', md: '1.75rem' },
+                            color: INK,
+                            letterSpacing: '0.002em',
+                            lineHeight: 1.15,
+                            fontSize: { xs: '1.75rem', sm: '2.125rem', md: '2.625rem' },
                             display: 'flex',
                             alignItems: 'center',
+                            justifyContent: 'center',
                             gap: 2,
+                            textWrap: 'balance',
                           }}
                         >
                           {meta.name}
-                          {isParentLoading && <CircularProgress size={20} />}
+                          {isParentLoading && <CircularProgress size={20} sx={{ color: GOLD }} />}
                         </Typography>
+                        <Box
+                          aria-hidden
+                          sx={{
+                            mx: 'auto',
+                            mt: 1.75,
+                            width: 56,
+                            height: '1px',
+                            background: `linear-gradient(90deg, transparent, ${GOLD}, transparent)`,
+                          }}
+                        />
                       </Box>
 
                       {isParentLoading ? (
@@ -1712,6 +1790,16 @@ export default function Home() {
                   );
                 }
               )}
+
+              {searching &&
+                loadingCategoryItems.size === 0 &&
+                !menuSectionsToRender.some(({ category }) => category && categoryOrSubsHaveItems(category)) && (
+                  <Box sx={{ textAlign: 'center', py: 8 }}>
+                    <Typography sx={{ fontFamily: displayFont, fontSize: '1.25rem', color: INK }}>
+                      No matches
+                    </Typography>
+                  </Box>
+                )}
 
               {loadingItems && loadingCategoryItems.size > 0 && (
                 <Box sx={{ textAlign: 'center', py: 3 }}>

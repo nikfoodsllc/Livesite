@@ -106,7 +106,7 @@ export default function TrackOrderDialog({ open, order, onClose }: TrackOrderDia
       <DialogContent sx={{ px: 3, py: 3 }}>
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-            <CircularProgress sx={{ color: '#FF9F0D' }} />
+            <CircularProgress sx={{ color: '#8A6420' }} />
           </Box>
         ) : (
           <>
@@ -123,7 +123,7 @@ export default function TrackOrderDialog({ open, order, onClose }: TrackOrderDia
                 <Typography sx={{ fontSize: '14px', color: '#6B7280', mb: 0.5 }}>
                   Estimated Delivery
                 </Typography>
-                <Typography sx={{ fontSize: '16px', fontWeight: 600, color: '#FF9F0D' }}>
+                <Typography sx={{ fontSize: '16px', fontWeight: 600, color: '#8A6420' }}>
                   {formatDeliveryDate(estimatedDelivery)}
                 </Typography>
               </Box>
@@ -146,7 +146,7 @@ export default function TrackOrderDialog({ open, order, onClose }: TrackOrderDia
                             top: '32px',
                             width: '2px',
                             height: 'calc(100% - 16px)',
-                            backgroundColor: step.completed ? '#FF9F0D' : '#E5E7EB',
+                            backgroundColor: step.completed ? '#B8893B' : '#E5E7EB',
                           }}
                         />
                       )}
@@ -161,11 +161,11 @@ export default function TrackOrderDialog({ open, order, onClose }: TrackOrderDia
                           height: '18px',
                           borderRadius: '50%',
                           backgroundColor: step.completed
-                            ? '#FF9F0D'
+                            ? '#B8893B'
                             : step.active
                             ? '#FFF7ED'
                             : '#F3F4F6',
-                          border: step.active ? '3px solid #FF9F0D' : 'none',
+                          border: step.active ? '3px solid #B8893B' : 'none',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
@@ -226,8 +226,8 @@ export default function TrackOrderDialog({ open, order, onClose }: TrackOrderDia
           variant="contained"
           fullWidth
           sx={{
-            backgroundColor: '#FF9F0D',
-            color: '#FFFFFF',
+            backgroundColor: '#1F1712',
+            color: '#F6D58E',
             fontSize: '16px',
             fontWeight: 600,
             textTransform: 'none',

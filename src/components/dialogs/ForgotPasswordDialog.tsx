@@ -445,7 +445,7 @@ export default function ForgotPasswordDialog({
                   <InputAdornment position="start">
                     <IconMail
                       size={20}
-                      color={emailFocused ? '#FF9F0D' : '#666'}
+                      color={emailFocused ? '#B8893B' : '#666'}
                     />
                   </InputAdornment>
                 ),
@@ -454,7 +454,7 @@ export default function ForgotPasswordDialog({
                 '& .MuiOutlinedInput-root': {
                   height: 56,
                   borderRadius: '12px',
-                  backgroundColor: emailFocused ? '#FFF9F2' : '#FAFAFA',
+                  backgroundColor: emailFocused ? '#FBF4E6' : '#FAFAFA',
                   transition: 'all 0.2s ease',
                   '& fieldset': {
                     borderWidth: 2,
@@ -464,15 +464,15 @@ export default function ForgotPasswordDialog({
                     borderColor: errors.email
                       ? '#f44336'
                       : emailFocused
-                      ? '#FF9F0D'
+                      ? '#B8893B'
                       : '#D0D0D0',
                   },
                   '&.Mui-focused': {
-                    backgroundColor: '#FFF9F2',
-                    boxShadow: '0 0 0 4px rgba(255, 159, 13, 0.1)',
+                    backgroundColor: '#FBF4E6',
+                    boxShadow: '0 0 0 4px rgba(184, 137, 59, 0.1)',
                   },
                   '&.Mui-focused fieldset': {
-                    borderColor: errors.email ? '#f44336' : '#FF9F0D',
+                    borderColor: errors.email ? '#f44336' : '#B8893B',
                   },
                 },
                 '& input': {
@@ -497,14 +497,14 @@ export default function ForgotPasswordDialog({
                 fontSize: 16,
                 fontWeight: 700,
                 textTransform: 'none',
-                background: 'linear-gradient(135deg, #FF9F0D 0%, #FF6B35 100%)',
-                boxShadow: '0 6px 24px rgba(255, 159, 13, 0.4)',
+                background: 'linear-gradient(135deg, #B8893B 0%, #FF6B35 100%)',
+                boxShadow: '0 6px 24px rgba(184, 137, 59, 0.4)',
                 transition: 'all 0.3s ease',
                 '&:hover': {
                   transform: 'translateY(-2px)',
-                  boxShadow: '0 8px 32px rgba(255, 159, 13, 0.5)',
+                  boxShadow: '0 8px 32px rgba(184, 137, 59, 0.5)',
                   background:
-                    'linear-gradient(135deg, #FF9F0D 0%, #FF6B35 100%)',
+                    'linear-gradient(135deg, #B8893B 0%, #FF6B35 100%)',
                 },
                 '&:active': {
                   transform: 'scale(0.98)',
@@ -538,7 +538,7 @@ export default function ForgotPasswordDialog({
                   onClick={handleSwitchToLogin}
                   underline="none"
                   sx={{
-                    color: '#FF9F0D',
+                    color: '#8A6420',
                     fontWeight: 700,
                     '&:hover': {
                       color: '#FF6B35',
@@ -576,7 +576,7 @@ export default function ForgotPasswordDialog({
                 textAlign: 'center',
                 py: 2,
                 px: 3,
-                backgroundColor: '#FFF9F2',
+                backgroundColor: '#FBF4E6',
                 borderRadius: '12px',
               }}
             >
@@ -593,7 +593,7 @@ export default function ForgotPasswordDialog({
                 sx={{
                   fontSize: 16,
                   fontWeight: 600,
-                  color: '#FF9F0D',
+                  color: '#8A6420',
                 }}
               >
                 {email}
@@ -632,7 +632,7 @@ export default function ForgotPasswordDialog({
                 '& .MuiOutlinedInput-root': {
                   height: 64,
                   borderRadius: '12px',
-                  backgroundColor: otpFocused ? '#FFF9F2' : '#FAFAFA',
+                  backgroundColor: otpFocused ? '#FBF4E6' : '#FAFAFA',
                   transition: 'all 0.2s ease',
                   '& fieldset': {
                     borderWidth: 2,
@@ -642,15 +642,15 @@ export default function ForgotPasswordDialog({
                     borderColor: errors.otp
                       ? '#f44336'
                       : otpFocused
-                      ? '#FF9F0D'
+                      ? '#B8893B'
                       : '#D0D0D0',
                   },
                   '&.Mui-focused': {
-                    backgroundColor: '#FFF9F2',
-                    boxShadow: '0 0 0 4px rgba(255, 159, 13, 0.1)',
+                    backgroundColor: '#FBF4E6',
+                    boxShadow: '0 0 0 4px rgba(184, 137, 59, 0.1)',
                   },
                   '&.Mui-focused fieldset': {
-                    borderColor: errors.otp ? '#f44336' : '#FF9F0D',
+                    borderColor: errors.otp ? '#f44336' : '#B8893B',
                   },
                 },
               }}
@@ -669,7 +669,7 @@ export default function ForgotPasswordDialog({
                   color: '#666',
                   fontWeight: 600,
                   '&:hover': {
-                    color: '#FF9F0D',
+                    color: '#8A6420',
                   },
                   '&:disabled': {
                     color: '#ccc',
@@ -700,8 +700,8 @@ export default function ForgotPasswordDialog({
                   color: '#666',
                   '&:hover': {
                     borderWidth: 2,
-                    borderColor: '#FF9F0D',
-                    backgroundColor: 'rgba(255, 159, 13, 0.04)',
+                    borderColor: '#B8893B',
+                    backgroundColor: 'rgba(184, 137, 59, 0.04)',
                   },
                 }}
               >
@@ -720,14 +720,14 @@ export default function ForgotPasswordDialog({
                   fontWeight: 700,
                   textTransform: 'none',
                   background:
-                    'linear-gradient(135deg, #FF9F0D 0%, #FF6B35 100%)',
-                  boxShadow: '0 6px 24px rgba(255, 159, 13, 0.4)',
+                    'linear-gradient(135deg, #B8893B 0%, #FF6B35 100%)',
+                  boxShadow: '0 6px 24px rgba(184, 137, 59, 0.4)',
                   transition: 'all 0.3s ease',
                   '&:hover': {
                     transform: 'translateY(-2px)',
-                    boxShadow: '0 8px 32px rgba(255, 159, 13, 0.5)',
+                    boxShadow: '0 8px 32px rgba(184, 137, 59, 0.5)',
                     background:
-                      'linear-gradient(135deg, #FF9F0D 0%, #FF6B35 100%)',
+                      'linear-gradient(135deg, #B8893B 0%, #FF6B35 100%)',
                   },
                   '&:active': {
                     transform: 'scale(0.98)',
@@ -792,7 +792,7 @@ export default function ForgotPasswordDialog({
                   <InputAdornment position="start">
                     <IconLock
                       size={20}
-                      color={newPasswordFocused ? '#FF9F0D' : '#666'}
+                      color={newPasswordFocused ? '#B8893B' : '#666'}
                     />
                   </InputAdornment>
                 ),
@@ -816,7 +816,7 @@ export default function ForgotPasswordDialog({
                 '& .MuiOutlinedInput-root': {
                   height: 56,
                   borderRadius: '12px',
-                  backgroundColor: newPasswordFocused ? '#FFF9F2' : '#FAFAFA',
+                  backgroundColor: newPasswordFocused ? '#FBF4E6' : '#FAFAFA',
                   transition: 'all 0.2s ease',
                   '& fieldset': {
                     borderWidth: 2,
@@ -826,15 +826,15 @@ export default function ForgotPasswordDialog({
                     borderColor: errors.newPassword
                       ? '#f44336'
                       : newPasswordFocused
-                      ? '#FF9F0D'
+                      ? '#B8893B'
                       : '#D0D0D0',
                   },
                   '&.Mui-focused': {
-                    backgroundColor: '#FFF9F2',
-                    boxShadow: '0 0 0 4px rgba(255, 159, 13, 0.1)',
+                    backgroundColor: '#FBF4E6',
+                    boxShadow: '0 0 0 4px rgba(184, 137, 59, 0.1)',
                   },
                   '&.Mui-focused fieldset': {
-                    borderColor: errors.newPassword ? '#f44336' : '#FF9F0D',
+                    borderColor: errors.newPassword ? '#f44336' : '#B8893B',
                   },
                 },
                 '& input': {
@@ -872,7 +872,7 @@ export default function ForgotPasswordDialog({
                   <InputAdornment position="start">
                     <IconLock
                       size={20}
-                      color={confirmPasswordFocused ? '#FF9F0D' : '#666'}
+                      color={confirmPasswordFocused ? '#B8893B' : '#666'}
                     />
                   </InputAdornment>
                 ),
@@ -899,7 +899,7 @@ export default function ForgotPasswordDialog({
                   height: 56,
                   borderRadius: '12px',
                   backgroundColor: confirmPasswordFocused
-                    ? '#FFF9F2'
+                    ? '#FBF4E6'
                     : '#FAFAFA',
                   transition: 'all 0.2s ease',
                   '& fieldset': {
@@ -910,17 +910,17 @@ export default function ForgotPasswordDialog({
                     borderColor: errors.confirmPassword
                       ? '#f44336'
                       : confirmPasswordFocused
-                      ? '#FF9F0D'
+                      ? '#B8893B'
                       : '#D0D0D0',
                   },
                   '&.Mui-focused': {
-                    backgroundColor: '#FFF9F2',
-                    boxShadow: '0 0 0 4px rgba(255, 159, 13, 0.1)',
+                    backgroundColor: '#FBF4E6',
+                    boxShadow: '0 0 0 4px rgba(184, 137, 59, 0.1)',
                   },
                   '&.Mui-focused fieldset': {
                     borderColor: errors.confirmPassword
                       ? '#f44336'
-                      : '#FF9F0D',
+                      : '#B8893B',
                   },
                 },
                 '& input': {
@@ -948,14 +948,14 @@ export default function ForgotPasswordDialog({
                 fontSize: 16,
                 fontWeight: 700,
                 textTransform: 'none',
-                background: 'linear-gradient(135deg, #FF9F0D 0%, #FF6B35 100%)',
-                boxShadow: '0 6px 24px rgba(255, 159, 13, 0.4)',
+                background: 'linear-gradient(135deg, #B8893B 0%, #FF6B35 100%)',
+                boxShadow: '0 6px 24px rgba(184, 137, 59, 0.4)',
                 transition: 'all 0.3s ease',
                 '&:hover': {
                   transform: 'translateY(-2px)',
-                  boxShadow: '0 8px 32px rgba(255, 159, 13, 0.5)',
+                  boxShadow: '0 8px 32px rgba(184, 137, 59, 0.5)',
                   background:
-                    'linear-gradient(135deg, #FF9F0D 0%, #FF6B35 100%)',
+                    'linear-gradient(135deg, #B8893B 0%, #FF6B35 100%)',
                 },
                 '&:active': {
                   transform: 'scale(0.98)',
@@ -1046,19 +1046,19 @@ export default function ForgotPasswordDialog({
                 textTransform: 'none',
                 background: isSuccess
                   ? 'linear-gradient(135deg, #4caf50 0%, #45a049 100%)'
-                  : 'linear-gradient(135deg, #FF9F0D 0%, #FF6B35 100%)',
+                  : 'linear-gradient(135deg, #B8893B 0%, #FF6B35 100%)',
                 boxShadow: isSuccess
                   ? '0 6px 24px rgba(76, 175, 80, 0.4)'
-                  : '0 6px 24px rgba(255, 159, 13, 0.4)',
+                  : '0 6px 24px rgba(184, 137, 59, 0.4)',
                 transition: 'all 0.3s ease',
                 '&:hover': {
                   transform: 'translateY(-2px)',
                   boxShadow: isSuccess
                     ? '0 8px 32px rgba(76, 175, 80, 0.5)'
-                    : '0 8px 32px rgba(255, 159, 13, 0.5)',
+                    : '0 8px 32px rgba(184, 137, 59, 0.5)',
                   background: isSuccess
                     ? 'linear-gradient(135deg, #4caf50 0%, #45a049 100%)'
-                    : 'linear-gradient(135deg, #FF9F0D 0%, #FF6B35 100%)',
+                    : 'linear-gradient(135deg, #B8893B 0%, #FF6B35 100%)',
                 },
                 '&:active': {
                   transform: 'scale(0.98)',

@@ -110,7 +110,7 @@ export default function OrderConfirmationDialog({
           <Typography sx={{ fontSize: '14px', color: '#6B7280', mb: 0.5 }}>
             Thank you for your order. 
           </Typography>
-          <Typography sx={{ fontSize: '18px', fontWeight: 700, color: '#FF9F0D', mt: 1 }}>
+          <Typography sx={{ fontSize: '18px', fontWeight: 700, color: '#8A6420', mt: 1 }}>
             Order ID: #{order.orderId}
           </Typography>
         </Box>
@@ -142,7 +142,7 @@ export default function OrderConfirmationDialog({
             {order.items.map((dayOrder, dayIndex) => (
               <Box key={dayIndex} sx={{ mb: 2 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                  <IconCalendar size={18} style={{ color: '#FF9F0D' }} />
+                  <IconCalendar size={18} style={{ color: '#8A6420' }} />
                   <Typography
                     sx={{
                       fontSize: '13px',
@@ -158,8 +158,8 @@ export default function OrderConfirmationDialog({
                     label={`Delivery on ${formatDeliveryDate(dayOrder.actualDeliveryDate || dayOrder.deliveryDate)}`}
                     size="small"
                     sx={{
-                      backgroundColor: '#FFF5E6',
-                      color: '#FF9F0D',
+                      backgroundColor: '#F7F0E3',
+                      color: '#8A6420',
                       fontWeight: 500,
                       fontSize: '0.7rem',
                       height: '22px',
@@ -346,7 +346,7 @@ export default function OrderConfirmationDialog({
               <Typography sx={{ fontSize: '15px', fontWeight: 600, color: '#111827' }}>
                 Total {order.paymentMethod === 'Cash on Delivery' ? 'to Pay' : 'Paid'}
               </Typography>
-              <Typography sx={{ fontSize: '15px', fontWeight: 700, color: '#FF9F0D' }}>
+              <Typography sx={{ fontSize: '15px', fontWeight: 700, color: '#8A6420' }}>
                 {formatCurrency(cardTotalOf(order), order.currency)}
               </Typography>
             </Box>
@@ -383,8 +383,8 @@ export default function OrderConfirmationDialog({
                 width: 36,
                 height: 36,
                 borderRadius: '8px',
-                backgroundColor: '#FFF5E6',
-                color: '#FF9F0D',
+                backgroundColor: '#F7F0E3',
+                color: '#8A6420',
                 flexShrink: 0,
               }}
             >
@@ -436,8 +436,8 @@ export default function OrderConfirmationDialog({
                 width: 36,
                 height: 36,
                 borderRadius: '8px',
-                backgroundColor: '#FFF5E6',
-                color: '#FF9F0D',
+                backgroundColor: '#F7F0E3',
+                color: '#8A6420',
                 flexShrink: 0,
               }}
             >
@@ -452,7 +452,7 @@ export default function OrderConfirmationDialog({
                 {order.paymentMethod}
               </Typography>
               {order.paymentMethod === 'Cash on Delivery' && (
-                <Typography sx={{ fontSize: '13px', color: '#FF9500', mt: 0.5, fontWeight: 500 }}>
+                <Typography sx={{ fontSize: '13px', color: '#8A6420', mt: 0.5, fontWeight: 500 }}>
                   Please keep {formatCurrency(order.totalPaid, order.currency)} ready for the delivery person
                 </Typography>
               )}
@@ -469,8 +469,8 @@ export default function OrderConfirmationDialog({
           startIcon={<IconHome size={18} />}
           sx={{
             flex: 1,
-            backgroundColor: '#FF9F0D',
-            color: '#FFFFFF',
+            backgroundColor: '#1F1712',
+            color: '#F6D58E',
             fontSize: '15px',
             fontWeight: 600,
             textTransform: 'none',

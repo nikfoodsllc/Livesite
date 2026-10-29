@@ -252,13 +252,13 @@ export default function AddressesPage() {
             px: 3,
             py: 1.25,
             borderRadius: '12px',
-            backgroundColor: theme.palette.primary.main,
-            boxShadow: '0 4px 12px rgba(255, 159, 13, 0.25)',
+            backgroundColor: '#1F1712',
+            boxShadow: '0 4px 12px rgba(184, 137, 59, 0.25)',
             transition: 'all 0.2s ease',
             '&:hover': {
               backgroundColor: '#E88F00',
               transform: 'translateY(-2px)',
-              boxShadow: '0 6px 20px rgba(255, 159, 13, 0.35)',
+              boxShadow: '0 6px 20px rgba(184, 137, 59, 0.35)',
             },
             '&:active': {
               transform: 'scale(0.98)',
@@ -353,7 +353,7 @@ export default function AddressesPage() {
               px: 3,
               py: 1.25,
               borderRadius: '12px',
-              backgroundColor: theme.palette.primary.main,
+              backgroundColor: '#1F1712',
             }}
           >
             Add Address
