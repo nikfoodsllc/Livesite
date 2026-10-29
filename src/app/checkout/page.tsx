@@ -1404,7 +1404,7 @@ export default function CheckoutPage() {
 
   if (closedNotice && (!cart || cart.days.length === 0)) {
     return (
-      <Box sx={{ bgcolor: '#FAFAFA', minHeight: '60vh', py: 4 }}>
+      <Box sx={{ bgcolor: '#FFFFFF', minHeight: '60vh', py: 4 }}>
         <Container maxWidth="sm">
           <Alert severity="error" sx={{ mb: 3, whiteSpace: 'pre-line' }} onClose={() => setClosedNotice(null)} role="alert">
             {closedNotice}
@@ -1448,7 +1448,7 @@ export default function CheckoutPage() {
   }
 
   return (
-    <Box sx={{ bgcolor: '#FAFAFA', minHeight: '100vh', py: 4 }}>
+    <Box sx={{ bgcolor: '#FFFFFF', minHeight: '100vh', py: 4 }}>
       <Container maxWidth="lg">
         {/* Header */}
         <Box sx={{ mb: 4 }}>

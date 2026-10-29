@@ -11,7 +11,7 @@ function FailurePageContent() {
   const error = searchParams.get('error') || 'An unexpected error occurred during checkout';
 
   return (
-    <Box sx={{ bgcolor: '#FAFAFA', minHeight: '100vh', py: 4 }}>
+    <Box sx={{ bgcolor: '#FFFFFF', minHeight: '100vh', py: 4 }}>
       <Container maxWidth="md">
         {/* Error Header */}
         <Paper

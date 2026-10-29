@@ -29,7 +29,7 @@ export const theme = createTheme({
     },
     background: {
       default: colors.background,
-      paper: colors.background,
+      paper: '#ffffff',
     },
     text: {
       primary: colors.text,
@@ -64,13 +64,11 @@ export const theme = createTheme({
       lineHeight: 1.4,
     },
     h5: {
-      fontFamily: 'var(--font-display), Georgia, serif',
       fontSize: '1.25rem',
       fontWeight: 600,
       lineHeight: 1.4,
     },
     h6: {
-      fontFamily: 'var(--font-display), Georgia, serif',
       fontSize: '1rem',
       fontWeight: 600,
       lineHeight: 1.5,

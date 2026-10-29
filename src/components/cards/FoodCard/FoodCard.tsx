@@ -301,9 +301,9 @@ export default function FoodCard({
         >
           <Typography
             sx={{
-              fontFamily: 'var(--font-display), Georgia, serif',
-              fontWeight: 600,
-              fontSize: isMobile ? '1rem' : '1.125rem',
+              fontFamily: 'var(--font-inter), system-ui, sans-serif',
+              fontWeight: 700,
+              fontSize: isMobile ? '0.9375rem' : '1.0625rem',
               color: theme.palette.primary.dark,
               fontVariantNumeric: 'lining-nums tabular-nums',
               lineHeight: 1,
