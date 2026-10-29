@@ -61,7 +61,7 @@ interface PayData {
 const money = (n: number | undefined) => `$${(n ?? 0).toFixed(2)}`;
 function Page({ children }: { children: React.ReactNode }) {
   return (
-    <Box sx={{ bgcolor: '#FAFAFA', minHeight: '70vh', py: 4 }}>
+    <Box sx={{ bgcolor: '#FFFFFF', minHeight: '70vh', py: 4 }}>
       <Container maxWidth="lg">{children}</Container>
     </Box>
   );

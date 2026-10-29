@@ -621,7 +621,7 @@ export default function FoodDetailsDialog({
                 {foodItem.name}
               </Typography>
               {foodItem.price != null && (
-                <Typography variant="h6" sx={{ fontFamily: 'var(--font-display), Georgia, serif', color: '#8A6420', fontWeight: 600, fontSize: '1.25rem', fontVariantNumeric: 'lining-nums tabular-nums' }}>
+                <Typography variant="h6" sx={{ fontFamily: 'var(--font-inter), system-ui, sans-serif', color: '#8A6420', fontWeight: 700, fontSize: '1.125rem', fontVariantNumeric: 'tabular-nums' }}>
                   {foodItem.portions && foodItem.portions.length > 0 ? 'Starting at ' : ''}
                   {`$${foodItem.price.toFixed(2)}`}
                 </Typography>

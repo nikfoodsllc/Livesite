@@ -117,7 +117,7 @@ function SuccessPageContent() {
 
   if (isLoading) {
     return (
-      <Box sx={{ bgcolor: '#FAFAFA', minHeight: '100vh', py: 4 }}>
+      <Box sx={{ bgcolor: '#FFFFFF', minHeight: '100vh', py: 4 }}>
         <Container maxWidth="md">
           <Box
             sx={{
@@ -151,7 +151,7 @@ function SuccessPageContent() {
     const isOrderNotFoundError = error.toLowerCase().includes('order not found') || error.toLowerCase().includes('invalid order id');
 
     return (
-      <Box sx={{ bgcolor: '#FAFAFA', minHeight: '100vh', py: 4 }}>
+      <Box sx={{ bgcolor: '#FFFFFF', minHeight: '100vh', py: 4 }}>
         <Container maxWidth="md">
           <Alert
             severity={isAuthError ? "warning" : isNetworkError ? "info" : "error"}
@@ -321,7 +321,7 @@ function SuccessPageContent() {
 
   if (!order) {
     return (
-      <Box sx={{ bgcolor: '#FAFAFA', minHeight: '100vh', py: 4 }}>
+      <Box sx={{ bgcolor: '#FFFFFF', minHeight: '100vh', py: 4 }}>
         <Container maxWidth="md">
           <Paper elevation={0} sx={{ p: 4, textAlign: 'center', border: '1px solid #EDEDED' }}>
             <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: '#333' }}>
@@ -394,7 +394,7 @@ function SuccessPageContent() {
   }
 
   return (
-    <Box sx={{ bgcolor: '#FAFAFA', minHeight: '100vh', py: 4 }}>
+    <Box sx={{ bgcolor: '#FFFFFF', minHeight: '100vh', py: 4 }}>
       <Container maxWidth="md">
         <OrderConfirmation order={order} />
       </Container>

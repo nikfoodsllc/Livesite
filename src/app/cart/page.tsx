@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import BrandLoader from '@/components/common/BrandLoader';
-import { Box, Container, Typography, useTheme, useMediaQuery, Button } from '@mui/material';
+import { Box, Container, Typography, GlobalStyles, useTheme, useMediaQuery, Button } from '@mui/material';
 import { IconArrowLeft } from '@tabler/icons-react';
 import { useRouter } from 'next/navigation';
 import Footer from '@/components/layout/Footer';
@@ -105,6 +105,7 @@ export default function CartPage() {
   if (isLoading && !cart) {
     return (
       <>
+        <GlobalStyles styles={{ body: { backgroundColor: '#ffffff' } }} />
         <Container maxWidth="xl" sx={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Box sx={{ textAlign: 'center' }}>
             <BrandLoader />
@@ -121,6 +122,7 @@ export default function CartPage() {
   if (!hasItems) {
     return (
       <>
+        <GlobalStyles styles={{ body: { backgroundColor: '#ffffff' } }} />
         <Container maxWidth="xl" sx={{ minHeight: '60vh', py: 4 }}>
           <EmptyCart />
         </Container>
@@ -137,6 +139,7 @@ export default function CartPage() {
 
   return (
     <>
+        <GlobalStyles styles={{ body: { backgroundColor: '#ffffff' } }} />
       <Container maxWidth="xl" sx={{ py: isMobile ? 2 : 4, minHeight: '60vh' }}>
         {/* Back Button and Page Title */}
         <Box sx={{ mb: 3 }}>
