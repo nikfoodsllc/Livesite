@@ -1,24 +1,22 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { Box, Typography } from '@mui/material';
 import Image from 'next/image';
 
 interface CategoryCardProps {
   imageUrl?: string;
   name: string;
-  /** Flat categories use a neutral card; day-wise keeps the warm tint when unselected */
+  /** Kept for callers; day-wise and flat categories look the same */
   listingType?: 'flat' | 'day-wise';
   selected?: boolean;
   onClick?: () => void;
+  /** Shown inside the ring instead of a photo (the "All" tile) */
+  icon?: ReactNode;
 }
 
-export default function CategoryCard({
-  imageUrl,
-  name,
-  listingType = 'flat',
-  selected = false,
-  onClick,
-}: CategoryCardProps) {
+/** A round photo with a fine gold ring and its name underneath. The chosen one gets a solid gold ring and a dark name tag. */
+export default function CategoryCard({ imageUrl, name, selected = false, onClick, icon }: CategoryCardProps) {
   const imageSize = 84;
 
   // Fallback placeholder image when imageUrl is undefined or null
@@ -38,42 +36,32 @@ export default function CategoryCard({
         }
       }}
       sx={{
-        width: 118,
+        width: { xs: 92, md: 108 },
         flex: '0 0 auto',
+        scrollSnapAlign: 'start',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         gap: 1.25,
-        pt: 1.5,
-        pb: 1.75,
-        px: 1,
-        borderRadius: '20px',
         cursor: 'pointer',
-        backgroundColor: selected ? '#1F1712' : listingType === 'flat' ? '#FFFEFB' : '#F6EDDC',
-        border: selected ? '1px solid #1F1712' : '1px solid rgba(60, 35, 10, 0.09)',
-        boxShadow: selected
-          ? '0 14px 26px -12px rgba(31, 23, 18, 0.55)'
-          : '0 1px 2px rgba(60, 35, 10, 0.05), 0 10px 22px -14px rgba(60, 35, 10, 0.25)',
-        transition: 'transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s ease, background-color 0.25s ease',
         outline: 'none',
-        '&:hover': {
-          transform: 'translateY(-3px)',
-          boxShadow: '0 18px 28px -14px rgba(60, 35, 10, 0.35)',
-        },
-        '&:active': { transform: 'scale(0.97)' },
-        '&:focus-visible': { boxShadow: '0 0 0 2px #FBF7F0, 0 0 0 4px #B8893B' },
+        '&:hover .cat-ring': { transform: 'translateY(-3px)', boxShadow: '0 16px 26px -12px rgba(138, 100, 32, 0.55)' },
+        '&:active .cat-ring': { transform: 'scale(0.96)' },
+        '&:focus-visible .cat-ring': { boxShadow: '0 0 0 3px #FBF7F0, 0 0 0 5px #B8893B' },
       }}
     >
-      {/* Round photo with a fine gold ring */}
       <Box
+        className="cat-ring"
         sx={{
-          width: imageSize + 8,
-          height: imageSize + 8,
+          width: { xs: imageSize, md: imageSize + 12 },
+          height: { xs: imageSize, md: imageSize + 12 },
           borderRadius: '50%',
-          p: '3px',
+          p: selected ? '4px' : '3px',
           background: selected
-            ? 'linear-gradient(135deg, #F6D58E, #B8893B)'
-            : 'linear-gradient(135deg, rgba(184, 137, 59, 0.75), rgba(184, 137, 59, 0.2))',
+            ? 'linear-gradient(135deg, #F6D58E 0%, #B8893B 55%, #8A6420 100%)'
+            : 'linear-gradient(135deg, rgba(184, 137, 59, 0.7), rgba(184, 137, 59, 0.18))',
+          boxShadow: selected ? '0 14px 24px -12px rgba(138, 100, 32, 0.6)' : '0 8px 18px -12px rgba(60, 35, 10, 0.35)',
+          transition: 'transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s ease',
         }}
       >
         <Box
@@ -83,32 +71,40 @@ export default function CategoryCard({
             height: '100%',
             borderRadius: '50%',
             overflow: 'hidden',
-            border: '2px solid #FFFEFB',
+            border: '3px solid #FFFFFF',
             backgroundColor: '#F4EBDD',
           }}
         >
-          <Image src={imageSrc} alt={name} fill sizes="92px" style={{ objectFit: 'cover' }} />
+          {icon ? (
+            <Box sx={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: selected ? '#F6D58E' : '#8A6420', backgroundColor: selected ? '#1F1712' : '#FBF4E6', transition: 'background-color 0.25s ease, color 0.25s ease' }}>
+              {icon}
+            </Box>
+          ) : (
+            <Image src={imageSrc} alt={name} fill sizes="100px" style={{ objectFit: 'cover' }} />
+          )}
         </Box>
       </Box>
 
-      {/* Category Name */}
       <Typography
         className="category-name"
         sx={{
           fontFamily: 'var(--font-display), Georgia, serif',
-          fontWeight: 600,
-          fontSize: '0.9375rem',
+          fontWeight: selected ? 700 : 600,
+          fontSize: { xs: '0.8125rem', md: '0.9375rem' },
           lineHeight: 1.2,
-          color: selected ? '#F6E7C4' : '#1F1712',
           textAlign: 'center',
+          px: selected ? 1.25 : 0.25,
+          py: selected ? 0.5 : 0.25,
+          borderRadius: 999,
+          color: selected ? '#F6E7C4' : '#1F1712',
+          backgroundColor: selected ? '#1F1712' : 'transparent',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           display: '-webkit-box',
           WebkitLineClamp: 2,
           WebkitBoxOrient: 'vertical',
-          minHeight: 36,
           textWrap: 'balance',
-          transition: 'color 0.25s ease',
+          transition: 'background-color 0.25s ease, color 0.25s ease',
         }}
       >
         {name}
