@@ -94,21 +94,32 @@ function resolveSubCategoriesForDisplay(
     .filter((x): x is CategoryDisplay => !!x);
 }
 
+const INK = '#1F1712';
+const IVORY = '#FBF7F0';
+const GOLD = '#B8893B';
+const displayFont = 'var(--font-display), Georgia, serif';
+
 const subCategoryHeadingBoxSx = {
-  mb: 2,
-  pl: 2,
-  py: 1,
-  borderLeft: '4px solid',
-  borderColor: colors.primary,
-  borderRadius: '0 10px 10px 0',
+  mb: 2.5,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 1.5,
+  '&::after': {
+    content: '""',
+    flex: 1,
+    height: '1px',
+    background: 'linear-gradient(90deg, rgba(184, 137, 59, 0.45), rgba(184, 137, 59, 0))',
+  },
 } as const;
 
 const subCategoryTitleSx = {
-  fontWeight: 600,
-  color: colors.primaryDark,
-  fontSize: { xs: '0.8rem', sm: '0.9rem', md: '1rem' },
-  lineHeight: 1.35,
-  letterSpacing: '-0.02em',
+  fontFamily: displayFont,
+  fontWeight: 500,
+  fontStyle: 'italic',
+  color: GOLD,
+  fontSize: { xs: '1.0625rem', sm: '1.1875rem', md: '1.3125rem' },
+  lineHeight: 1.3,
+  letterSpacing: '0.005em',
 } as const;
 
 const subCategoryTabsSx = {
@@ -1092,7 +1103,7 @@ export default function Home() {
       md: 'repeat(4, 1fr)',
       lg: 'repeat(5, 1fr)',
     },
-    gap: 3,
+    gap: { xs: 2, md: 3.5 },
     justifyItems: 'center',
   } as const;
 
@@ -1275,18 +1286,22 @@ export default function Home() {
               position: 'sticky',
               top: { xs: 64, md: 72 },
               zIndex: 10,
-              bgcolor: colors.background,
-              pt: 1,
-              mb: 2,
+              bgcolor: IVORY,
+              pt: 1.25,
+              pb: 0.5,
+              mb: 2.5,
+              borderBottom: '1px solid rgba(184, 137, 59, 0.35)',
             }}
           >
             <Typography
               variant="h5"
               sx={{
-                fontWeight: 700,
-                color: colors.primaryDark,
-                borderBottom: `2px solid ${colors.primary}`,
-                pb: 1,
+                fontFamily: displayFont,
+                fontWeight: 600,
+                color: INK,
+                letterSpacing: '0.005em',
+                fontSize: { xs: '1.25rem', md: '1.5rem' },
+                pb: 0.75,
                 display: 'inline-block',
               }}
             >
@@ -1485,6 +1500,7 @@ export default function Home() {
       <GlobalStyles
         styles={{
           'html, body': { overflowX: 'clip' },
+          body: { backgroundColor: IVORY },
           'html:has(.MuiModal-root:not(.MuiModal-hidden))': { overflow: 'hidden' },
         }}
       />
@@ -1597,28 +1613,40 @@ export default function Home() {
                     <Box key={meta._id} sx={{ mb: 8 }}>
                       <Box
                         sx={{
-                          borderLeft: '4px solid',
-                          borderColor: 'primary.main',
-                          pl: 2,
-                          py: 1,
-                          mt: { xs: 4, md: 6 },
-                          mb: { xs: 3, md: 4 },
+                          mt: { xs: 5, md: 8 },
+                          mb: { xs: 3, md: 4.5 },
+                          textAlign: 'center',
                         }}
                       >
                         <Typography
                           variant="h4"
                           sx={{
+                            fontFamily: displayFont,
                             fontWeight: 600,
-                            color: 'primary.main',
-                            fontSize: { xs: '1.25rem', sm: '1.5rem', md: '1.75rem' },
+                            color: INK,
+                            letterSpacing: '0.002em',
+                            lineHeight: 1.15,
+                            fontSize: { xs: '1.75rem', sm: '2.125rem', md: '2.625rem' },
                             display: 'flex',
                             alignItems: 'center',
+                            justifyContent: 'center',
                             gap: 2,
+                            textWrap: 'balance',
                           }}
                         >
                           {meta.name}
-                          {isParentLoading && <CircularProgress size={20} />}
+                          {isParentLoading && <CircularProgress size={20} sx={{ color: GOLD }} />}
                         </Typography>
+                        <Box
+                          aria-hidden
+                          sx={{
+                            mx: 'auto',
+                            mt: 1.75,
+                            width: 56,
+                            height: '1px',
+                            background: `linear-gradient(90deg, transparent, ${GOLD}, transparent)`,
+                          }}
+                        />
                       </Box>
 
                       {isParentLoading ? (

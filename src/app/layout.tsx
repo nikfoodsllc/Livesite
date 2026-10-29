@@ -1,4 +1,4 @@
-import { Inter } from "next/font/google";
+import { Inter, Playfair_Display } from "next/font/google";
 import "./globals.css";
 import ThemeProvider from "./providers/ThemeProvider";
 import { AuthProvider } from "@/contexts/AuthContext";
@@ -10,6 +10,13 @@ import { NotificationProvider } from "@/components/common/NotificationSystem";
 import CrispChat from "@/components/CrispChat";
 import TimezoneWarningBanner from "@/components/common/TimezoneWarningBanner";
 import FirstTimeAddressPrompt from "@/components/layout/FirstTimeAddressPrompt";
+
+const playfair = Playfair_Display({
+  subsets: ["latin"],
+  display: "swap",
+  weight: ["500", "600", "700"],
+  variable: "--font-display",
+});
 
 const inter = Inter({
   subsets: ["latin"],
@@ -34,7 +41,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={inter.variable} suppressHydrationWarning>
-      <body className="font-inter">
+      <body className={`font-inter ${playfair.variable}`}>
         <AuthProvider>
           <CartProvider>
             <HeaderProvider>
