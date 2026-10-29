@@ -725,17 +725,19 @@ export default function FoodDetailsDialog({
           {/* Special instructions (only for items that have the box) */}
           {foodItem.allowInstructions && (
             <Box sx={{ mb: 2 }}>
+              <Typography component="label" htmlFor="special-instructions" sx={{ display: 'block', fontWeight: 600, fontSize: '0.95rem', color: '#3C230A', mb: 0.75 }}>
+                Special instructions (optional)
+              </Typography>
               <TextField
+                id="special-instructions"
                 fullWidth
                 multiline
                 minRows={2}
                 maxRows={4}
-                label="Special instructions (optional)"
-                placeholder="For example: less salt"
                 value={instructions}
                 onChange={(e) => setInstructions(e.target.value.slice(0, INSTRUCTIONS_MAX))}
                 helperText={`${instructions.length}/${INSTRUCTIONS_MAX}`}
-                slotProps={{ htmlInput: { maxLength: INSTRUCTIONS_MAX, 'aria-label': 'Special instructions' } }}
+                slotProps={{ htmlInput: { maxLength: INSTRUCTIONS_MAX } }}
                 sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px', backgroundColor: '#FFFFFF' } }}
               />
             </Box>
