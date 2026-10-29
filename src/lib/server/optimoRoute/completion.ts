@@ -2,7 +2,8 @@ import { notifyOrderSafely } from '@/lib/server/push/orderPush';
 import { db } from '@/lib/server/db';
 import { addDays } from '@/lib/orderReschedule';
 import { optimoMode } from './config';
-import { completionDetails } from './client';
+import { completionDetails, notificationPreferences } from './client';
+import { isDoNotNotify } from './trackingRules';
 import { canMarkDelivered, canMarkPartiallyDelivered, deliveriesByDay, orderDeliveryOutcome } from './completionRules';
 import { pacificToday } from './sync';
 
@@ -33,6 +34,8 @@ export interface CompletionSummary {
   ordersDelivered: number;
   ordersPartial: number;
   ordersWithProblem: number;
+  /** stops whose preference is Do not notify: no push was sent for them */
+  pushesWithheld: number;
   error?: string;
 }
 
@@ -47,7 +50,7 @@ interface StopRow {
 
 export async function runCompletionSync(now: Date = new Date()): Promise<CompletionSummary> {
   const mode = completionMode();
-  const summary: CompletionSummary = { mode, stopsChecked: 0, stopsSucceeded: 0, stopsProblem: 0, ordersDelivered: 0, ordersPartial: 0, ordersWithProblem: 0 };
+  const summary: CompletionSummary = { mode, stopsChecked: 0, stopsSucceeded: 0, stopsProblem: 0, ordersDelivered: 0, ordersPartial: 0, ordersWithProblem: 0, pushesWithheld: 0 };
   if (mode === 'off') return summary;
   try {
     const today = pacificToday(now);
@@ -65,6 +68,26 @@ export async function runCompletionSync(now: Date = new Date()): Promise<Complet
       return summary;
     }
     const touchedOrders = new Set<string>();
+    // Customers whose stop is set to Do not notify (by hand in OptimoRoute) get no push about this delivery. Looked up fresh, once per run,
+    // for the stops that are about to be talked about. If OptimoRoute cannot answer, nobody is told this run (the on the way push is
+    // tried again in 5 minutes; a missed Delivered push is not repeated).
+    const talkAbout = open.filter((s) => {
+      const st = details.data?.[s.optimoId as string]?.status;
+      return st === 'on_route' || st === 'success';
+    });
+    const prefs = mode === 'on' && talkAbout.length > 0 ? await notificationPreferences(talkAbout.map((s) => s.optimoId as string)) : null;
+    const mayTell = (optimoId: string | undefined): boolean => {
+      if (!prefs) return true;
+      if (!prefs.ok || !optimoId) {
+        summary.pushesWithheld++;
+        return false;
+      }
+      if (isDoNotNotify(prefs.data?.[optimoId])) {
+        summary.pushesWithheld++;
+        return false;
+      }
+      return true;
+    };
     for (const stop of open) {
       const info = details.data?.[stop.optimoId as string];
       if (!info?.status) continue;
@@ -74,7 +97,7 @@ export async function runCompletionSync(now: Date = new Date()): Promise<Complet
       if (mode === 'on') await stops.updateOne({ stopKey: stop.stopKey }, { $set: { completion: { status: info.status, at: info.endUtc ?? null } } });
       if (finished) for (const id of stop.orderIds ?? []) touchedOrders.add(id);
       // the driver is on the way to this stop: tell the customer once (the app's "Out for delivery"; every later check does nothing)
-      if (mode === 'on' && info.status === 'on_route') for (const id of stop.orderIds ?? []) await notifyOrderSafely(id, 'on_the_way', { date: stop.date });
+      if (mode === 'on' && info.status === 'on_route' && mayTell(stop.optimoId)) for (const id of stop.orderIds ?? []) await notifyOrderSafely(id, 'on_the_way', { date: stop.date });
     }
     for (const orderId of touchedOrders) {
       const order = await orders.findOne({ orderId }, { projection: { status: 1, paymentStatus: 1 } });
@@ -123,7 +146,15 @@ export async function runCompletionSync(now: Date = new Date()): Promise<Complet
         }
       }
       // "Delivered": one message per delivery day that came to its door (a repeat check does nothing)
-      if (mode === 'on' && tellDelivered) for (const day of progress) if (day.status === 'delivered') await notifyOrderSafely(orderId, 'delivered', { date: day.date });
+      if (mode === 'on' && tellDelivered) {
+        for (const day of progress) {
+          if (day.status !== 'delivered') continue;
+          // every stop of that day (an order can have one) must allow it
+          const dayStops = mine.filter((s) => s.date === day.date);
+          if (!dayStops.every((s) => mayTell(s.optimoId))) continue;
+          await notifyOrderSafely(orderId, 'delivered', { date: day.date });
+        }
+      }
     }
     return summary;
   } catch (error) {

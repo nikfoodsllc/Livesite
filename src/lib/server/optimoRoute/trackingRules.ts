@@ -4,6 +4,12 @@
  */
 export type TrackingState = 'none' | 'later' | 'today' | 'on_the_way' | 'delivered' | 'not_delivered';
 
+/**
+ * OptimoRoute's own "communication preference" of a stop is set to Do not notify (the team does this by hand on the morning of the
+ * delivery for customers who should not get any delivery updates). The app then shows nothing about the delivery that day.
+ */
+export const isDoNotNotify = (preference: string | null | undefined): boolean => String(preference ?? '').trim().toLowerCase() === 'dont_notify';
+
 export interface TrackingInput {
   /** the order's delivery days (actual dates), YYYY-MM-DD */
   dates: string[];
@@ -14,6 +20,8 @@ export interface TrackingInput {
   stop?: {
     /** 'YYYY-MM-DD HH:MM:SS' Pacific wall clock; null until routes were sent to drivers */
     liveArrival?: string | null;
+    /** the stop's preference is Do not notify: no tracking information is shown */
+    doNotNotify?: boolean;
     status?: string;
     /** UTC ISO when the driver finished the stop */
     endUtc?: string;
@@ -73,6 +81,8 @@ export function trackingFor(input: TrackingInput): Tracking {
     return input.orderStatus === 'delivered' ? { state: 'delivered', date: dates[dates.length - 1] } : { state: 'none', date: dates[dates.length - 1] };
   }
   const stop = input.stop;
+  // Do not notify: no arrival time, no tracking link, no on the way / delivered state (the order's own status still updates)
+  if (stop?.doNotNotify) return { state: 'none', date: today };
   const status = stop?.status;
   if (status === 'success') return { state: 'delivered', date: today, deliveredAt: pacificHHMM(stop?.endUtc) };
   if (status === 'failed' || status === 'rejected') return { state: 'not_delivered', date: today };
