@@ -5,6 +5,7 @@ export function isFoodCustomizable(item: FoodItem): boolean {
   return Boolean(
     item.hasSpiceLevel ||
     item.hasCombo ||
+    item.allowInstructions === true ||
     (item.portions && item.portions.length > 0)
   );
 }

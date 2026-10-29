@@ -166,6 +166,11 @@ export default function CheckoutOrderSummary({
                       )}
                     </Box>
                   )}
+                  {item.notes && (
+                    <Typography variant="caption" sx={{ color: '#059669', fontSize: '0.7rem', display: 'block', mt: 0.5, pl: 1, fontStyle: 'italic', wordBreak: 'break-word' }}>
+                      Instructions: {item.notes}
+                    </Typography>
+                  )}
                 </Box>
               ))}
               <Box

@@ -30,6 +30,7 @@ import { sendOrderConfirmationEmail } from '@/lib/email';
 import { syncOrderSafely } from '@/lib/server/optimoRoute/sync';
 import { clearUserCartSafely } from '@/lib/server/userCart';
 import { markDraftConverted } from '@/lib/server/checkoutDrafts';
+import { keepAllowedInstructions } from '@/lib/server/itemInstructions';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 if (!stripeSecretKey) {
@@ -195,7 +196,8 @@ export async function POST(request: NextRequest) {
     const deliveryCalculationResults = calculateDeliveryDates(cart.days, minOrderValue);
 
     // Convert cart to order items with delivery date calculations
-    const orderItems = convertCartToOrderItems(cart.days, deliveryCalculationResults);
+    // instructions are kept only for items that have the Special instructions box (set in the admin)
+    const orderItems = await keepAllowedInstructions(convertCartToOrderItems(cart.days, deliveryCalculationResults));
 
     // Create address snapshot
     const addressSnapshot = createAddressSnapshot(cart.selectedAddress);

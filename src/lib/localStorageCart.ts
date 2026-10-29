@@ -42,9 +42,9 @@ function customizationSignature(foodItem: FoodItem, c: CartCustomizations): stri
   const portion = c.selectedPortion || '';
   const spice = foodItem.hasSpiceLevel ? String(c.selectedSpiceLevel ?? '') : '';
   const eco = c.isEcoFriendlyContainer ? '1' : '0';
-  const notes = c.notes || '';
+  // special instructions are NOT part of the signature: one item has one instruction per day, shared by all its lines
   const combo = normalizeComboSelections(c.comboSelections as Record<string, string[] | string> | undefined);
-  return JSON.stringify({ portion, spice, eco, notes, combo });
+  return JSON.stringify({ portion, spice, eco, combo });
 }
 
 function signatureFromLine(foodItem: FoodItem, line: LocalCartItem): string {
@@ -237,6 +237,19 @@ export function getFirstLineForFoodOnDay(day: DayType, foodItemId: string): Loca
 }
 
 /**
+ * One item has ONE special instruction per delivery day, however many lines or units it has (the kitchen reads one instruction per
+ * item per day). New text replaces the old one on every line of that item that day; adding again with an empty box keeps it.
+ */
+function applyItemDayInstruction(cart: LocalCart, day: DayType, foodItemId: string, incoming?: string): void {
+  const lines = Object.values(cart.days[day]?.items ?? {}).filter((li) => li.foodItemId === foodItemId);
+  const note = incoming?.trim() || lines.find((li) => li.notes)?.notes;
+  for (const li of lines) {
+    if (note) li.notes = note;
+    else delete li.notes;
+  }
+}
+
+/**
  * Add or merge line: same food + same customization signature => increment quantity; else new line.
  */
 export function addItem(
@@ -265,6 +278,7 @@ export function addItem(
     existing.quantity += quantity;
     existing.totalPrice = existing.unitPrice * existing.quantity;
     existing.foodItem = foodItem;
+    applyItemDayInstruction(cart, day, foodItem._id, customizations.notes);
     saveCart(cart);
     return cart;
   }
@@ -291,6 +305,7 @@ export function addItem(
     addedAt: new Date().toISOString(),
   };
 
+  applyItemDayInstruction(cart, day, foodItem._id, customizations.notes);
   saveCart(cart);
   return cart;
 }
