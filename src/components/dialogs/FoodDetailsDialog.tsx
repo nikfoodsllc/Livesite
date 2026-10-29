@@ -143,7 +143,9 @@ export default function FoodDetailsDialog({
     setSelectedPortion(0);
     setSelectedSpiceLevel('');
     setUseEcoContainer(false);
-    setInstructions('');
+    // one instruction per item per day: when the item is already in the cart for this day, show what was written
+    const earlier = dayGroup?.day ? localCart.getLinesForFoodOnDay(dayGroup.day as DayType, foodItem._id).find((line) => line.notes)?.notes : undefined;
+    setInstructions(earlier ?? '');
   }, [open, foodItem, currentQuantity, dayGroup]);
 
   // Re-initialize combo selections when foodItem changes (for new items)
