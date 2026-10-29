@@ -85,6 +85,25 @@ export default function Footer() {
         },
       }}
     >
+      <IconButton
+        aria-label="Back to top"
+        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        sx={{
+          position: 'absolute',
+          top: -22,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: 44,
+          height: 44,
+          color: '#1A110A',
+          backgroundColor: GOLD,
+          boxShadow: '0 10px 22px -8px rgba(26, 17, 10, 0.55)',
+          '&:hover': { backgroundColor: '#F6D58E' },
+          '&:focus-visible': { outline: `2px solid ${CREAM}`, outlineOffset: 3 },
+        }}
+      >
+        <IconArrowUp size={20} />
+      </IconButton>
       <Container maxWidth="lg">
         <Box
           sx={{
@@ -220,13 +239,6 @@ export default function Footer() {
                 {l.label}
               </Link>
             ))}
-            <IconButton
-              aria-label="Back to top"
-              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-              sx={{ ml: 1, width: 34, height: 34, color: GOLD, border: '1px solid rgba(217, 178, 106, 0.45)', '&:hover': { backgroundColor: GOLD, color: '#1A110A' } }}
-            >
-              <IconArrowUp size={16} />
-            </IconButton>
           </Box>
         </Box>
       </Container>
