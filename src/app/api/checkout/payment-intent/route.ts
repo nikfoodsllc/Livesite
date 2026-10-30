@@ -11,6 +11,7 @@ import { findClosedLines } from '@/lib/server/availableDates';
 import { closedLinesMessage, legacyClosedDates } from '@/lib/server/orderCutoff';
 import { saveCheckoutDraft } from '@/lib/server/checkoutDrafts';
 import { creditForCheckout } from '@/lib/server/checkoutCredit';
+import { feeRegionForStore } from '@/lib/cartLogic';
 import { toDollars } from '@/lib/storeCredit';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
@@ -31,6 +32,8 @@ interface PaymentIntentRequest {
   paymentIntentId?: string;
   /** Pay with the customer's store credit first */
   useStoreCredit?: boolean;
+  /** The App Store country of the mobile app (3-letter code); missing on the website. A country other than the US means the international fee. */
+  storeCountry?: string;
   /** The order already created for this payment (a retry): it keeps the credit it was created with */
   orderId?: string;
 }
@@ -128,6 +131,7 @@ export async function POST(request: NextRequest) {
     // store credit pays first; the card is only asked for what is left, and the Platform Fee follows the card part only
     const credit = await creditForCheckout({
       userId,
+      region: feeRegionForStore(body.storeCountry),
       cart,
       tipAmount: resolveTipAmount(cart.subtotal, tipPercentage ?? 0, body.tipAmount),
       discount: cart.appliedCoupon?.discountAmount || 0,

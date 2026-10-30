@@ -33,6 +33,34 @@ export const SERVICE_FEE_RATE = 0.04;
 export const PLATFORM_FEE_FLAT = 0.31;
 
 /**
+ * Customers of an App Store outside the US pay with cards Stripe charges extra for, so the app asks them for a higher fee:
+ * 6% of the subtotal + $0.30. The server works out which one applies from the store country the app sends (see feeRegionForStore).
+ */
+export const INTL_FEE_RATE = 0.06;
+export const INTL_FEE_FLAT = 0.3;
+
+export type FeeRegion = 'us' | 'intl';
+
+/**
+ * 'intl' when the App Store country is a country other than the United States, else 'us'. The website and old app versions send no
+ * country, so they stay 'us'. Accepts Apple's 3-letter codes ('USA', 'IND') and 2-letter codes ('US', 'IN'); anything else is 'us'.
+ */
+export function feeRegionForStore(country: unknown): FeeRegion {
+  if (typeof country !== 'string') return 'us';
+  const code = country.trim().toUpperCase();
+  if (!/^[A-Z]{2,3}$/.test(code)) return 'us';
+  return code === 'US' || code === 'USA' ? 'us' : 'intl';
+}
+
+// The region the totals in THIS program use when none is given. The customer site and the server never change it ('us'; the server
+// passes the region it works out for each request). The mobile app sets it once at start from its App Store country.
+let defaultFeeRegion: FeeRegion = 'us';
+export function setDefaultFeeRegion(region: FeeRegion): void {
+  defaultFeeRegion = region === 'intl' ? 'intl' : 'us';
+}
+export const getDefaultFeeRegion = (): FeeRegion => defaultFeeRegion;
+
+/**
  * Base delivery fee (delivery is now always free)
  * @constant {number} BASE_DELIVERY_FEE - $10.00
  * @deprecated - Delivery is now always free, this constant is no longer used
@@ -264,12 +292,14 @@ export function calculateTax(subtotal: number, serviceFee: number = 0): number {
  * Calculates the platform service fee based on cart subtotal
  *
  * @param subtotal - The cart subtotal before fees
- * @returns The calculated platform fee: 4% of the subtotal + $0.31 (0 for an empty cart), rounded to the cent
+ * @param region - 'us' (default): 4% of the subtotal + $0.31; 'intl' (an App Store outside the US): 6% + $0.30. 0 for an empty cart.
+ * @returns The calculated platform fee, rounded to the cent
  */
-export function getPlatformFee(subtotal: number): number {
+export function getPlatformFee(subtotal: number, region: FeeRegion = defaultFeeRegion): number {
   if (!(subtotal > 0)) return 0;
+  const [rate, flat] = region === 'intl' ? [INTL_FEE_RATE, INTL_FEE_FLAT] : [SERVICE_FEE_RATE, PLATFORM_FEE_FLAT];
   // the small epsilon keeps exact half-cent amounts from rounding down because of floating point
-  return Math.round((subtotal * SERVICE_FEE_RATE + PLATFORM_FEE_FLAT) * 100 + 1e-9) / 100;
+  return Math.round((subtotal * rate + flat) * 100 + 1e-9) / 100;
 }
 
 /**
@@ -295,7 +325,8 @@ export function calculateDeliveryFee(subtotal: number, zipcodeDeliveryFee?: numb
 export function calculateTotalPrice(
   subtotal: number,
   discount: number = 0,
-  zipcodeDeliveryFee?: number
+  zipcodeDeliveryFee?: number,
+  region: FeeRegion = defaultFeeRegion
 ): {
   subtotal: number;
   tax: number;
@@ -305,7 +336,7 @@ export function calculateTotalPrice(
   discount: number;
   total: number;
 } {
-  const platformFee = getPlatformFee(subtotal);
+  const platformFee = getPlatformFee(subtotal, region);
   const tax = calculateTax(subtotal, platformFee);
   const deliveryFee = calculateDeliveryFee(subtotal, zipcodeDeliveryFee);
   const total = subtotal + tax + platformFee + deliveryFee - discount;
