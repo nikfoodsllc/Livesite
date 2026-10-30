@@ -1,5 +1,6 @@
 import { db } from '@/lib/server/db';
 import type { Order } from '@/types/order';
+import { calculateTax, getPlatformFee, type FeeRegion } from '@/lib/cartLogic';
 import { planCreditForOrder, planCreditUse, toCents, toDollars, type CreditedTotals } from '@/lib/storeCredit';
 import { getBalanceCents } from '@/lib/server/storeCredit';
 
@@ -20,11 +21,16 @@ export async function creditForCheckout(input: {
   discount?: number;
   useStoreCredit?: boolean;
   orderId?: string;
+  /** 'intl' for a customer of an App Store outside the US: the server works out the higher fee itself instead of trusting the cart's */
+  region?: FeeRegion;
 }): Promise<CheckoutCredit> {
   const { cart, tipAmount } = input;
   const discount = input.discount ?? 0;
-  const plainTotal = toDollars(toCents(cart.subtotal) + toCents(cart.platformFee) + toCents(cart.deliveryFee) + toCents(cart.tax) + toCents(tipAmount) - toCents(discount));
-  const plain = { platformFee: cart.platformFee, tax: cart.tax, total: plainTotal };
+  // the ordinary fee comes with the cart (as always); for the international rate the server sets it, so the cart cannot lower it
+  const fee = input.region === 'intl' ? getPlatformFee(cart.subtotal, 'intl') : cart.platformFee;
+  const taxOnFee = input.region === 'intl' ? calculateTax(cart.subtotal, fee) : cart.tax;
+  const plainTotal = toDollars(toCents(cart.subtotal) + toCents(fee) + toCents(cart.deliveryFee) + toCents(taxOnFee) + toCents(tipAmount) - toCents(discount));
+  const plain = { platformFee: fee, tax: taxOnFee, total: plainTotal };
 
   if (input.orderId) {
     const found = await db.readOne<Order>('orders', { orderId: input.orderId } as never);
@@ -42,5 +48,5 @@ export async function creditForCheckout(input: {
     const old = planCreditUse(toCents(plain.total), balanceCents);
     return { ...old, ...plain, balanceCents };
   }
-  return { ...planCreditForOrder({ subtotal: cart.subtotal, deliveryFee: cart.deliveryFee, tip: tipAmount, balanceCents }), balanceCents };
+  return { ...planCreditForOrder({ subtotal: cart.subtotal, deliveryFee: cart.deliveryFee, tip: tipAmount, balanceCents, region: input.region }), balanceCents };
 }

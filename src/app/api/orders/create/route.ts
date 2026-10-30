@@ -24,6 +24,7 @@ import { rememberUserPhone } from '@/lib/server/userPhone';
 import { cleanInstructions, saveInstructionsOnAddress } from '@/lib/server/deliveryInstructions';
 import { sendWelcomeText, setSmsConsent } from '@/lib/server/smsService';
 import { creditForCheckout } from '@/lib/server/checkoutCredit';
+import { feeRegionForStore } from '@/lib/cartLogic';
 import { addCredit, spendCredit } from '@/lib/server/storeCredit';
 import { toDollars } from '@/lib/storeCredit';
 import { sendOrderConfirmationEmail } from '@/lib/email';
@@ -52,6 +53,8 @@ interface CreateOrderRequest {
   tipPercentage: number;
   /** A tip typed in dollars; used instead of the percentage when present */
   tipAmount?: number;
+  /** The App Store country of the mobile app (3-letter code); missing on the website. A country other than the US means the international fee. */
+  storeCountry?: string;
   paymentMethod: PaymentMethod;
   currency: string;
   /** Reuse PaymentIntent created at checkout load (inline payment form) */
@@ -233,8 +236,10 @@ export async function POST(request: NextRequest) {
 
     // Store credit pays first. It is taken off the balance right now (one atomic update that only works while the balance
     // covers it), so a second checkout at the same moment cannot spend it again.
+    const feeRegion = feeRegionForStore(body.storeCountry);
     const credit = await creditForCheckout({
       userId,
+      region: feeRegion,
       cart,
       tipAmount,
       discount,
@@ -268,6 +273,7 @@ export async function POST(request: NextRequest) {
       customerInfo: customer,
       subtotal: cart.subtotal,
       platformFee: credit.platformFee,
+      ...(feeRegion === 'intl' ? { feeRegion, storeCountry: String(body.storeCountry).trim().toUpperCase().slice(0, 3) } : {}),
       deliveryFee: cart.deliveryFee,
       taxes: credit.tax,
       tip: tipAmount,
