@@ -2,7 +2,7 @@
  * Store credit: money a customer holds with NikFoods, in WHOLE CENTS (no rounding drift).
  * Pure rules only; the database side is in lib/server/storeCredit.ts.
  */
-import { TAX_RATE, PLATFORM_FEE_FLAT, SERVICE_FEE_RATE, calculateTax, getPlatformFee } from '@/lib/cartLogic';
+import { INTL_FEE_FLAT, INTL_FEE_RATE, PLATFORM_FEE_FLAT, SERVICE_FEE_RATE, TAX_RATE, calculateTax, getPlatformFee, type FeeRegion } from '@/lib/cartLogic';
 
 /** Stripe refuses a card payment below 50 cents. */
 export const STRIPE_MIN_CHARGE_CENTS = 50;
@@ -79,11 +79,14 @@ export interface CreditedTotals {
  *
  * `balanceCents` 0 gives the ordinary totals. Dollars in (subtotal, deliveryFee, tip), cents for credit.
  */
-export function planCreditForOrder(input: { subtotal: number; deliveryFee?: number; tip: number; waiveFee?: boolean; balanceCents: number }): CreditedTotals {
+export function planCreditForOrder(input: { subtotal: number; deliveryFee?: number; tip: number; waiveFee?: boolean; balanceCents: number; region?: FeeRegion }): CreditedTotals {
   const subtotal = Math.round(input.subtotal * 100 + 1e-9) / 100;
   const delivery = input.deliveryFee ?? 0;
   const tip = input.tip;
-  const feeOn = (cardBase: number) => (input.waiveFee ? 0 : Math.round((cardBase * SERVICE_FEE_RATE + PLATFORM_FEE_FLAT) * 100 + 1e-9) / 100);
+  // the fee on the part that goes through the card: 4% + 31 cents (6% + 30 cents for an App Store outside the US). Kept as it always was,
+  // also when that part is 0 (credit covered the items but not the tip): then the flat part is still charged.
+  const [rate, flat] = input.region === 'intl' ? [INTL_FEE_RATE, INTL_FEE_FLAT] : [SERVICE_FEE_RATE, PLATFORM_FEE_FLAT];
+  const feeOn = (cardBase: number) => (input.waiveFee ? 0 : Math.round((cardBase * rate + flat) * 100 + 1e-9) / 100);
   const build = (creditCents: number): CreditedTotals => {
     const taxNoFee = calculateTax(subtotal, 0);
     const noFeeTotalCents = toCents(subtotal) + toCents(taxNoFee) + toCents(delivery) + toCents(tip);
@@ -91,7 +94,7 @@ export function planCreditForOrder(input: { subtotal: number; deliveryFee?: numb
       return { creditCents: noFeeTotalCents, cardCents: 0, platformFee: 0, tax: taxNoFee, total: toDollars(noFeeTotalCents) };
     }
     const cardBase = Math.max(0, subtotal - creditCents / 100 / (1 + TAX_RATE));
-    const platformFee = creditCents > 0 ? feeOn(cardBase) : input.waiveFee ? 0 : getPlatformFee(subtotal);
+    const platformFee = creditCents > 0 ? feeOn(cardBase) : input.waiveFee ? 0 : getPlatformFee(subtotal, input.region);
     const tax = calculateTax(subtotal, platformFee);
     const totalCents = toCents(subtotal) + toCents(tax) + toCents(platformFee) + toCents(delivery) + toCents(tip);
     return { creditCents, cardCents: totalCents - creditCents, platformFee, tax, total: toDollars(totalCents) };

@@ -16,6 +16,8 @@ export const INTERNAL_ORDER_FIELDS = [
   'countedAt',
   'pushLog',
   'stripeFee',
+  'feeRegion',
+  'storeCountry',
   'stripeRefunds',
   'preCreditTotals',
   'stripeNet',
