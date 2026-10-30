@@ -10,27 +10,17 @@ interface OptOutDoc {
 }
 
 /**
- * Puts an address on the do-not-email list and turns off its menu alerts. Safe to repeat (the first date stays).
- * Returns false only for an address that is not an email.
+ * Notes that an address unsubscribed from the Wix menu update emails. It is only a record (for the team to remove the person from
+ * Wix): nothing we send ourselves reads it. Safe to repeat (the first date stays).
+ * `valid` is false for an address that is not an email; `isNew` is true only the first time this address is recorded.
  */
-export async function recordOptOut(rawEmail: unknown, source = 'unsubscribe_page'): Promise<boolean> {
+export async function recordOptOut(rawEmail: unknown, source = 'unsubscribe_page'): Promise<{ valid: boolean; isNew: boolean; email: string }> {
   const email = cleanOptOutEmail(rawEmail);
-  if (!email) return false;
+  if (!email) return { valid: false, isNew: false, email: '' };
   const optOuts = await db.getCollectionForOperations<OptOutDoc & Record<string, unknown>>(COLLECTION);
   await optOuts.createIndex({ email: 1 }, { unique: true });
-  await optOuts.updateOne({ email } as never, { $setOnInsert: { email, createdAt: new Date(), source } } as never, { upsert: true });
-  const subs = await db.getCollectionForOperations<Record<string, unknown>>('menu_subscriptions');
-  await subs.updateMany({ email } as never, { $set: { isActive: false, updatedAt: new Date() } } as never);
-  return true;
-}
-
-/** Which of these addresses asked not to be emailed (lower case). */
-export async function optedOutAmong(emails: string[]): Promise<Set<string>> {
-  const clean = emails.map((e) => cleanOptOutEmail(e)).filter((e): e is string => Boolean(e));
-  if (clean.length === 0) return new Set();
-  const optOuts = await db.getCollectionForOperations<OptOutDoc & Record<string, unknown>>(COLLECTION);
-  const found = await optOuts.find({ email: { $in: clean } } as never, { projection: { email: 1 } }).toArray();
-  return new Set(found.map((d) => d.email));
+  const result = await optOuts.updateOne({ email } as never, { $setOnInsert: { email, createdAt: new Date(), source } } as never, { upsert: true });
+  return { valid: true, isNew: result.upsertedCount === 1, email };
 }
 
 export async function listOptOuts(): Promise<Array<{ email: string; createdAt: Date; source: string }>> {
