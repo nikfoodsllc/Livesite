@@ -4,6 +4,7 @@ import { db } from '@/lib/server/db';
 import { findClosedLines } from '@/lib/server/availableDates';
 import { isTestSite } from '@/lib/siteUrl';
 import { sendCartReminderEmail } from '@/lib/cartReminderEmail';
+import { optedOutAmong } from '@/lib/server/emailOptOut';
 import { tryCartReminderPush } from '@/lib/server/push/reminderPush';
 import type { CheckoutDraft } from '@/lib/server/checkoutDrafts';
 import type { ReminderEmailRecord } from '@/lib/server/cartReminderTracking';
@@ -220,6 +221,9 @@ export async function runCartReminders(now: Date = new Date()): Promise<Reminder
   }
 
   let targets = pickReminderTargets(drafts, now, recent);
+  // people who unsubscribed (the /unsubscribe page) get no reminder email
+  const optedOut = await optedOutAmong(targets.map((d) => d.customer?.email ?? ''));
+  targets = targets.filter((d) => !optedOut.has((d.customer?.email ?? '').trim().toLowerCase()));
   result.eligible = targets.length;
 
   // keep the ones that still have a delivery day open to order
