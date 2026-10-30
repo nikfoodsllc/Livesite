@@ -44,7 +44,7 @@ function UnsubscribeForm() {
         Unsubscribe
       </Typography>
       {done ? (
-        <Alert severity="success">You are unsubscribed.</Alert>
+        <Alert severity="success">You are unsubscribed. This request may take up to 24 hrs to be processed.</Alert>
       ) : (
         <Box component="form" onSubmit={submit} noValidate sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
           <TextField
