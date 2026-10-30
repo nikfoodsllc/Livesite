@@ -273,7 +273,9 @@ export async function POST(request: NextRequest) {
       customerInfo: customer,
       subtotal: cart.subtotal,
       platformFee: credit.platformFee,
-      ...(feeRegion === 'intl' ? { feeRegion, storeCountry: String(body.storeCountry).trim().toUpperCase().slice(0, 3) } : {}),
+      // the app's App Store country is kept on its orders (so the admin can see where they came from); the rate is only marked for the international one
+      ...(typeof body.storeCountry === 'string' && /^[A-Za-z]{2,3}$/.test(body.storeCountry.trim()) ? { storeCountry: body.storeCountry.trim().toUpperCase() } : {}),
+      ...(feeRegion === 'intl' ? { feeRegion } : {}),
       deliveryFee: cart.deliveryFee,
       taxes: credit.tax,
       tip: tipAmount,
