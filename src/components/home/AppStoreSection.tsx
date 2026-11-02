@@ -1,13 +1,14 @@
 import { Box } from '@mui/material';
 import { APP_STORE_URL } from '@/lib/appStore';
 
-/** Thin app strip above the home banners: logo, "Download our app" and the App Store badge; the whole strip opens the App Store page. */
+/** Thin app strip above the home banners: logo, "Download Our App" and the App Store badge; the whole strip opens the App Store page. */
 export default function AppStoreSection() {
   return (
     <Box component="section" aria-label="NikFoods app" sx={{ maxWidth: 1200, mx: 'auto', px: { xs: 2, sm: 3 }, mt: { xs: 1.5, md: 2 }, mb: { xs: 1.5, md: 2 } }}>
       <Box
         component="a"
         href={APP_STORE_URL}
+        aria-label="Download Our App on the App Store"
         target="_blank"
         rel="noopener"
         sx={{
@@ -47,7 +48,7 @@ export default function AppStoreSection() {
             whiteSpace: 'nowrap',
           }}
         >
-          Download our app
+          Download Our App
         </Box>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/images/app-store-badge.png" alt="Download on the App Store" width={360} height={120} style={{ display: 'block', height: 'auto', width: 'clamp(92px, 27vw, 120px)', flexShrink: 0, borderRadius: 8, boxShadow: '0 0 0 1px rgba(201,162,75,0.35)' }} />
