@@ -1519,11 +1519,11 @@ export default function Home() {
       {/* Main Content */}
       <Box component="main" sx={{ flex: 1 }}>
 
+        {/* The app, right above the banners */}
+        <AppStoreSection />
+
         {/* Banners the admin set up (the original hero when there are none) */}
         <HomeBanners onOpenCategory={(id) => setSelectedCategory(id)} />
-
-        {/* The app, right under the banners */}
-        <AppStoreSection />
 
         {/* Menu Subscription Section */}
         <MenuSubscriptionSection user={user} />
