@@ -15,8 +15,6 @@ export default function AppStoreSection() {
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: { xs: 1, sm: 2 },
-          maxWidth: 760,
-          mx: 'auto',
           px: { xs: 1.5, sm: 3 },
           py: { xs: 1, sm: 1.25 },
           borderRadius: 3,
