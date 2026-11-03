@@ -26,6 +26,7 @@ import { PST_TIMEZONE, getPSTWeekday, createPSTDate } from '@/lib/timezone';
 import MenuSubscriptionSection from '@/components/home/MenuSubscriptionSection';
 import AppStoreSection from '@/components/home/AppStoreSection';
 import CategoryRail from '@/components/home/CategoryRail';
+import StickyCategoryNav, { HEADER_H } from '@/components/home/StickyCategoryNav';
 import BrandLoader from '@/components/common/BrandLoader';
 import { colors } from '@/theme/colors';
 
@@ -1121,6 +1122,18 @@ export default function Home() {
     justifyItems: 'center',
   } as const;
 
+  // choosing a category from the sticky strip / side list: show it, then bring the top of the menu up to the sticky bar
+  const selectFromSticky = (id: string) => {
+    setSelectedCategory(id);
+    window.requestAnimationFrame(() => {
+      const top = document.getElementById('menu-sections')?.getBoundingClientRect().top;
+      if (top === undefined) return;
+      const header = window.innerWidth >= 900 ? HEADER_H.md : HEADER_H.xs;
+      const wanted = top + window.scrollY - header;
+      if (window.scrollY > wanted) window.scrollTo({ top: Math.max(0, wanted), behavior: 'auto' });
+    });
+  };
+
   const categorySkeletonGrid = (
     <Box sx={categoryGridSx}>
       {[...Array(5)].map((_, index) => (
@@ -1537,6 +1550,7 @@ export default function Home() {
         {/* Menu search */}
         <Container maxWidth="lg" sx={{ mb: { xs: 1, md: 1.5 } }}>
           <Box
+            id="menu-search"
             role="search"
             sx={{
               display: 'flex',
@@ -1576,8 +1590,18 @@ export default function Home() {
           </Container>
         )}
 
-        {/* Food Items by Day and Category */}
-        <Container maxWidth="lg" sx={{ mt: { xs: 2, md: 4 }, mb: 6 }}>
+        {/* Food Items by Day and Category (the category strip / side list stays in reach while this scrolls) */}
+        <Box id="menu-sections" sx={{ position: 'relative' }}>
+        {categories.length > 0 && (
+          <StickyCategoryNav
+            categories={categories}
+            selectedCategory={selectedCategory}
+            onSelect={selectFromSticky}
+            searchQuery={searchQuery}
+            onSearch={setSearchQuery}
+          />
+        )}
+        <Container maxWidth="lg" sx={{ pt: 1.5, mt: { xs: 0, md: 2 }, mb: 6 }}>
           {categories.length === 0 ? (
             <Box sx={{ textAlign: 'center', py: 8 }}>
               <Typography variant="h6" color="text.secondary">
@@ -1752,6 +1776,7 @@ export default function Home() {
             </>
           )}
         </Container>
+        </Box>
       </Box>
 
       {/* Footer */}
