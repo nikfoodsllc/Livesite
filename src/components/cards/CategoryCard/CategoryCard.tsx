@@ -13,10 +13,12 @@ interface CategoryCardProps {
   onClick?: () => void;
   /** Shown inside the ring instead of a photo (the "All" tile) */
   icon?: ReactNode;
+  /** A smaller version for the side list on wide screens */
+  compact?: boolean;
 }
 
 /** A round photo with a fine gold ring and its name underneath. The chosen one gets a solid gold ring and a dark name tag. */
-export default function CategoryCard({ imageUrl, name, selected = false, onClick, icon }: CategoryCardProps) {
+export default function CategoryCard({ imageUrl, name, selected = false, onClick, icon, compact = false }: CategoryCardProps) {
   const imageSize = 84;
 
   // Fallback placeholder image when imageUrl is undefined or null
@@ -36,13 +38,13 @@ export default function CategoryCard({ imageUrl, name, selected = false, onClick
         }
       }}
       sx={{
-        width: { xs: 92, md: 108 },
+        width: compact ? '100%' : { xs: 92, md: 108 },
         flex: '0 0 auto',
         scrollSnapAlign: 'start',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        gap: 1.25,
+        gap: compact ? 0.75 : 1.25,
         cursor: 'pointer',
         outline: 'none',
         '&:hover .cat-ring': { transform: 'translateY(-3px)', boxShadow: '0 16px 26px -12px rgba(138, 100, 32, 0.55)' },
@@ -53,8 +55,8 @@ export default function CategoryCard({ imageUrl, name, selected = false, onClick
       <Box
         className="cat-ring"
         sx={{
-          width: { xs: imageSize, md: imageSize + 12 },
-          height: { xs: imageSize, md: imageSize + 12 },
+          width: compact ? 64 : { xs: imageSize, md: imageSize + 12 },
+          height: compact ? 64 : { xs: imageSize, md: imageSize + 12 },
           borderRadius: '50%',
           p: selected ? '4px' : '3px',
           background: selected
@@ -90,7 +92,7 @@ export default function CategoryCard({ imageUrl, name, selected = false, onClick
         sx={{
           fontFamily: 'var(--font-display), Georgia, serif',
           fontWeight: selected ? 700 : 600,
-          fontSize: { xs: '0.8125rem', md: '0.9375rem' },
+          fontSize: compact ? '0.8125rem' : { xs: '0.8125rem', md: '0.9375rem' },
           lineHeight: 1.2,
           textAlign: 'center',
           px: selected ? 1.25 : 0.25,
