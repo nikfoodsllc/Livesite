@@ -1125,13 +1125,17 @@ export default function Home() {
   // choosing a category from the sticky strip / side list: show it, then bring the top of the menu up to the sticky bar (the wrapper starts one strip-height above the first heading, so the strip pins right above it)
   const selectFromSticky = (id: string) => {
     setSelectedCategory(id);
-    window.requestAnimationFrame(() => {
+    // the list changes size a moment after the choice (items load), so look again a few times
+    const bringUp = () => {
       const top = document.getElementById('menu-sections')?.getBoundingClientRect().top;
       if (top === undefined) return;
       const header = window.innerWidth >= 900 ? HEADER_H.md : HEADER_H.xs;
       const wanted = top + window.scrollY - header;
-      if (window.scrollY > wanted) window.scrollTo({ top: Math.max(0, wanted), behavior: 'auto' });
-    });
+      if (window.scrollY > wanted + 1) window.scrollTo({ top: Math.max(0, wanted), behavior: 'auto' });
+    };
+    window.requestAnimationFrame(bringUp);
+    window.setTimeout(bringUp, 250);
+    window.setTimeout(bringUp, 700);
   };
 
   const categorySkeletonGrid = (
