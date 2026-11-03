@@ -42,6 +42,9 @@ export default function StickyCategoryNav({
   watchId?: string;
 }) {
   const [show, setShow] = useState(false);
+  // the side list steps aside when the footer reaches it
+  const [footerNear, setFooterNear] = useState(false);
+  const sideRef = useRef<HTMLElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const [fade, setFade] = useState({ left: false, right: false });
 
@@ -53,7 +56,11 @@ export default function StickyCategoryNav({
       frame = 0;
       const el = document.getElementById(watchId);
       // once the photo row has gone (it stays, also over the footer, so a category can be switched from anywhere)
-      setShow(Boolean(el) && el!.getBoundingClientRect().bottom < 100);
+      const header = window.innerWidth >= 900 ? HEADER_H.md : HEADER_H.xs;
+      setShow(Boolean(el) && el!.getBoundingClientRect().bottom < header + STRIP_H + 12);
+      const footerTop = document.querySelector('footer')?.getBoundingClientRect().top ?? Infinity;
+      const sideBottom = sideRef.current?.getBoundingClientRect().bottom ?? 0;
+      setFooterNear(footerTop < sideBottom + 8);
     };
     const onScroll = () => {
       if (!frame) frame = window.requestAnimationFrame(check);
@@ -166,11 +173,12 @@ export default function StickyCategoryNav({
       {/* side list for wide screens */}
       <Box
         component="nav"
+        ref={sideRef}
         aria-label="Menu categories"
         sx={{
-          opacity: show ? 1 : 0,
-          visibility: show ? 'visible' : 'hidden',
-          pointerEvents: show ? 'auto' : 'none',
+          opacity: show && !footerNear ? 1 : 0,
+          visibility: show && !footerNear ? 'visible' : 'hidden',
+          pointerEvents: show && !footerNear ? 'auto' : 'none',
           transition: 'opacity 0.2s ease, visibility 0.2s',
           display: 'none',
           [`@media (min-width:${SIDE_MIN}px)`]: { display: 'block' },
