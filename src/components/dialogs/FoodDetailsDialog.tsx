@@ -23,6 +23,7 @@ import VegIndicator from '@/components/common/VegIndicator';
 import * as localCart from '@/lib/localStorageCart';
 import { generateAvailableDatesFromAPI, DayOption } from '@/lib/dayAvailabilityClient';
 import { IconX, IconMinus, IconPlus } from '@tabler/icons-react';
+import { useHeader } from '@/contexts/HeaderContext';
 import PortionSelector from './PortionSelector';
 import SpiceLevelSelector from './SpiceLevelSelector';
 import ComboSectionComponent from './ComboSectionComponent';
@@ -91,6 +92,7 @@ export default function FoodDetailsDialog({
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { showNotification } = useNotifications();
+  const { ecoPreselect } = useHeader();
 
   const [quantity, setQuantity] = useState(currentQuantity);
   const [selectedPortion, setSelectedPortion] = useState(0);
@@ -142,11 +144,11 @@ export default function FoodDetailsDialog({
 
     setSelectedPortion(0);
     setSelectedSpiceLevel('');
-    setUseEcoContainer(false);
+    setUseEcoContainer(ecoPreselect && Boolean(foodItem.isEcoFriendlyContainer));
     // one instruction per item per day: when the item is already in the cart for this day, show what was written
     const earlier = dayGroup?.day ? localCart.getLinesForFoodOnDay(dayGroup.day as DayType, foodItem._id).find((line) => line.notes)?.notes : undefined;
     setInstructions(earlier ?? '');
-  }, [open, foodItem, currentQuantity, dayGroup]);
+  }, [open, foodItem, currentQuantity, dayGroup, ecoPreselect]);
 
   // Re-initialize combo selections when foodItem changes (for new items)
   useEffect(() => {

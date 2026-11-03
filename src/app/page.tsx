@@ -16,6 +16,7 @@ import { CartCustomizations } from '@/types/localCart';
 
 import * as localCart from '@/lib/localStorageCart';
 import { isFoodCustomizable } from '@/lib/foodItemUtils';
+import { ecoPreselected } from '@/lib/ecoPreselect';
 import { useCart } from '@/contexts/CartContext';
 import { useHeader } from '@/contexts/HeaderContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -440,7 +441,7 @@ export default function Home() {
   // Context and state management
   const { refreshCart } = useCart();
   const { showNotification } = useNotifications();
-  const { vegOnly, setVegOnly } = useHeader();
+  const { vegOnly, setVegOnly, ecoPreselect } = useHeader();
   const [searchQuery, setSearchQuery] = useState('');
   const searching = searchQuery.trim().length > 0;
   const { user } = useAuth();
@@ -899,7 +900,7 @@ export default function Home() {
           dateString, // Pass the date string for cart context
           foodItem,
           1, // Default quantity of 1
-          {} // No customizations for quick add
+          ecoPreselected(foodItem, ecoPreselect) // quick add: only the eco container when that switch is on
         );
 
         // Show success message with formatted date
@@ -968,7 +969,7 @@ export default function Home() {
           if (line) {
             localCart.updateQuantity(dayType, line.lineId, line.quantity + 1);
           } else {
-            localCart.addItem(dayType, dateString, foodItem, 1, {});
+            localCart.addItem(dayType, dateString, foodItem, 1, ecoPreselected(foodItem, ecoPreselect));
           }
           showSuccessNotification(
             showNotification,
@@ -982,7 +983,7 @@ export default function Home() {
             dateString, // Pass the date string for cart context
             foodItem,
             1, // Default quantity of 1
-            {} // No customizations for quick add
+            ecoPreselected(foodItem, ecoPreselect) // quick add: only the eco container when that switch is on
           );
           showSuccessNotification(
             showNotification,
@@ -1077,7 +1078,7 @@ export default function Home() {
     if (!selectedFoodItemForDayPopup) return;
 
     // Use provided customizations or pending customizations or empty object
-    const finalCustomizations = customizations || pendingCustomizations || {};
+    const finalCustomizations = customizations || pendingCustomizations || ecoPreselected(selectedFoodItemForDayPopup, ecoPreselect);
 
     // Add item to cart for each selected day with respective quantity
     selectedDays.forEach((selection) => {
