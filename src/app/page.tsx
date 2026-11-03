@@ -17,6 +17,7 @@ import { CartCustomizations } from '@/types/localCart';
 import * as localCart from '@/lib/localStorageCart';
 import { isFoodCustomizable } from '@/lib/foodItemUtils';
 import { ecoPreselected } from '@/lib/ecoPreselect';
+import { containsSkippedAllergen } from '@/lib/allergens';
 import { useCart } from '@/contexts/CartContext';
 import { useHeader } from '@/contexts/HeaderContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -281,10 +282,11 @@ function applyCategoryDisplayFilters(
   category: CategoryDisplay,
   vegOnly: boolean,
   availableDates: DayOption[],
-  search = ''
+  search = '',
+  skipAllergens: readonly string[] = []
 ): CategoryDisplay {
   const subCategories = category.subCategories?.map((sub) =>
-    applyCategoryDisplayFilters(sub, vegOnly, availableDates, search)
+    applyCategoryDisplayFilters(sub, vegOnly, availableDates, search, skipAllergens)
   );
 
   const listingType = category.listingType || 'flat';
@@ -293,7 +295,9 @@ function applyCategoryDisplayFilters(
     const filteredFoodItems = (vegOnly
       ? (category.foodItems || []).filter((item) => item.veg !== false)
       : (category.foodItems || [])
-    ).filter((item) => matchesSearch(item, search));
+    )
+      .filter((item) => matchesSearch(item, search))
+      .filter((item) => !containsSkippedAllergen(item.allergens, skipAllergens));
 
     return {
       ...category,
@@ -311,7 +315,9 @@ function applyCategoryDisplayFilters(
       const filteredItems = (vegOnly
         ? items.filter((item) => item.veg !== false)
         : items.slice()
-      ).filter((item) => matchesSearch(item, search));
+      )
+        .filter((item) => matchesSearch(item, search))
+        .filter((item) => !containsSkippedAllergen(item.allergens, skipAllergens));
       const forDay = filterFoodItemsForDate(filteredItems, dateString, availableDates);
 
       const dateOption = availableDates.find((d) => d.date === dateString);
@@ -441,7 +447,7 @@ export default function Home() {
   // Context and state management
   const { refreshCart } = useCart();
   const { showNotification } = useNotifications();
-  const { vegOnly, setVegOnly, ecoPreselect } = useHeader();
+  const { vegOnly, setVegOnly, ecoPreselect, skipAllergens } = useHeader();
   const [searchQuery, setSearchQuery] = useState('');
   const searching = searchQuery.trim().length > 0;
   const { user } = useAuth();
@@ -573,9 +579,9 @@ export default function Home() {
       : foodItemsByCategory;
 
     return filteredCategories.map((category) =>
-      applyCategoryDisplayFilters(category, vegOnly, availableDates, searchQuery)
+      applyCategoryDisplayFilters(category, vegOnly, availableDates, searchQuery, skipAllergens)
     );
-  }, [foodItemsByCategory, selectedCategory, vegOnly, availableDates, searchQuery]);
+  }, [foodItemsByCategory, selectedCategory, vegOnly, availableDates, searchQuery, skipAllergens]);
 
   const menuSectionsToRender = useMemo(() => {
     const parents = selectedCategory
@@ -601,7 +607,7 @@ export default function Home() {
       }
 
       const displayCategory = merged
-        ? applyCategoryDisplayFilters(merged, vegOnly, availableDates, searchQuery)
+        ? applyCategoryDisplayFilters(merged, vegOnly, availableDates, searchQuery, skipAllergens)
         : null;
 
       const childIds = (cat.children ?? []).map((c) => c._id);
@@ -623,6 +629,7 @@ export default function Home() {
     availableDates,
     loadingCategoryItems,
     searchQuery,
+    skipAllergens,
   ]);
 
   // Get quantity for food item (sum across all dates, or specific date if provided)
@@ -1162,6 +1169,7 @@ export default function Home() {
             isLoading={loadingStates[item._id]}
             itemType={itemType}
             veg={item.veg}
+            allergens={item.allergens}
             available={item.available}
             atStockLimit={localCart.stockLeftFor(item) === 0}
           />
@@ -1204,6 +1212,7 @@ export default function Home() {
             isLoading={loadingStates[item._id]}
             itemType={itemType}
             veg={item.veg}
+            allergens={item.allergens}
             available={item.available}
             atStockLimit={localCart.stockLeftFor(item) === 0}
           />
@@ -1454,6 +1463,7 @@ export default function Home() {
                         isLoading={loadingStates[item._id]}
                         itemType={itemType}
                         veg={item.veg}
+                        allergens={item.allergens}
                         available={item.available}
                         atStockLimit={localCart.stockLeftFor(item) === 0}
                       />
@@ -1648,7 +1658,9 @@ export default function Home() {
                           <Typography variant="body2" color="text.secondary">
                             {vegOnly
                               ? 'No vegetarian items available in this category'
-                              : 'No items available in this category'}
+                              : skipAllergens.length > 0
+                                ? 'Nothing here without the allergens you skip'
+                                : 'No items available in this category'}
                           </Typography>
                         </Box>
                       ) : (

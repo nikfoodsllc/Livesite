@@ -34,6 +34,10 @@ interface HeaderContextType {
   // "Eco containers" switch: items that offer an eco container start with it ticked
   ecoPreselect: boolean;
   setEcoPreselect: (value: boolean) => void;
+
+  // "Skip allergens" filter: dishes that contain any of these allergens are hidden
+  skipAllergens: string[];
+  setSkipAllergens: (value: string[]) => void;
 }
 
 // Create context with undefined as default value
@@ -52,6 +56,9 @@ export const HeaderProvider = ({ children }: { children: ReactNode }) => {
 
   // Eco containers preselect switch
   const [ecoPreselect, setEcoPreselect] = useState<boolean>(false);
+
+  // Skip allergens filter
+  const [skipAllergens, setSkipAllergens] = useState<string[]>([]);
 
   // Login dialog handlers
   const openLoginDialog = () => setIsLoginDialogOpen(true);
@@ -121,6 +128,9 @@ export const HeaderProvider = ({ children }: { children: ReactNode }) => {
 
     ecoPreselect,
     setEcoPreselect,
+
+    skipAllergens,
+    setSkipAllergens,
   };
 
   return (

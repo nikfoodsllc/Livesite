@@ -5,6 +5,7 @@ import { Card, CardContent, Box, Typography, useTheme, useMediaQuery, Tooltip } 
 import { IconShoppingCart } from '@tabler/icons-react';
 import QuantitySelector from '../../forms/QuantitySelector';
 import { useHeader } from '@/contexts/HeaderContext';
+import AllergenRow from '@/components/common/AllergenRow';
 
 interface FoodCardProps {
   imageUrl: string;
@@ -27,6 +28,8 @@ interface FoodCardProps {
   };
   itemType?: 'simple' | 'portions' | 'combo';
   veg?: boolean;
+  /** allergens the dish contains: a row of badges under the name */
+  allergens?: string[];
   available?: boolean;
   /** nothing more of this item can go in the cart (its order limit is reached): the + button is off */
   atStockLimit?: boolean;
@@ -46,6 +49,7 @@ export default function FoodCard({
   isLoading,
   itemType,
   veg,
+  allergens,
   available = true,
   atStockLimit = false,
 }: FoodCardProps) {
@@ -291,6 +295,13 @@ export default function FoodCard({
         >
           {name}
         </Typography>
+
+        {/* Allergens (only when the dish has some) */}
+        {allergens && allergens.length > 0 && (
+          <Box sx={{ mb: 0.75 }}>
+            <AllergenRow allergens={allergens} size={isMobile ? 16 : 17} gap={0.5} />
+          </Box>
+        )}
 
         {/* Price + stepper */}
         <Box
