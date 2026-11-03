@@ -1595,7 +1595,7 @@ export default function Home() {
   
         {/* Categories Section */}
         {categories.length > 0 && (
-          <Container maxWidth="lg" sx={{ mt: { xs: 2, md: 3 }, mb: 6 }}>
+          <Container maxWidth="lg" sx={{ mt: { xs: 2, md: 3 }, mb: { xs: 2, md: 2 } }}>
             <CategoryRail categories={categories} selectedCategory={selectedCategory} onSelect={(id) => setSelectedCategory(id)} />
           </Container>
         )}
@@ -1637,7 +1637,7 @@ export default function Home() {
                     <Box key={meta._id} sx={{ mb: 8 }}>
                       <Box
                         sx={{
-                          mt: { xs: 5, md: 8 },
+                          mt: { xs: 5, md: 5 },
                           mb: { xs: 3, md: 4.5 },
                           textAlign: 'center',
                         }}
