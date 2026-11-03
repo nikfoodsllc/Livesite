@@ -52,9 +52,8 @@ export default function StickyCategoryNav({
     const check = () => {
       frame = 0;
       const el = document.getElementById(watchId);
-      const menuEnd = document.getElementById('menu-sections')?.getBoundingClientRect().bottom ?? Infinity;
-      // after the photo row has gone, and until the menu itself has been scrolled past
-      setShow(Boolean(el) && el!.getBoundingClientRect().bottom < 100 && menuEnd > 160);
+      // once the photo row has gone (it stays, also over the footer, so a category can be switched from anywhere)
+      setShow(Boolean(el) && el!.getBoundingClientRect().bottom < 100);
     };
     const onScroll = () => {
       if (!frame) frame = window.requestAnimationFrame(check);
