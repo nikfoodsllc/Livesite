@@ -21,13 +21,11 @@ import {
   ListItem,
   ListItemButton,
   ListItemText,
-  Divider,
   Container,
   Tooltip,
 } from '@mui/material';
 import {
   IconShoppingCart,
-  IconBell,
   IconUser,
   IconMenu2,
   IconX,
@@ -263,34 +261,6 @@ export default function Header({
                     />
                   </Box>
                 </Tooltip>
-
-                {/* Notification Bell */}
-                <IconButton
-                  sx={{
-                    color: theme.palette.text.primary,
-                    width: 44,
-                    height: 44,
-                    backgroundColor: 'rgba(0, 0, 0, 0.04)',
-                    transition: 'all 0.2s ease',
-                    '&:hover': {
-                      backgroundColor: 'rgba(184, 137, 59, 0.12)',
-                      transform: 'translateY(-2px)',
-                    },
-                  }}
-                >
-                  <Badge
-                    badgeContent={notificationCount}
-                    color="error"
-                    sx={{
-                      '& .MuiBadge-badge': {
-                        fontWeight: 600,
-                        fontSize: '0.7rem',
-                      },
-                    }}
-                  >
-                    <IconBell size={22} />
-                  </Badge>
-                </IconButton>
 
                 {/* Shopping Cart */}
                 <IconButton
@@ -722,28 +692,6 @@ export default function Header({
                     />
                   </Box>
                 </Box>
-              </ListItem>
-
-              <Divider sx={{ my: 2 }} />
-
-              {/* Notifications */}
-              <ListItem disablePadding sx={{ mb: 1 }}>
-                <ListItemButton
-                  sx={{
-                    borderRadius: '12px',
-                    py: 1.5,
-                  }}
-                >
-                  <IconBell size={20} style={{ marginRight: 12 }} />
-                  <ListItemText primary="Notifications" />
-                  {notificationCount > 0 && (
-                    <Badge
-                      badgeContent={notificationCount}
-                      color="error"
-                      sx={{ ml: 1 }}
-                    />
-                  )}
-                </ListItemButton>
               </ListItem>
             </List>
           </Box>

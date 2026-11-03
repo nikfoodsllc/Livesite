@@ -18,12 +18,12 @@ export const HEADER_H = { xs: 64, md: 72 };
 export const STRIP_H = 44;
 const FADE = 28;
 /** the side list sits in the free margin left of the 1200px menu, so it needs a screen at least this wide */
-const SIDE_MIN = 1560;
+export const SIDE_MIN = 1560;
 
 /**
  * Keeps the categories in reach once the big photo row has scrolled out of sight. Most screens: a thin strip (44px) under
  * the header with small round photos and serif names. Screens 1560px and wider: a column of the round photos in the free
- * left margin (with search), so the dishes keep their full width. Nothing shows while the photo row is on screen. Put it first inside a wrapper that holds the whole menu: it is a zero-height sticky box, so it never
+ * left margin (with search), so the dishes keep their full width. Nothing shows while the photo row is on screen. Put it first inside a wrapper that holds the whole menu: it is a zero-height fixed box (pinned under the header whatever the page length), so it never
  * pushes anything down.
  */
 export default function StickyCategoryNav({
@@ -42,6 +42,9 @@ export default function StickyCategoryNav({
   watchId?: string;
 }) {
   const [show, setShow] = useState(false);
+  // the side list steps aside when the footer reaches it
+  const [footerNear, setFooterNear] = useState(false);
+  const sideRef = useRef<HTMLElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const [fade, setFade] = useState({ left: false, right: false });
 
@@ -52,7 +55,12 @@ export default function StickyCategoryNav({
     const check = () => {
       frame = 0;
       const el = document.getElementById(watchId);
-      setShow(Boolean(el) && el!.getBoundingClientRect().bottom < 100);
+      // once the photo row has gone (it stays, also over the footer, so a category can be switched from anywhere)
+      const header = window.innerWidth >= 900 ? HEADER_H.md : HEADER_H.xs;
+      setShow(Boolean(el) && el!.getBoundingClientRect().bottom < header + STRIP_H + 12);
+      const footerTop = document.querySelector('footer')?.getBoundingClientRect().top ?? Infinity;
+      const sideBottom = sideRef.current?.getBoundingClientRect().bottom ?? 0;
+      setFooterNear(footerTop < sideBottom + 8);
     };
     const onScroll = () => {
       if (!frame) frame = window.requestAnimationFrame(check);
@@ -97,7 +105,7 @@ export default function StickyCategoryNav({
   const mask = `linear-gradient(90deg, ${fade.left ? `transparent 0, #000 ${FADE}px` : '#000 0, #000 0'}, ${fade.right ? `#000 calc(100% - ${FADE}px), transparent 100%` : '#000 100%, #000 100%'})`;
 
   return (
-    <Box sx={{ position: 'sticky', top: { xs: HEADER_H.xs, md: HEADER_H.md }, height: 0, zIndex: 1050 }}>
+    <Box sx={{ position: 'fixed', top: { xs: HEADER_H.xs, md: HEADER_H.md }, left: 0, right: 0, height: 0, zIndex: 1050 }}>
       <Box
         component="nav"
         aria-label="Menu categories"
@@ -165,11 +173,12 @@ export default function StickyCategoryNav({
       {/* side list for wide screens */}
       <Box
         component="nav"
+        ref={sideRef}
         aria-label="Menu categories"
         sx={{
-          opacity: show ? 1 : 0,
-          visibility: show ? 'visible' : 'hidden',
-          pointerEvents: show ? 'auto' : 'none',
+          opacity: show && !footerNear ? 1 : 0,
+          visibility: show && !footerNear ? 'visible' : 'hidden',
+          pointerEvents: show && !footerNear ? 'auto' : 'none',
           transition: 'opacity 0.2s ease, visibility 0.2s',
           display: 'none',
           [`@media (min-width:${SIDE_MIN}px)`]: { display: 'block' },
