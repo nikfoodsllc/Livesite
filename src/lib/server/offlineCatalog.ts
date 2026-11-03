@@ -64,7 +64,6 @@ async function shapeItem(foodItem: Document, foodById: Map<string, Document>): P
     _id: foodItem._id.toString(),
     name: foodItem.name,
     description: foodItem.description || '',
-    short_description: foodItem.short_description || '',
     price: foodItem.price,
     veg: foodItem.veg,
     available: foodItem.available,

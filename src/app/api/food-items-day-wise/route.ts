@@ -519,7 +519,6 @@ export async function GET(req: NextRequest) {
           _id: foodItemIdStr,
           name: foodItem.name,
           description: foodItem.description || '',
-          short_description: foodItem.short_description || '',
           price: foodItem.price,
           veg: foodItem.veg,
           available: foodItem.available,
