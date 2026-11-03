@@ -1,25 +1,60 @@
 'use client';
 
 import { Box, Tooltip } from '@mui/material';
-import { IconSeedling } from '@tabler/icons-react';
 import { allergenInfo, type AllergenKey } from '@/lib/allergens';
 
-/** Sesame and mustard have no emoji: drawn here, 24px grid, round strokes. */
-function Custom({ k, size }: { k: 'sesame' | 'mustard'; size: number }) {
-  const common = { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true };
-  if (k === 'sesame')
+/** Soy, sesame and mustard have no emoji: drawn as filled, coloured seeds in the same look as the emoji. 24px grid. */
+function Seeds({ k, size }: { k: 'soy' | 'sesame' | 'mustard'; size: number }) {
+  const common = { width: size, height: size, viewBox: '0 0 24 24', 'aria-hidden': true };
+  if (k === 'soy')
+    // three soybeans: round beige-green beans, each with a small dark eye
     return (
       <svg {...common}>
-        <path d="M8 4c2.2.800 3.200 3 2.200 5.600S7.200 13.600 5.800 12.800 5 8.600 6.200 6.200C6.700 5.200 7.300 4.300 8 4z" />
-        <path d="M17.500 10c2.2.800 3.200 3 2.200 5.600s-3 4-4.400 3.200-.8-4.200.4-6.600c.5-1 1.100-1.900 1.800-2.200z" />
+        {[
+          [8, 9],
+          [16, 9.5],
+          [12, 16],
+        ].map(([cx, cy], i) => (
+          <g key={i}>
+            <ellipse cx={cx} cy={cy} rx="4.6" ry="4.1" fill="#D9C98A" stroke="#8C7A33" strokeWidth="1.2" />
+            <ellipse cx={cx - 1.2} cy={cy - 1.3} rx="1.3" ry="0.8" fill="#F1E6B8" />
+            <circle cx={cx + 1.6} cy={cy + 1.2} r="0.8" fill="#6B5B20" />
+          </g>
+        ))}
       </svg>
     );
+  if (k === 'sesame')
+    // four sesame seeds: cream teardrops, pointed at one end
+    return (
+      <svg {...common}>
+        {[
+          [7, 8, -30],
+          [16, 7, 25],
+          [9, 16, 20],
+          [17, 16, -25],
+        ].map(([x, y, r], i) => (
+          <g key={i} transform={`translate(${x} ${y}) rotate(${r})`}>
+            <path d="M0 -4.2C2.6 -1.800 3.2 1.800 0 4.2C-3.2 1.800 -2.6 -1.800 0 -4.2Z" fill="#F4E8C8" stroke="#9A8250" strokeWidth="1.2" strokeLinejoin="round" />
+            <path d="M0 -2.200V2.400" stroke="#D4BF8C" strokeWidth="0.9" strokeLinecap="round" />
+          </g>
+        ))}
+      </svg>
+    );
+  // mustard: round yellow-brown seeds, a few of them
   return (
     <svg {...common}>
-      <circle cx="8" cy="9" r="2.600" />
-      <circle cx="16" cy="8" r="2.600" />
-      <circle cx="11" cy="16" r="2.600" />
-      <circle cx="18" cy="16.5" r="1.800" />
+      {[
+        [8, 8, 3.2],
+        [16, 7.5, 3],
+        [12, 14.5, 3.4],
+        [5.5, 16.5, 2.4],
+        [18.5, 16, 2.6],
+      ].map(([cx, cy, r], i) => (
+        <g key={i}>
+          <circle cx={cx} cy={cy} r={r} fill="#E3A81B" stroke="#8A6410" strokeWidth="1.2" />
+          <circle cx={cx - r * 0.35} cy={cy - r * 0.35} r={r * 0.28} fill="#F8DC8A" />
+        </g>
+      ))}
     </svg>
   );
 }
@@ -43,8 +78,7 @@ function Glyph({ k, size }: { k: AllergenKey; size: number }) {
       </span>
     );
   }
-  if (k === 'soy') return <IconSeedling size={size} stroke={2} aria-hidden />;
-  return <Custom k={k as 'sesame' | 'mustard'} size={size} />;
+  return <Seeds k={k as 'soy' | 'sesame' | 'mustard'} size={Math.round(size * 1.12)} />;
 }
 
 /**
