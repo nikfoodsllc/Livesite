@@ -27,7 +27,7 @@ import { PST_TIMEZONE, getPSTWeekday, createPSTDate } from '@/lib/timezone';
 import MenuSubscriptionSection from '@/components/home/MenuSubscriptionSection';
 import AppStoreSection from '@/components/home/AppStoreSection';
 import CategoryRail from '@/components/home/CategoryRail';
-import StickyCategoryNav, { HEADER_H } from '@/components/home/StickyCategoryNav';
+import StickyCategoryNav, { HEADER_H, STRIP_H, SIDE_MIN } from '@/components/home/StickyCategoryNav';
 import BrandLoader from '@/components/common/BrandLoader';
 import { colors } from '@/theme/colors';
 
@@ -1129,7 +1129,7 @@ export default function Home() {
     justifyItems: 'center',
   } as const;
 
-  // choosing a category from the sticky strip / side list: show it, then bring the top of the menu up to the sticky bar
+  // choosing a category from the sticky strip / side list: show it, then bring the top of the menu up to the sticky bar (the wrapper starts one strip-height above the first heading, so the strip pins right above it)
   const selectFromSticky = (id: string) => {
     setSelectedCategory(id);
     window.requestAnimationFrame(() => {
@@ -1317,12 +1317,14 @@ export default function Home() {
       return (
         <Box key={date} sx={{ mb: 6 }}>
 
-          {/* DATE HEADING: sticks just below the fixed site header (64px mobile / 72px desktop)
-              while this day's items scroll, so customers always see which day they are for */}
+          {/* DATE HEADING: sticks just below the fixed site header (64px mobile / 72px desktop) and the thin category strip
+              under it (the strip is not there on screens that show the side list instead) while this day's items scroll,
+              so customers always see which day they are for */}
           <Box
             sx={{
               position: 'sticky',
-              top: { xs: 64, md: 72 },
+              top: { xs: HEADER_H.xs + STRIP_H, md: HEADER_H.md + STRIP_H },
+              [`@media (min-width:${SIDE_MIN}px)`]: { top: HEADER_H.md },
               zIndex: 10,
               bgcolor: IVORY,
               pt: 1.25,
@@ -1595,13 +1597,13 @@ export default function Home() {
   
         {/* Categories Section */}
         {categories.length > 0 && (
-          <Container maxWidth="lg" sx={{ mt: { xs: 2, md: 3 }, mb: { xs: 2, md: 2 } }}>
+          <Container maxWidth="lg" sx={{ mt: { xs: 2, md: 3 }, mb: 1 }}>
             <CategoryRail categories={categories} selectedCategory={selectedCategory} onSelect={(id) => setSelectedCategory(id)} />
           </Container>
         )}
 
         {/* Food Items by Day and Category (the category strip / side list stays in reach while this scrolls) */}
-        <Box id="menu-sections" sx={{ position: 'relative' }}>
+        <Box id="menu-sections" sx={{ position: 'relative', pt: `${STRIP_H}px`, mt: `-${STRIP_H}px`, pointerEvents: 'none', '& > .MuiContainer-root': { pointerEvents: 'auto' } }}>
         {categories.length > 0 && (
           <StickyCategoryNav
             categories={categories}
@@ -1611,7 +1613,7 @@ export default function Home() {
             onSearch={setSearchQuery}
           />
         )}
-        <Container maxWidth="lg" sx={{ pt: 1.5, mt: { xs: 0, md: 2 }, mb: 6 }}>
+        <Container maxWidth="lg" sx={{ mt: 0, mb: 6 }}>
           {categories.length === 0 ? (
             <Box sx={{ textAlign: 'center', py: 8 }}>
               <Typography variant="h6" color="text.secondary">
@@ -1637,7 +1639,7 @@ export default function Home() {
                     <Box key={meta._id} sx={{ mb: 8 }}>
                       <Box
                         sx={{
-                          mt: { xs: 5, md: 5 },
+                          mt: { xs: 3, md: 3 },
                           mb: { xs: 3, md: 4.5 },
                           textAlign: 'center',
                         }}
