@@ -23,7 +23,7 @@ export const SIDE_MIN = 1560;
 /**
  * Keeps the categories in reach once the big photo row has scrolled out of sight. Most screens: a thin strip (44px) under
  * the header with small round photos and serif names. Screens 1560px and wider: a column of the round photos in the free
- * left margin (with search), so the dishes keep their full width. Nothing shows while the photo row is on screen. Put it first inside a wrapper that holds the whole menu: it is a zero-height sticky box, so it never
+ * left margin (with search), so the dishes keep their full width. Nothing shows while the photo row is on screen. Put it first inside a wrapper that holds the whole menu: it is a zero-height fixed box (pinned under the header whatever the page length), so it never
  * pushes anything down.
  */
 export default function StickyCategoryNav({
@@ -52,7 +52,9 @@ export default function StickyCategoryNav({
     const check = () => {
       frame = 0;
       const el = document.getElementById(watchId);
-      setShow(Boolean(el) && el!.getBoundingClientRect().bottom < 100);
+      const menuEnd = document.getElementById('menu-sections')?.getBoundingClientRect().bottom ?? Infinity;
+      // after the photo row has gone, and until the menu itself has been scrolled past
+      setShow(Boolean(el) && el!.getBoundingClientRect().bottom < 100 && menuEnd > 160);
     };
     const onScroll = () => {
       if (!frame) frame = window.requestAnimationFrame(check);
@@ -97,7 +99,7 @@ export default function StickyCategoryNav({
   const mask = `linear-gradient(90deg, ${fade.left ? `transparent 0, #000 ${FADE}px` : '#000 0, #000 0'}, ${fade.right ? `#000 calc(100% - ${FADE}px), transparent 100%` : '#000 100%, #000 100%'})`;
 
   return (
-    <Box sx={{ position: 'sticky', top: { xs: HEADER_H.xs, md: HEADER_H.md }, height: 0, zIndex: 1050 }}>
+    <Box sx={{ position: 'fixed', top: { xs: HEADER_H.xs, md: HEADER_H.md }, left: 0, right: 0, height: 0, zIndex: 1050 }}>
       <Box
         component="nav"
         aria-label="Menu categories"
