@@ -30,6 +30,10 @@ interface HeaderContextType {
   // Vegetarian filter state
   vegOnly: boolean;
   setVegOnly: (value: boolean) => void;
+
+  // "Eco containers" switch: items that offer an eco container start with it ticked
+  ecoPreselect: boolean;
+  setEcoPreselect: (value: boolean) => void;
 }
 
 // Create context with undefined as default value
@@ -45,6 +49,9 @@ export const HeaderProvider = ({ children }: { children: ReactNode }) => {
 
   // Vegetarian filter state
   const [vegOnly, setVegOnly] = useState<boolean>(false);
+
+  // Eco containers preselect switch
+  const [ecoPreselect, setEcoPreselect] = useState<boolean>(false);
 
   // Login dialog handlers
   const openLoginDialog = () => setIsLoginDialogOpen(true);
@@ -111,6 +118,9 @@ export const HeaderProvider = ({ children }: { children: ReactNode }) => {
     // Vegetarian filter state
     vegOnly,
     setVegOnly,
+
+    ecoPreselect,
+    setEcoPreselect,
   };
 
   return (

@@ -23,6 +23,7 @@ import {
   ListItemText,
   Divider,
   Container,
+  Tooltip,
 } from '@mui/material';
 import {
   IconShoppingCart,
@@ -31,6 +32,7 @@ import {
   IconMenu2,
   IconX,
   IconLeaf,
+  IconRecycle,
 } from '@tabler/icons-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
@@ -51,11 +53,15 @@ export default function Header({
   const { isScrolled, scrollY, scrollDirection } = useScrollDetection(10);
   const { user } = useAuth();
   const { itemCount } = useCart();
-  const { openLoginDialog, openCartPreview, vegOnly, setVegOnly } = useHeader();
+  const { openLoginDialog, openCartPreview, vegOnly, setVegOnly, ecoPreselect, setEcoPreselect } = useHeader();
 
   const handleVegToggle = (event: React.ChangeEvent<HTMLInputElement>) => {
     const checked = event.target.checked;
     setVegOnly(checked);
+  };
+
+  const handleEcoToggle = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setEcoPreselect(event.target.checked);
   };
 
   const toggleMobileMenu = () => {
@@ -143,60 +149,120 @@ export default function Header({
             {!isMobile && (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                 {/* Veg Only Toggle */}
-                <Box
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1,
-                    px: 2,
-                    py: 1,
-                    borderRadius: '12px',
-                    backgroundColor: vegOnly
-                      ? 'rgba(76, 175, 80, 0.08)'
-                      : 'rgba(0, 0, 0, 0.04)',
-                    border: vegOnly
-                      ? `1px solid ${theme.palette.success.light}`
-                      : '1px solid transparent',
-                    transition: 'all 0.3s ease',
-                  }}
-                >
-                  <IconLeaf
-                    size={20}
-                    color={vegOnly ? theme.palette.success.main : theme.palette.text.secondary}
-                  />
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={vegOnly}
-                        onChange={handleVegToggle}
-                        size="small"
-                        sx={{
-                          '& .MuiSwitch-switchBase.Mui-checked': {
-                            color: theme.palette.success.main,
-                          },
-                          '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
-                            backgroundColor: theme.palette.success.main,
-                          },
-                        }}
-                      />
-                    }
-                    label={
-                      <Typography
-                        variant="body2"
-                        sx={{
-                          color: vegOnly
-                            ? theme.palette.success.dark
-                            : theme.palette.text.primary,
-                          fontWeight: 600,
-                          fontSize: '0.875rem',
-                        }}
-                      >
-                        I am Vegetarian
-                      </Typography>
-                    }
-                    sx={{ margin: 0 }}
-                  />
-                </Box>
+                <Tooltip title="Show vegetarian dishes only" arrow enterTouchDelay={300} leaveTouchDelay={2500}>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1,
+                      px: 2,
+                      py: 1,
+                      borderRadius: '12px',
+                      backgroundColor: vegOnly
+                        ? 'rgba(76, 175, 80, 0.08)'
+                        : 'rgba(0, 0, 0, 0.04)',
+                      border: vegOnly
+                        ? `1px solid ${theme.palette.success.light}`
+                        : '1px solid transparent',
+                      transition: 'all 0.3s ease',
+                    }}
+                  >
+                    <IconLeaf
+                      size={20}
+                      color={vegOnly ? theme.palette.success.main : theme.palette.text.secondary}
+                    />
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={vegOnly}
+                          onChange={handleVegToggle}
+                          size="small"
+                          sx={{
+                            '& .MuiSwitch-switchBase.Mui-checked': {
+                              color: theme.palette.success.main,
+                            },
+                            '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                              backgroundColor: theme.palette.success.main,
+                            },
+                          }}
+                        />
+                      }
+                      label={
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            color: vegOnly
+                              ? theme.palette.success.dark
+                              : theme.palette.text.primary,
+                            fontWeight: 600,
+                            fontSize: '0.875rem',
+                          }}
+                        >
+                          I am Vegetarian
+                        </Typography>
+                      }
+                      sx={{ margin: 0 }}
+                    />
+                  </Box>
+                </Tooltip>
+
+                {/* Eco containers Toggle */}
+                <Tooltip title="Preselect eco containers" arrow enterTouchDelay={300} leaveTouchDelay={2500}>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1,
+                      px: 2,
+                      py: 1,
+                      borderRadius: '12px',
+                      backgroundColor: ecoPreselect
+                        ? 'rgba(138, 100, 32, 0.10)'
+                        : 'rgba(0, 0, 0, 0.04)',
+                      border: ecoPreselect
+                        ? `1px solid ${'#8A6420'}`
+                        : '1px solid transparent',
+                      transition: 'all 0.3s ease',
+                    }}
+                  >
+                    <IconRecycle
+                      size={20}
+                      color={ecoPreselect ? '#8A6420' : theme.palette.text.secondary}
+                    />
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={ecoPreselect}
+                          onChange={handleEcoToggle}
+                          size="small"
+                          sx={{
+                            '& .MuiSwitch-switchBase.Mui-checked': {
+                              color: '#8A6420',
+                            },
+                            '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                              backgroundColor: '#8A6420',
+                            },
+                          }}
+                        />
+                      }
+                      label={
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            color: ecoPreselect
+                              ? '#8A6420'
+                              : theme.palette.text.primary,
+                            fontWeight: 600,
+                            fontSize: '0.875rem',
+                          }}
+                        >
+                          Eco containers
+                        </Typography>
+                      }
+                      sx={{ margin: 0 }}
+                    />
+                  </Box>
+                </Tooltip>
 
                 {/* Notification Bell */}
                 <IconButton
@@ -317,45 +383,90 @@ export default function Header({
                 </IconButton>
 
                 {/* Mobile Vegetarian Toggle */}
-                <Box
-                  sx={{
-                    display: { xs: 'flex', md: 'none' },
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: 44,
-                    height: 44,
-                    borderRadius: '8px',
-                    backgroundColor: vegOnly
-                      ? 'rgba(76, 175, 80, 0.12)'
-                      : 'rgba(0, 0, 0, 0.04)',
-                    border: vegOnly
-                      ? `1px solid ${theme.palette.success.main}`
-                      : '1px solid transparent',
-                    transition: 'all 0.2s ease',
-                    cursor: 'pointer',
-                    '&:hover': {
+                <Tooltip title="Show vegetarian dishes only" arrow enterTouchDelay={300} leaveTouchDelay={2500}>
+                  <Box
+                    sx={{
+                      display: { xs: 'flex', md: 'none' },
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 44,
+                      height: 44,
+                      borderRadius: '8px',
                       backgroundColor: vegOnly
-                        ? 'rgba(76, 175, 80, 0.2)'
-                        : 'rgba(184, 137, 59, 0.12)',
-                    },
-                  }}
-                  onClick={() => setVegOnly(!vegOnly)}
-                  role="switch"
-                  aria-checked={vegOnly}
-                  aria-label="Toggle vegetarian filter"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      setVegOnly(!vegOnly);
-                    }
-                  }}
-                >
-                  <IconLeaf
-                    size={18}
-                    color={vegOnly ? theme.palette.success.main : theme.palette.text.secondary}
-                  />
-                </Box>
+                        ? 'rgba(76, 175, 80, 0.12)'
+                        : 'rgba(0, 0, 0, 0.04)',
+                      border: vegOnly
+                        ? `1px solid ${theme.palette.success.main}`
+                        : '1px solid transparent',
+                      transition: 'all 0.2s ease',
+                      cursor: 'pointer',
+                      '&:hover': {
+                        backgroundColor: vegOnly
+                          ? 'rgba(76, 175, 80, 0.2)'
+                          : 'rgba(184, 137, 59, 0.12)',
+                      },
+                    }}
+                    onClick={() => setVegOnly(!vegOnly)}
+                    role="switch"
+                    aria-checked={vegOnly}
+                    aria-label="Toggle vegetarian filter"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setVegOnly(!vegOnly);
+                      }
+                    }}
+                  >
+                    <IconLeaf
+                      size={18}
+                      color={vegOnly ? theme.palette.success.main : theme.palette.text.secondary}
+                    />
+                  </Box>
+                </Tooltip>
+
+                {/* Mobile Eco containers Toggle */}
+                <Tooltip title="Preselect eco containers" arrow enterTouchDelay={300} leaveTouchDelay={2500}>
+                  <Box
+                    sx={{
+                      display: { xs: 'flex', md: 'none' },
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 44,
+                      height: 44,
+                      borderRadius: '8px',
+                      backgroundColor: ecoPreselect
+                        ? 'rgba(138, 100, 32, 0.12)'
+                        : 'rgba(0, 0, 0, 0.04)',
+                      border: ecoPreselect
+                        ? `1px solid ${'#8A6420'}`
+                        : '1px solid transparent',
+                      transition: 'all 0.2s ease',
+                      cursor: 'pointer',
+                      '&:hover': {
+                        backgroundColor: ecoPreselect
+                          ? 'rgba(138, 100, 32, 0.2)'
+                          : 'rgba(184, 137, 59, 0.12)',
+                      },
+                    }}
+                    onClick={() => setEcoPreselect(!ecoPreselect)}
+                    role="switch"
+                    aria-checked={ecoPreselect}
+                    aria-label="Toggle eco containers"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setEcoPreselect(!ecoPreselect);
+                      }
+                    }}
+                  >
+                    <IconRecycle
+                      size={18}
+                      color={ecoPreselect ? '#8A6420' : theme.palette.text.secondary}
+                    />
+                  </Box>
+                </Tooltip>
 
                 {/* User Icon or Menu Button */}
                 {user ? (
@@ -517,6 +628,90 @@ export default function Header({
                         position: 'absolute',
                         top: 2,
                         left: vegOnly ? 22 : 2,
+                        width: 20,
+                        height: 20,
+                        borderRadius: '50%',
+                        backgroundColor: '#fff',
+                        transition: 'all 0.2s ease',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                      }}
+                    />
+                  </Box>
+                </Box>
+              </ListItem>
+
+              {/* Eco containers Toggle */}
+              <ListItem disablePadding sx={{ mb: 1 }}>
+                <Box
+                  sx={{
+                    width: '100%',
+                    borderRadius: '12px',
+                    py: 1.5,
+                    px: 2,
+                    backgroundColor: ecoPreselect
+                      ? 'rgba(138, 100, 32, 0.12)'
+                      : 'rgba(0, 0, 0, 0.04)',
+                    border: ecoPreselect
+                      ? `1px solid ${'#8A6420'}`
+                      : '1px solid transparent',
+                    display: 'flex',
+                    alignItems: 'center',
+                    transition: 'all 0.2s ease',
+                    cursor: 'pointer',
+                    '&:hover': {
+                      backgroundColor: ecoPreselect
+                        ? 'rgba(138, 100, 32, 0.2)'
+                        : 'rgba(0, 0, 0, 0.08)',
+                    },
+                  }}
+                  onClick={() => setEcoPreselect(!ecoPreselect)}
+                  role="switch"
+                  aria-checked={ecoPreselect}
+                  aria-label="Toggle eco containers"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setEcoPreselect(!ecoPreselect);
+                    }
+                  }}
+                >
+                  <IconRecycle
+                    size={22}
+                    style={{ marginRight: 12, flexShrink: 0 }}
+                    color={ecoPreselect ? '#8A6420' : theme.palette.text.secondary}
+                  />
+                  <Typography
+                    variant="body1"
+                    sx={{
+                      color: ecoPreselect
+                        ? '#8A6420'
+                        : theme.palette.text.primary,
+                      fontWeight: 600,
+                      fontSize: '0.95rem',
+                      flex: 1,
+                    }}
+                  >
+                    Eco containers
+                  </Typography>
+                  <Box
+                    sx={{
+                      width: 44,
+                      height: 24,
+                      borderRadius: 12,
+                      backgroundColor: ecoPreselect
+                        ? '#8A6420'
+                        : theme.palette.grey[300],
+                      position: 'relative',
+                      transition: 'all 0.2s ease',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        top: 2,
+                        left: ecoPreselect ? 22 : 2,
                         width: 20,
                         height: 20,
                         borderRadius: '50%',
