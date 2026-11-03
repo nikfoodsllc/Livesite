@@ -93,7 +93,7 @@ export default function Header({
             : '0 2px 8px rgba(0, 0, 0, 0.05)',
           transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           borderBottom: isScrolled
-            ? `1px solid ${theme.palette.divider}`
+            ? '1px solid rgba(184, 137, 59, 0.35)'
             : '1px solid transparent',
           zIndex: theme.zIndex.appBar,
           // Ensure proper stacking context and position reliability

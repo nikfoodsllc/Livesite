@@ -111,3 +111,16 @@ body {
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite linear;
 }
+
+/* a very faint paper grain on the cream page background (cosmetic only) */
+body {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.35  0 0 0 0 0.25  0 0 0 0 0.1  0 0 0 0.05 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+
+/* every button gives a small press response; anything that sets its own transform wins (zero specificity) */
+:where(.MuiButton-root, .MuiIconButton-root):active:not(:disabled) {
+  transform: scale(0.97);
+}
+:where(.MuiButton-root, .MuiIconButton-root) {
+  transition: transform 0.15s ease;
+}

@@ -1137,10 +1137,12 @@ export default function Home() {
   const categorySkeletonGrid = (
     <Box sx={categoryGridSx}>
       {[...Array(5)].map((_, index) => (
-        <Box key={index} sx={{ width: '100%', maxWidth: 200 }}>
-          <Skeleton variant="rectangular" width={200} height={150} sx={{ mb: 1 }} />
-          <Skeleton variant="text" width={150} />
-          <Skeleton variant="text" width={100} />
+        <Box key={index} sx={{ width: '100%', maxWidth: 230, borderRadius: '18px', overflow: 'hidden', backgroundColor: '#FFFEFB', border: '1px solid rgba(60, 35, 10, 0.08)', boxShadow: '0 1px 2px rgba(60, 35, 10, 0.05), 0 14px 28px -14px rgba(60, 35, 10, 0.2)' }}>
+          <Skeleton variant="rectangular" animation="wave" sx={{ width: '100%', aspectRatio: '1 / 1', height: 'auto', bgcolor: '#F1E8D9' }} />
+          <Box sx={{ p: 1.5 }}>
+            <Skeleton variant="text" animation="wave" width="80%" sx={{ bgcolor: '#F1E8D9' }} />
+            <Skeleton variant="text" animation="wave" width="40%" sx={{ bgcolor: '#F1E8D9' }} />
+          </Box>
         </Box>
       ))}
     </Box>
@@ -1654,11 +1656,24 @@ export default function Home() {
                         <Box
                           aria-hidden
                           sx={{
+                            position: 'relative',
                             mx: 'auto',
                             mt: 1.75,
-                            width: 56,
+                            width: 84,
                             height: '1px',
                             background: `linear-gradient(90deg, transparent, ${GOLD}, transparent)`,
+                            // a small gold diamond in the middle of the line
+                            '&::after': {
+                              content: '""',
+                              position: 'absolute',
+                              left: '50%',
+                              top: '50%',
+                              width: 7,
+                              height: 7,
+                              backgroundColor: GOLD,
+                              boxShadow: `0 0 0 3px ${IVORY}`,
+                              transform: 'translate(-50%, -50%) rotate(45deg)',
+                            },
                           }}
                         />
                       </Box>

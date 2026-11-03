@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Image from 'next/image';
 import { Card, CardContent, Box, Typography, useTheme, useMediaQuery, Tooltip } from '@mui/material';
 import { IconShoppingCart } from '@tabler/icons-react';
@@ -54,6 +55,8 @@ export default function FoodCard({
   const { openCartPreview } = useHeader();
 
   const badgeCount = inCartCount ?? quantity;
+  // the photo fades in once it has loaded (a photo that is already cached shows at once)
+  const [photoLoaded, setPhotoLoaded] = useState(false);
 
   return (
     <Card
@@ -98,7 +101,12 @@ export default function FoodCard({
             alt={name}
             fill
             sizes="(max-width: 600px) 50vw, 230px"
-            style={{ objectFit: 'cover' }}
+            ref={(el) => {
+              if (el?.complete) setPhotoLoaded(true);
+            }}
+            onLoad={() => setPhotoLoaded(true)}
+            onError={() => setPhotoLoaded(true)}
+            style={{ objectFit: 'cover', opacity: photoLoaded ? 1 : 0, transition: 'opacity 0.5s ease' }}
           />
         ) : (
           <Typography
@@ -274,10 +282,11 @@ export default function FoodCard({
         <Typography
           variant="body1"
           sx={{
+            fontFamily: 'var(--font-display), Georgia, serif',
             fontWeight: 600,
-            fontSize: isMobile ? '0.8125rem' : '0.9rem',
+            fontSize: isMobile ? '0.875rem' : '0.96rem',
             lineHeight: 1.3,
-            letterSpacing: '-0.005em',
+            letterSpacing: '0.002em',
             mb: 0.75,
             color: '#1F1712',
             overflow: 'hidden',
@@ -331,6 +340,7 @@ export default function FoodCard({
                 fontSize: '0.8125rem',
                 letterSpacing: '0.02em',
                 px: 1.75,
+                boxShadow: 'inset 0 0 0 1px rgba(246, 213, 142, 0.4)',
                 transition: 'background-color 0.2s ease, transform 0.15s ease',
                 '&:hover': { backgroundColor: '#3A2A14' },
                 '&:active': { transform: 'scale(0.96)' },

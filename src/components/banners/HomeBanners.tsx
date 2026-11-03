@@ -185,7 +185,7 @@ export default function HomeBanners({ onOpenCategory }: { onOpenCategory: (categ
           </IconButton>
           <Box sx={{ position: 'absolute', left: 0, right: 0, bottom: { xs: 18, md: 34 }, display: 'flex', justifyContent: 'center', gap: 0.75, pointerEvents: 'none' }}>
             {banners.map((b, i) => (
-              <Box key={b.id} sx={{ width: i === index ? 22 : 7, height: 7, borderRadius: 4, backgroundColor: i === index ? '#fff' : 'rgba(255,255,255,0.55)', transition: 'width 320ms cubic-bezier(0.32,0.72,0,1)' }} />
+              <Box key={b.id} sx={{ width: i === index ? 22 : 7, height: 7, borderRadius: 4, backgroundColor: i === index ? '#F6D58E' : 'rgba(255,255,255,0.55)', transition: 'width 320ms cubic-bezier(0.32,0.72,0,1)' }} />
             ))}
           </Box>
         </>
