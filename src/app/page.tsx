@@ -27,7 +27,7 @@ import { PST_TIMEZONE, getPSTWeekday, createPSTDate } from '@/lib/timezone';
 import MenuSubscriptionSection from '@/components/home/MenuSubscriptionSection';
 import AppStoreSection from '@/components/home/AppStoreSection';
 import CategoryRail from '@/components/home/CategoryRail';
-import StickyCategoryNav, { HEADER_H } from '@/components/home/StickyCategoryNav';
+import StickyCategoryNav, { HEADER_H, STRIP_H, SIDE_MIN } from '@/components/home/StickyCategoryNav';
 import BrandLoader from '@/components/common/BrandLoader';
 import { colors } from '@/theme/colors';
 
@@ -1317,12 +1317,14 @@ export default function Home() {
       return (
         <Box key={date} sx={{ mb: 6 }}>
 
-          {/* DATE HEADING: sticks just below the fixed site header (64px mobile / 72px desktop)
-              while this day's items scroll, so customers always see which day they are for */}
+          {/* DATE HEADING: sticks just below the fixed site header (64px mobile / 72px desktop) and the thin category strip
+              under it (the strip is not there on screens that show the side list instead) while this day's items scroll,
+              so customers always see which day they are for */}
           <Box
             sx={{
               position: 'sticky',
-              top: { xs: 64, md: 72 },
+              top: { xs: HEADER_H.xs + STRIP_H, md: HEADER_H.md + STRIP_H },
+              [`@media (min-width:${SIDE_MIN}px)`]: { top: HEADER_H.md },
               zIndex: 10,
               bgcolor: IVORY,
               pt: 1.25,

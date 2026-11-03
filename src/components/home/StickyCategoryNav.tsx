@@ -18,7 +18,7 @@ export const HEADER_H = { xs: 64, md: 72 };
 export const STRIP_H = 44;
 const FADE = 28;
 /** the side list sits in the free margin left of the 1200px menu, so it needs a screen at least this wide */
-const SIDE_MIN = 1560;
+export const SIDE_MIN = 1560;
 
 /**
  * Keeps the categories in reach once the big photo row has scrolled out of sight. Most screens: a thin strip (44px) under
