@@ -6,9 +6,10 @@
  *  - fooditems.preparationType: 'cooked' | 'ready_to_eat', how the kitchen prepares the item.
  *  - fooditems.sticker: 'yes' | 'no', whether the item's orders get a packing sticker (Kitchen Report).
  *  - fooditems.splitSticker: 'yes' | 'no', whether its stickers are one per box (Kitchen Report).
+ *  - fooditems.heatingInstructions: string, the heating / storage line printed on its sticker (Kitchen Report).
  */
 export const ADMIN_ONLY_FIELDS: Record<string, readonly string[]> = {
-  fooditems: ['preparationType', 'sticker', 'splitSticker'],
+  fooditems: ['preparationType', 'sticker', 'splitSticker', 'heatingInstructions'],
 };
 
 /** The same document without the admin-only fields of its collection (the input is not changed). */
