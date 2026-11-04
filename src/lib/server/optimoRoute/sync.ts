@@ -1,5 +1,6 @@
 import { db } from '@/lib/server/db';
 import { checkStockAlertsSafe } from '@/lib/server/stockAlerts';
+import { alertStopProblems } from './stopAlerts';
 import type { Order } from '@/types/order';
 import { optimoMode } from './config';
 import { createStop, deleteStop, geocodeAddress, searchOrdersForDate, setStopPin, updateStopDetails } from './client';
@@ -307,7 +308,7 @@ export async function syncOrderSafely(orderId: string, waitMs = 9000): Promise<v
   if (optimoMode() === 'off') return;
   try {
     await Promise.race([
-      syncOrder(orderId),
+      syncOrder(orderId).then(() => alertStopProblems()),
       new Promise((resolve) => setTimeout(resolve, waitMs)),
     ]);
   } catch (error) {
@@ -453,6 +454,8 @@ export async function reconcile(options: { now?: Date; budgetMs?: number } = {})
   } catch (error) {
     console.error('[optimoroute] summary refresh failed', error instanceof Error ? error.message : String(error));
   }
+  // 5. support hears about stops that could not be created (and about the ones that were fixed)
+  await alertStopProblems({ now });
   return summary;
 }
 
