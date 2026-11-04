@@ -6,6 +6,7 @@ import { requireAdmin } from '@/lib/adminAuth';
 import { sendCartReminderEmail } from '@/lib/cartReminderEmail';
 import { sendStoreCreditEmail } from '@/lib/storeCreditEmail';
 import { adminFoodItemsUrl, sendStockAlertEmail } from '@/lib/stockAlertEmail';
+import { adminOrdersUrl, sendStopAlertEmail } from '@/lib/stopAlertEmail';
 
 /**
  * POST /api/test/email
@@ -168,6 +169,33 @@ export async function POST(request: NextRequest) {
         break;
       }
 
+      case 'stop-first':
+      case 'stop-reminder':
+      case 'stop-urgent':
+      case 'stop-fixed': {
+        // a sample delivery-stop email for the team (made-up customer), sent only to the address given; nothing is saved
+        const kind = type.replace('stop-', '') as 'first' | 'reminder' | 'urgent' | 'fixed';
+        const sent = await sendStopAlertEmail(
+          {
+            kind,
+            orderId: 'ORD-1700000000000001',
+            dayShort: 'Wed Nov 4',
+            dayLong: 'Wednesday, November 4',
+            customerName: 'Sample Customer',
+            customerPhone: '(206) 555-0100',
+            address: '123 Example Street, Seattle, WA 98109, USA',
+            reason: 'OptimoRoute could not find the address exactly. Check the street, city and zip.',
+            detail: 'ERR_LOC_GEOCODING_PARTIAL Geocoder did not return an exact match for the original request.',
+            otherOrders: 0,
+            adminUrl: adminOrdersUrl(),
+            planningNote: 'Routes are planned at 8 PM the evening before and sent to drivers at 10 AM.',
+          },
+          [String(testEmail)]
+        );
+        result = { success: sent.success, error: sent.error };
+        break;
+      }
+
       case 'payment-failed':
         const failedOrder: Order = orderData || {
           _id: 'test-order-id',
@@ -207,7 +235,7 @@ export async function POST(request: NextRequest) {
 
       default:
         return NextResponse.json(
-          { success: false, error: 'Invalid test type. Use: password-reset, password-reset-confirmation, order-confirmation, payment-failed, cart-reminder, stock-low, stock-out, store-credit, or store-credit-full' },
+          { success: false, error: 'Invalid test type. Use: password-reset, password-reset-confirmation, order-confirmation, payment-failed, cart-reminder, stock-low, stock-out, stop-first, stop-reminder, stop-urgent, stop-fixed, store-credit, or store-credit-full' },
           { status: 400 }
         );
     }
