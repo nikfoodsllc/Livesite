@@ -14,6 +14,7 @@ import {
 import { populateComboSections } from '@/lib/server/menu/comboSections';
 import { publicImageFields } from '@/lib/server/menu/itemImages';
 import { markSoldOutOptions, stockRemainingByFood } from '@/lib/server/stock';
+import { cleanAllergens } from '@/lib/allergens';
 
 interface CategoryFoodMapping {
   categoryId: MongoObjectId | { toString(): string };
@@ -262,6 +263,7 @@ export async function buildHomeMenu(): Promise<HomeMenuPayload> {
         description: foodItem.description || '',
         price: foodItem.price,
         veg: foodItem.veg,
+        allergens: cleanAllergens(foodItem.allergens),
         available: foodItem.available && !soldOut.has(foodItemIdStr),
         ...(soldOut.has(foodItemIdStr) ? { soldOut: true } : {}),
         // units left of an item with an order limit (the + button stops there); missing when the item has no limit
