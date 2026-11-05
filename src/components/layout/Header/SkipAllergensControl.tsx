@@ -46,7 +46,16 @@ function AllergenChecklist() {
  *  - icon: the phone header (icon only, with a count), opens the tick list under it
  *  - row: the phone menu drawer (a full row that opens the list inline)
  */
+/**
+ * The filter is hidden until the menu's allergens are filled in (an untagged dish would look safe). To show it again set
+ * NEXT_PUBLIC_SHOW_SKIP_ALLERGENS=on in Vercel (livesite project) and redeploy.
+ */
 export default function SkipAllergensControl({ variant }: { variant: 'pill' | 'icon' | 'row' }) {
+  if (process.env.NEXT_PUBLIC_SHOW_SKIP_ALLERGENS !== 'on') return null;
+  return <SkipAllergensControlInner variant={variant} />;
+}
+
+function SkipAllergensControlInner({ variant }: { variant: 'pill' | 'icon' | 'row' }) {
   const theme = useTheme();
   const { skipAllergens } = useHeader();
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
