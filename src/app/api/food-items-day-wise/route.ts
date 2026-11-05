@@ -4,6 +4,7 @@ import { ObjectId as MongoObjectId, Document } from 'mongodb';
 import { PST_TIMEZONE, createPSTDate } from '@/lib/timezone';
 import { getOrderableDayWiseDateStrings } from '@/lib/server/availableDates';
 import { publicImageFields } from '@/lib/server/menu/itemImages';
+import { cleanAllergens } from '@/lib/allergens';
 
 /**
  * ============================================================================
@@ -521,6 +522,7 @@ export async function GET(req: NextRequest) {
           description: foodItem.description || '',
           price: foodItem.price,
           veg: foodItem.veg,
+          allergens: cleanAllergens(foodItem.allergens),
           available: foodItem.available,
           url: foodItem.url || foodItem.imageUrl || '',
           ...publicImageFields(foodItem),

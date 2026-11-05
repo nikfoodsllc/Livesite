@@ -12,6 +12,8 @@ export interface FoodItem {
   category: string;
   veg: boolean;
   available: boolean;
+  /** allergens the dish contains (keys of lib/allergens.ts); missing or empty = none */
+  allergens?: string[];
   /** Chef's Pick (mobile app only) */
   chefsPick?: boolean;
   /** the item has a special instructions box (set in the admin; off unless Yes) */

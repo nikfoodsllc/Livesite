@@ -36,6 +36,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
 import { useHeader } from '@/contexts/HeaderContext';
 import ProfilePopup from './ProfilePopup';
+import SkipAllergensControl from './SkipAllergensControl';
 
 interface HeaderProps {
   notificationCount?: number;
@@ -112,7 +113,7 @@ export default function Header({
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              px: { xs: 2, sm: 0 },
+              px: 0, // the Container above already gives the 16px phone gutters; with five icons the header needs the room
             }}
           >
             {/* Logo Section */}
@@ -138,7 +139,7 @@ export default function Header({
                   width: 'auto',
                   height: isScrolled ? '45px' : '50px',
                   transition: 'height 0.3s ease',
-                  maxWidth: isMobile ? '120px' : '160px',
+                  maxWidth: isMobile ? 'min(104px, 26vw)' : '160px',
                 }}
               />
             </Box>
@@ -262,6 +263,9 @@ export default function Header({
                   </Box>
                 </Tooltip>
 
+                {/* Skip allergens */}
+                <SkipAllergensControl variant="pill" />
+
                 {/* Shopping Cart */}
                 <IconButton
                   onClick={openCartPreview}
@@ -324,7 +328,7 @@ export default function Header({
 
             {/* Mobile Actions */}
             {isMobile && (
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                 {/* Cart Icon */}
                 <IconButton
                   onClick={openCartPreview}
@@ -357,6 +361,7 @@ export default function Header({
                   <Box
                     sx={{
                       display: { xs: 'flex', md: 'none' },
+                    '@media (max-width:349px)': { display: 'none' },
                       alignItems: 'center',
                       justifyContent: 'center',
                       width: 44,
@@ -400,6 +405,7 @@ export default function Header({
                   <Box
                     sx={{
                       display: { xs: 'flex', md: 'none' },
+                    '@media (max-width:349px)': { display: 'none' },
                       alignItems: 'center',
                       justifyContent: 'center',
                       width: 44,
@@ -437,6 +443,9 @@ export default function Header({
                     />
                   </Box>
                 </Tooltip>
+
+                {/* Mobile Skip allergens */}
+                <SkipAllergensControl variant="icon" />
 
                 {/* User Icon or Menu Button */}
                 {user ? (
@@ -692,6 +701,11 @@ export default function Header({
                     />
                   </Box>
                 </Box>
+              </ListItem>
+
+              {/* Skip allergens */}
+              <ListItem disablePadding sx={{ mb: 1 }}>
+                <SkipAllergensControl variant="row" />
               </ListItem>
             </List>
           </Box>

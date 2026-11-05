@@ -24,6 +24,8 @@ import * as localCart from '@/lib/localStorageCart';
 import { generateAvailableDatesFromAPI, DayOption } from '@/lib/dayAvailabilityClient';
 import { IconX, IconMinus, IconPlus } from '@tabler/icons-react';
 import { useHeader } from '@/contexts/HeaderContext';
+import { AllergenContains } from '@/components/common/AllergenRow';
+import { cleanAllergens } from '@/lib/allergens';
 import PortionSelector from './PortionSelector';
 import SpiceLevelSelector from './SpiceLevelSelector';
 import ComboSectionComponent from './ComboSectionComponent';
@@ -648,6 +650,13 @@ export default function FoodDetailsDialog({
             >
               {foodItem.description}
             </Typography>
+          )}
+
+          {/* Allergens the dish contains: icons and "Contains: ..." */}
+          {cleanAllergens(foodItem.allergens).length > 0 && (
+            <Box sx={{ mb: 3, mt: foodItem.description ? 0 : 1.5 }}>
+              <AllergenContains allergens={foodItem.allergens} />
+            </Box>
           )}
 
           {/* Portion Selector */}
