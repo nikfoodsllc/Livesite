@@ -67,6 +67,7 @@ async function shapeItem(foodItem: Document, foodById: Map<string, Document>): P
     price: foodItem.price,
     veg: foodItem.veg,
     available: foodItem.available,
+    allowInstructions: foodItem.allowInstructions === true,
     url: foodItem.url || foodItem.imageUrl || '',
     public_id: foodItem.public_id || '',
     isEcoFriendlyContainer: foodItem.isEcoFriendlyContainer || false,
