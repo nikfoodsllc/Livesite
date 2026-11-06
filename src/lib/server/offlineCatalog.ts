@@ -3,11 +3,12 @@ import { db } from '@/lib/server/db';
 import { populateComboSections } from '@/lib/server/menu/comboSections';
 import { getPSTDateString } from '@/lib/timezone';
 import { getAvailableDatesFromDatabase, generateAvailableDateOptions } from '@/lib/server/availableDates';
+import { stockRemainingByFood } from '@/lib/server/stock';
 import type { FoodItem } from '@/types/food';
 
 /**
  * The whole menu for the admin's Create Order screen. Unlike the customer menu it is not limited to what is open for
- * ordering: every published category, every item (also the ones hidden on the site) and the day-wise items of ANY date
+ * ordering: every category and item, also the ones hidden on the site (unpublished, switched off or sold out; they are tagged) and the day-wise items of ANY date
  * are included, so the admin can enter an order for a day that has already closed, or for any date at all.
  */
 
@@ -96,7 +97,7 @@ export async function loadItemsForOrder(ids: string[]): Promise<Map<string, Food
   const out = new Map<string, FoodItem>();
   if (valid.length === 0) return out;
 
-  const result = await db.read('fooditems', { _id: { $in: valid.map((id) => new MongoObjectId(id)) }, isDraft: { $ne: true } });
+  const result = await db.read('fooditems', { _id: { $in: valid.map((id) => new MongoObjectId(id)) } });
   const docs = result.success && result.data ? (result.data as Document[]) : [];
 
   const partIds = new Set<string>();
@@ -123,15 +124,16 @@ export async function loadItemsForOrder(ids: string[]): Promise<Map<string, Food
 export async function buildOfflineCatalog(): Promise<OfflineCatalog> {
   const today = getPSTDateString();
   const [catResult, mapResult, itemResult] = await Promise.all([
-    db.read('foodcategories', { isDraft: { $ne: true } }, { sort: { sequence: 1 } }),
+    db.read('foodcategories', {}, { sort: { sequence: 1 } }),
     db.read('categoryfoodmapping', {}, { sort: { sequence: 1 } }),
-    db.read('fooditems', { isDraft: { $ne: true } }, { sort: { sequence: 1 } }),
+    db.read('fooditems', {}, { sort: { sequence: 1 } }),
   ]);
   const categoryDocs = (catResult.success && catResult.data ? catResult.data : []) as Document[];
   const mappings = (mapResult.success && mapResult.data ? mapResult.data : []) as Mapping[];
   const foodDocs = (itemResult.success && itemResult.data ? itemResult.data : []) as Document[];
 
   const foodById = new Map<string, Document>(foodDocs.map((d) => [d._id.toString(), d]));
+  const categoryById = new Map<string, Document>(categoryDocs.map((d) => [d._id.toString(), d]));
 
   // categories as a tree (parents, then their sub-categories)
   const byId = new Map<string, CatalogCategory>();
@@ -177,6 +179,31 @@ export async function buildOfflineCatalog(): Promise<OfflineCatalog> {
   // only the items that appear somewhere in the menu (plus no orphans), shaped for pricing and display
   const items: Record<string, Record<string, unknown>> = {};
   for (const id of usedItemIds) items[id] = await shapeItem(foodById.get(id)!, foodById);
+
+  // tags for the admin picker: `unavailable` = switched off (Available = No), a draft item, or listed only in a category that is
+  // not published (a draft category, or one inside a draft parent); `soldOut` = reached its order limit. Such items can still be ordered here.
+  const draftCategory = (id: string): boolean => {
+    for (let doc = categoryById.get(id), guard = 0; doc && guard < 10; guard++) {
+      if (doc.isDraft === true) return true;
+      doc = doc.parentCategoryId ? categoryById.get(doc.parentCategoryId.toString()) : undefined;
+    }
+    return false;
+  };
+  const publishedSomewhere = new Set<string>();
+  for (const m of mappings) {
+    const categoryId = m.categoryId?.toString?.();
+    const itemId = m.foodItemId?.toString?.();
+    if (categoryId && itemId && byId.has(categoryId) && !draftCategory(categoryId)) publishedSomewhere.add(itemId);
+  }
+  const usedDocs = [...usedItemIds].map((id) => foodById.get(id)!);
+  const stockLeft = await stockRemainingByFood(usedDocs as Array<{ _id: unknown; stockThreshold?: unknown; stockUnit?: unknown; stockResetAt?: unknown; stockResetMode?: unknown; stockResetTime?: unknown; createdAt?: unknown }>);
+  for (const id of usedItemIds) {
+    const doc = foodById.get(id)!;
+    const unavailable = doc.available === false || doc.isDraft === true || !publishedSomewhere.has(id);
+    const soldOut = (stockLeft.get(id)?.base ?? 1) <= 0;
+    if (unavailable) items[id].unavailable = true;
+    if (soldOut) items[id].soldOut = true;
+  }
 
   // the days the admin can pick: every day with availability settings or a day-wise menu, from a week ago on
   const from = new Date(`${today}T12:00:00Z`);
