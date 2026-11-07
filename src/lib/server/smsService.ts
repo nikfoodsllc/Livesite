@@ -12,7 +12,7 @@ import type { Order } from '@/types/order';
 /** One line per text we tried to send (business only). Status follows the provider's delivery receipts. */
 export interface SmsLogEntry {
   to: string;
-  kind: 'welcome' | 'delivery_date_changed';
+  kind: 'welcome' | 'delivery_date_changed' | 'announcement';
   body: string;
   orderId?: string;
   userId?: string;

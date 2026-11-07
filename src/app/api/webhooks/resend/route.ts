@@ -9,6 +9,7 @@ import { applyPaymentLinkEmailEvent } from '@/lib/server/paymentLinkTracking';
 import { applyConfirmationEmailEvent } from '@/lib/server/confirmationEmailTracking';
 import { applyRescheduleEmailEvent } from '@/lib/server/rescheduleEmailTracking';
 import { applyCartReminderEmailEvent } from '@/lib/server/cartReminderTracking';
+import { applyCommunicationEmailEvent } from '@/lib/server/communications';
 import { emailAnalytics } from '@/lib/emailAnalytics';
 import { WebhookPayload } from '@/types/email';
 import { formatAPITimestamp } from '@/lib/apiDateFormat';
@@ -91,7 +92,7 @@ export async function POST(request: NextRequest) {
         bounceReason: data.bounce?.message,
       };
       // an email belongs to one of four: a payment link (kept on the order's link emails), a moved-date email, a cart reminder (kept on the checkout draft), or the order confirmation
-      if (!(await applyPaymentLinkEmailEvent(event)) && !(await applyRescheduleEmailEvent(event)) && !(await applyCartReminderEmailEvent(event))) await applyConfirmationEmailEvent(event);
+      if (!(await applyPaymentLinkEmailEvent(event)) && !(await applyRescheduleEmailEvent(event)) && !(await applyCartReminderEmailEvent(event)) && !(await applyCommunicationEmailEvent(event))) await applyConfirmationEmailEvent(event);
     }
 
     // Process webhook events through analytics service

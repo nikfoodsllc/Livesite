@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { validTwilioSignature } from '@/lib/sms/twilio';
 import { replyKind } from '@/lib/sms/consent';
 import { applyDeliveryReceipt, applyTextReply } from '@/lib/server/smsService';
+import { applyCommunicationTextReceipt } from '@/lib/server/communications';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +34,8 @@ export async function POST(request: NextRequest) {
   try {
     if (params.MessageStatus && params.MessageSid && !params.Body) {
       await applyDeliveryReceipt(params.MessageSid, params.MessageStatus, params.ErrorCode);
+      // a text sent from the Communication tab keeps the receipt on its recipient too
+      await applyCommunicationTextReceipt(params.MessageSid, params.MessageStatus);
     } else if (params.Body !== undefined && params.From) {
       const kind = replyKind(params.Body, params.OptOutType);
       if (kind === 'stop' || kind === 'start') await applyTextReply(params.From, kind);
