@@ -671,39 +671,13 @@ export default function FoodDetailsDialog({
 
           {/* Spice Level Selector */}
           {comboNeedsOverallSpice(foodItem) && (
-            <SpiceLevelSelector
-              spiceLevels={foodItem.spiceLevel}
-              selectedSpiceLevel={selectedSpiceLevel}
-              onSpiceLevelChange={setSelectedSpiceLevel}
-            />
-          )}
-
-          {/* Eco-Friendly Container */}
-          {foodItem.isEcoFriendlyContainer && (
-            <Box sx={{ mb: 3 }}>
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={useEcoContainer}
-                    onChange={(e) => setUseEcoContainer(e.target.checked)}
-                    sx={{
-                      color: '#CBBFA9',
-                      '&.Mui-checked': {
-                        color: '#8A6420',
-                      },
-                    }}
-                  />
-                }
-                label={
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography>Use Eco-Friendly Container</Typography>
-                    {foodItem.ecoContainerCharge && (
-                      <Typography sx={{ color: '#8A6420', fontWeight: 600 }}>
-                        +${foodItem.ecoContainerCharge.toFixed(2)}
-                      </Typography>
-                    )}
-                  </Box>
-                }
+            <Box sx={foodItem.hasCombo ? { mb: 2.5 } : undefined}>
+              <SpiceLevelSelector
+                spiceLevels={foodItem.spiceLevel}
+                selectedSpiceLevel={selectedSpiceLevel}
+                onSpiceLevelChange={setSelectedSpiceLevel}
+                variant={foodItem.hasCombo ? 'chips' : 'list'}
+                label={foodItem.hasCombo ? 'Spice' : undefined}
               />
             </Box>
           )}
@@ -753,6 +727,36 @@ export default function FoodDetailsDialog({
               />
             </Box>
           )}
+          {/* Eco-Friendly Container: last thing in the form */}
+          {foodItem.isEcoFriendlyContainer && (
+            <Box sx={{ mt: 1, mb: 1 }}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={useEcoContainer}
+                    onChange={(e) => setUseEcoContainer(e.target.checked)}
+                    sx={{
+                      color: '#CBBFA9',
+                      '&.Mui-checked': {
+                        color: '#8A6420',
+                      },
+                    }}
+                  />
+                }
+                label={
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography>Eco-friendly container</Typography>
+                    {foodItem.ecoContainerCharge && (
+                      <Typography sx={{ color: '#8A6420', fontWeight: 600 }}>
+                        +${foodItem.ecoContainerCharge.toFixed(2)}
+                      </Typography>
+                    )}
+                  </Box>
+                }
+              />
+            </Box>
+          )}
+
         </Box>
 
         {/* Bottom Bar */}

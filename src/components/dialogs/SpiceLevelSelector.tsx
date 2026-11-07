@@ -9,6 +9,8 @@ interface SpiceLevelSelectorProps {
   label?: string;
   /** Keeps the radio group ids unique when several selectors are on screen */
   idSuffix?: string;
+  /** 'chips' = one row of small pills (used inside a combo section); default = the full-width list */
+  variant?: 'list' | 'chips';
 }
 
 const spiceLevelConfig: Record<string, { dots: number; colors: string[] }> = {
@@ -44,7 +46,62 @@ export default function SpiceLevelSelector({
   onSpiceLevelChange,
   label = 'Select Spice Level',
   idSuffix = '',
+  variant = 'list',
 }: SpiceLevelSelectorProps) {
+  if (variant === 'chips') {
+    return (
+      <Box sx={{ mb: 0 }}>
+        <Typography id={`spice-level-label${idSuffix}`} component="label" sx={{ display: 'block', fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#8A6420', mb: 0.75 }}>
+          {label}
+          <Box component="span" aria-hidden sx={{ color: '#d32f2f', ml: 0.5 }}>
+            *
+          </Box>
+        </Typography>
+        <RadioGroup row aria-labelledby={`spice-level-label${idSuffix}`} aria-required value={selectedSpiceLevel} onChange={(e) => onSpiceLevelChange(e.target.value)} sx={{ gap: 0.75, flexWrap: 'wrap' }}>
+          {spiceLevels.map((level) => {
+            const config = getSpiceConfig(level);
+            const selected = selectedSpiceLevel === level;
+            return (
+              <Box
+                key={level}
+                component="label"
+                sx={{
+                  position: 'relative',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 0.75,
+                  height: 40,
+                  px: { xs: 1.25, sm: 1.5 },
+                  borderRadius: 999,
+                  cursor: 'pointer',
+                  fontSize: { xs: '0.8125rem', sm: '0.875rem' },
+                  fontWeight: selected ? 600 : 500,
+                  color: selected ? '#3C230A' : '#4B5563',
+                  backgroundColor: selected ? 'rgba(184, 137, 59, 0.16)' : '#fff',
+                  border: '1px solid',
+                  borderColor: selected ? '#B8893B' : 'rgba(60, 35, 10, 0.14)',
+                  transition: 'background-color 280ms cubic-bezier(0.32,0.72,0,1), border-color 280ms cubic-bezier(0.32,0.72,0,1), transform 200ms cubic-bezier(0.32,0.72,0,1)',
+                  '&:active': { transform: 'scale(0.97)' },
+                  '&:hover': { borderColor: '#B8893B' },
+                  '&:has(input:focus-visible)': { outline: '2px solid #B8893B', outlineOffset: 2 },
+                }}
+              >
+                <Radio value={level} disableRipple tabIndex={0} sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', m: 0, p: 0, opacity: 0, cursor: 'pointer' }} />
+                {formatSpiceLevel(level)}
+                {config.dots > 0 && (
+                  <Box aria-hidden sx={{ display: 'inline-flex', gap: '3px' }}>
+                    {config.colors.slice(0, config.dots).map((color, index) => (
+                      <Box key={index} sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: color }} />
+                    ))}
+                  </Box>
+                )}
+              </Box>
+            );
+          })}
+        </RadioGroup>
+      </Box>
+    );
+  }
   return (
     <Box sx={{ mb: 3 }}>
       <Typography variant="subtitle1" component="label" id={`spice-level-label${idSuffix}`} sx={{ fontWeight: 600, mb: 1.5 }}>
