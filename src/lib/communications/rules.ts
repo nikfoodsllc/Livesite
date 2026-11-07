@@ -3,7 +3,7 @@
  * limits. No database here, so it can be checked on its own.
  */
 
-export type AudienceKind = 'delivery_date' | 'menu_day' | 'ordered_between';
+export type AudienceKind = 'delivery_date' | 'menu_day' | 'ordered_between' | 'people' | 'all';
 
 export interface AudienceFilter {
   kind: AudienceKind;
@@ -12,9 +12,14 @@ export interface AudienceFilter {
   /** ordered_between: first and last day (YYYY-MM-DD, Pacific days, both included) */
   from?: string;
   to?: string;
+  /** people: the customers picked by hand (account ids) */
+  userIds?: string[];
 }
 
 export const MAX_ORDERED_RANGE_DAYS = 92;
+/** The most customers one message can name by hand */
+export const MAX_PEOPLE = 500;
+const OBJECT_ID = /^[a-f0-9]{24}$/;
 export const SUBJECT_MAX = 150;
 export const EMAIL_BODY_MAX = 5000;
 /** Two text segments: longer messages cost more and read badly */
@@ -54,6 +59,13 @@ export function parseAudienceFilter(input: unknown): { ok: true; filter: Audienc
     if (f.from > f.to) return { ok: false, error: 'The start date is after the end date.' };
     if (daysBetween(f.from, f.to) + 1 > MAX_ORDERED_RANGE_DAYS) return { ok: false, error: `Pick at most ${MAX_ORDERED_RANGE_DAYS} days.` };
     return { ok: true, filter: { kind: 'ordered_between', from: f.from, to: f.to } };
+  }
+  if (f.kind === 'all') return { ok: true, filter: { kind: 'all' } };
+  if (f.kind === 'people') {
+    const ids = Array.isArray(f.userIds) ? [...new Set(f.userIds.filter((v): v is string => typeof v === 'string' && OBJECT_ID.test(v)))] : [];
+    if (ids.length === 0) return { ok: false, error: 'Add at least one person.' };
+    if (ids.length > MAX_PEOPLE) return { ok: false, error: `Pick at most ${MAX_PEOPLE} people by hand. For more, use Everyone.` };
+    return { ok: true, filter: { kind: 'people', userIds: ids } };
   }
   return { ok: false, error: 'Pick how to find the customers.' };
 }
@@ -135,6 +147,15 @@ export function usesDate(template: string): boolean {
   return /\{date\}/.test(template);
 }
 
+export function usesOrderNumber(template: string): boolean {
+  return /\{orderNumber\}/.test(template);
+}
+
+/** True when the customers come from orders (delivery date, menu day or period), so an order number exists. */
+export function filterHasOrders(filter: AudienceFilter): boolean {
+  return filter.kind === 'delivery_date' || filter.kind === 'menu_day' || filter.kind === 'ordered_between';
+}
+
 export function renderMessage(template: string, ctx: MessageContext): string {
   return template
     .replace(/\{firstName\}/g, ctx.firstName || 'there')
@@ -184,7 +205,9 @@ export function checkMessage(input: MessageInput, filter: AudienceFilter): Messa
   const all = pieces.join(' ');
   const unknown = unknownPlaceholders(all);
   if (unknown.length) return { field: input.email ? 'emailBody' : 'textBody', error: `Unknown placeholder {${unknown[0]}}. Use {firstName}, {orderNumber} or {date}.` };
-  if (usesDate(all) && filter.kind === 'ordered_between') return { field: input.email ? 'emailBody' : 'textBody', error: '{date} needs the delivery date or menu day filter.' };
+  const where = input.email ? 'emailBody' : 'textBody';
+  if (usesDate(all) && filter.kind !== 'delivery_date' && filter.kind !== 'menu_day') return { field: where, error: '{date} needs the delivery date or menu day choice.' };
+  if (usesOrderNumber(all) && !filterHasOrders(filter)) return { field: where, error: '{orderNumber} needs a choice that is based on orders (delivery date, menu day or period).' };
   return null;
 }
 

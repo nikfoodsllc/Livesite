@@ -2,6 +2,8 @@ import { ObjectId } from 'mongodb';
 import { db } from '@/lib/server/db';
 import { smsMode } from '@/lib/sms/config';
 import { getSmsConsent, canText, sendText } from '@/lib/server/smsService';
+import { normalizeUsPhone } from '@/lib/server/userPhone';
+import type { SmsConsent } from '@/lib/sms/consent';
 import { sendCommunicationEmail } from '@/lib/communicationEmail';
 import type { EmailEventInput } from '@/lib/server/paymentLinkTracking';
 import {
@@ -125,8 +127,46 @@ interface OrderRow {
   createdAt?: Date;
 }
 
+interface UserRow {
+  _id: ObjectId;
+  name?: string;
+  fullName?: string;
+  email?: string;
+  phone?: string;
+  smsConsent?: SmsConsent;
+}
+
+/** Customers named by hand, or everyone with an account. No orders are involved. Text consent is read in one go. */
+async function loadAccounts(filter: AudienceFilter): Promise<AudienceCustomer[]> {
+  const users = await db.getCollectionForOperations<Record<string, unknown>>('users');
+  const query: Record<string, unknown> =
+    filter.kind === 'people'
+      ? { _id: { $in: (filter.userIds ?? []).filter((id) => ObjectId.isValid(id)).map((id) => new ObjectId(id)) }, role: { $in: ['USER', 'user'] } }
+      : { role: { $in: ['USER', 'user'] }, isActive: { $ne: false } };
+  const rows = (await users.find(query as never, { projection: { name: 1, fullName: 1, email: 1, phone: 1, smsConsent: 1 } }).limit(6000).toArray()) as unknown as UserRow[];
+  const subscribers = await db.getCollectionForOperations<Record<string, unknown>>('smsSubscribers');
+  const agreed = new Set(((await subscribers.find({ optedIn: true } as never, { projection: { phone: 1 } }).limit(20000).toArray()) as unknown as Array<{ phone?: string }>).map((s) => String(s.phone ?? '')));
+  return rows
+    .map((u): AudienceCustomer => {
+      const profilePhone = normalizeUsPhone(u.phone);
+      const own = u.smsConsent ?? null;
+      let textOk = false;
+      let phone = profilePhone;
+      let textReason: string | undefined;
+      if (canText(own)) {
+        textOk = true;
+        phone = own.phone;
+      } else if (profilePhone && agreed.has(profilePhone)) {
+        textOk = true;
+      } else textReason = own && !own.optedIn ? 'Stopped texts' : 'Has not agreed to texts';
+      return { key: String(u._id), userId: String(u._id), name: String(u.name ?? u.fullName ?? '').trim(), email: usableEmail(u.email), phone: phone ?? digits10(u.phone), orderIds: [], textOk, ...(textReason ? { textReason } : {}) };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+}
+
 /** One row per customer (an account, else the order's email or phone) with the orders that matched. */
 export async function loadAudience(filter: AudienceFilter): Promise<AudienceCustomer[]> {
+  if (filter.kind === 'people' || filter.kind === 'all') return loadAccounts(filter);
   const orders = await db.getCollectionForOperations<Record<string, unknown>>('orders');
   const rows = (await orders
     .find(ordersQuery(filter) as never, { projection: { orderId: 1, user: 1, customerInfo: 1, createdAt: 1 } })
