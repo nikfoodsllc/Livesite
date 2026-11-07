@@ -745,7 +745,7 @@ export default function FoodDetailsDialog({
                 }
                 label={
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography>Use Eco-Friendly Container</Typography>
+                    <Typography>Eco-friendly container</Typography>
                     {foodItem.ecoContainerCharge && (
                       <Typography sx={{ color: '#8A6420', fontWeight: 600 }}>
                         +${foodItem.ecoContainerCharge.toFixed(2)}
