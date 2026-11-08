@@ -113,7 +113,6 @@ async function prepare(
   if (badDate) return fail(400, 'Every item needs a delivery day');
   const badDeliverOn = lines.find((l) => l.deliverOn !== undefined && l.deliverOn !== null && l.deliverOn !== '' && (typeof l.deliverOn !== 'string' || !DATE_RE.test(l.deliverOn)));
   if (badDeliverOn) return fail(400, 'The delivery date of an item is not a valid date');
-  if (lines.some((l) => l.deliverOn && l.deliverOn < l.date)) return fail(400, 'An item cannot be delivered before its kitchen day');
 
   // Create Order is the admin's master tool: no cutoff, no "day is open" and no "item is on that day's menu" rules.
   // Any date can be picked and any item of the menu can go on it; only the item itself has to exist.
@@ -770,7 +769,7 @@ export async function getOrderForEdit(orderId: string): Promise<{ ok: true; orde
       }
       lines.push({
         date,
-        ...(actual && actual > date ? { deliverOn: actual } : {}),
+        ...(actual && actual !== date ? { deliverOn: actual } : {}),
         foodItemId: String(item.food._id),
         quantity: item.quantity,
         ...(item.selectedPortion ? { selectedPortion: item.selectedPortion } : {}),
