@@ -40,7 +40,7 @@ const PREFIX: Record<StopAlertTemplateKind, string> = {
 export function getStopAlertSubject(info: Pick<StopAlertInfo, 'kind' | 'orderId' | 'dayShort'>): string {
   return info.kind === 'fixed'
     ? `${PREFIX.fixed} Delivery stop created - Order #${info.orderId} - ${info.dayShort}`
-    : `${PREFIX[info.kind]} Delivery Push to OptimoRoute Failed - Order #${info.orderId} - ${info.dayShort}`;
+    : `${PREFIX[info.kind]} OptimoRoute Push Failed - Order #${info.orderId} - ${info.dayShort}`;
 }
 
 const C = {
