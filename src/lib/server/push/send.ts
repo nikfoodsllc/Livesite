@@ -1,6 +1,7 @@
 import { db } from '@/lib/server/db';
 import { pushMode, wants, type PushKind, type PushMode } from './config';
 import { isDeadTokenError, sendExpoMessages, type PushMessage } from './expo';
+import { newPushId } from './opens';
 import { prefsForUsers, removeTokens, tokensForUsers } from './store';
 
 export interface PushSummary {
@@ -17,6 +18,8 @@ export interface PushSummary {
   removed: number;
   /** most common failure codes, for the admin */
   errors: Record<string, number>;
+  /** this message's id: the app sends it back when the customer taps the notification */
+  pushId?: string;
 }
 
 export interface PushRequest {
@@ -43,6 +46,8 @@ export async function sendPush(req: PushRequest): Promise<PushSummary> {
   const mode = pushMode();
   const userIds = [...new Set(req.userIds.filter(Boolean).map(String))];
   const summary = emptySummary(mode, userIds.length);
+  const pushId = newPushId();
+  summary.pushId = pushId;
   if (mode === 'off' || userIds.length === 0) return summary;
   try {
     const prefs = await prefsForUsers(userIds);
@@ -52,7 +57,7 @@ export async function sendPush(req: PushRequest): Promise<PushSummary> {
     const list = (await tokensForUsers(allowedUsers)).filter((t) => !only || only.has(t.token));
     summary.tokens = list.length;
     if (list.length > 0 && mode === 'on') {
-      const messages: PushMessage[] = list.map((t) => ({ to: t.token, title: req.title, body: req.body, data: { ...(req.data ?? {}), kind: req.kind } }));
+      const messages: PushMessage[] = list.map((t) => ({ to: t.token, title: req.title, body: req.body, data: { ...(req.data ?? {}), kind: req.kind, pushId } }));
       const tickets = await sendExpoMessages(messages);
       const dead: string[] = [];
       tickets.forEach((t, i) => {
@@ -68,7 +73,7 @@ export async function sendPush(req: PushRequest): Promise<PushSummary> {
     }
     await db
       .getCollectionForOperations<Record<string, unknown>>('pushEvents')
-      .then((c) => c.insertOne({ kind: req.kind, ...req.log, ...summary, createdAt: new Date() } as never))
+      .then((c) => c.insertOne({ kind: req.kind, ...req.log, title: req.title.slice(0, 120), ...summary, createdAt: new Date() } as never))
       .catch(() => undefined);
   } catch (error) {
     console.error('[push] send failed', error instanceof Error ? error.message : String(error));
