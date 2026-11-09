@@ -30,17 +30,17 @@ export interface StopAlertInfo {
 const esc = (v: string): string => v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
 const PREFIX: Record<StopAlertTemplateKind, string> = {
-  first: '[ACTION NEEDED]',
-  reminder: '[REMINDER]',
-  urgent: '[URGENT]',
-  fixed: '[FIXED]',
+  first: '(ACTION NEEDED)',
+  reminder: '(REMINDER)',
+  urgent: '(URGENT)',
+  fixed: '(FIXED)',
 };
 
 /** The prefix is fixed on purpose: one Gmail filter on it stars and labels these emails. */
 export function getStopAlertSubject(info: Pick<StopAlertInfo, 'kind' | 'orderId' | 'dayShort'>): string {
   return info.kind === 'fixed'
     ? `${PREFIX.fixed} Delivery stop created - Order #${info.orderId} - ${info.dayShort}`
-    : `${PREFIX[info.kind]} Delivery stop failed - Order #${info.orderId} - ${info.dayShort}`;
+    : `${PREFIX[info.kind]} Delivery Push to OptimoRoute Failed - Order #${info.orderId} - ${info.dayShort}`;
 }
 
 const C = {
