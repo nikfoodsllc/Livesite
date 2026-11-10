@@ -35,7 +35,7 @@ export async function sendCommunicationEmail(args: { to: string; subject: string
     const unsubscribe = args.unsubscribeUrl ?? unsubscribeUrlFor(args.to);
     const html = custom ? withUnsubscribe(wrapHtmlDocument(args.text, args.subject), unsubscribe) : getCommunicationEmailTemplate(args.subject, args.text, unsubscribe);
     const headers = { 'List-Unsubscribe': `<${unsubscribe}>, <mailto:${getReplyTo()}?subject=unsubscribe>` };
-    const plain = custom ? htmlToText(args.text) : undefined;
+    const plain = custom ? htmlToText(html) : undefined;
     const withLogo = !custom || html.includes(`cid:${EMAIL_LOGO_CID}`);
     const logo = Buffer.from(EMAIL_LOGO_PNG_BASE64, 'base64');
 
