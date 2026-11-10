@@ -1501,7 +1501,7 @@ export default function Home() {
 
   // the page's main heading for search engines and screen readers (the design has no visible one); in every state, so the first HTML has it
   const mainHeading = (
-    <Typography component="h1" sx={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap', border: 0, p: 0, m: -1 }}>
+    <Typography component="h1" sx={{ position: 'absolute', width: '1px', height: '1px', overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap', border: 0, p: 0, m: '-1px' }}>
       NikFoods: authentic Indian food delivered to your door
     </Typography>
   );
