@@ -83,7 +83,7 @@ function Glyph({ k, size }: { k: AllergenKey; size: number }) {
 
 /**
  * One allergen as a round badge: the icon on a soft tint of its colour. Hover (computer) or press and hold (phone)
- * shows what it is ("Contains milk (dairy)"). It is also readable by screen readers.
+ * shows what it is ("Contains dairy"). It is also readable by screen readers.
  */
 export default function AllergenIcon({ allergen, size = 22 }: { allergen: AllergenKey; size?: number }) {
   const info = allergenInfo(allergen);

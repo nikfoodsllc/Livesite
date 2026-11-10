@@ -16,7 +16,7 @@ export interface AllergenInfo {
 }
 
 export const ALLERGENS: readonly AllergenInfo[] = [
-  { key: 'milk', label: 'Dairy', description: 'Contains dairy (milk)', color: '#1D4ED8', bg: '#DBEAFE' },
+  { key: 'milk', label: 'Dairy', description: 'Contains dairy', color: '#1D4ED8', bg: '#DBEAFE' },
   { key: 'eggs', label: 'Eggs', description: 'Contains eggs', color: '#A16207', bg: '#FEF3C7' },
   { key: 'fish', label: 'Fish', description: 'Contains fish', color: '#0E7490', bg: '#CFFAFE' },
   { key: 'shellfish', label: 'Shellfish', description: 'Contains shellfish', color: '#B91C1C', bg: '#FEE2E2' },
