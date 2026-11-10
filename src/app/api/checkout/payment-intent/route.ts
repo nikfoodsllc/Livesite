@@ -92,6 +92,8 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = verifyResult.payload.userId;
+    // the app sends this header (the orders list uses it too): remembered on the checkout so the admin can tell app from website
+    const channel: 'web' | 'mobile' = request.headers.get('x-nikfoods-client') === 'ios' ? 'mobile' : 'web';
     const body: PaymentIntentRequest = await request.json();
     const { cart, tipPercentage, currency, paymentIntentId } = body;
     const useStoreCredit = body.useStoreCredit === true;
@@ -184,7 +186,7 @@ export async function POST(request: NextRequest) {
         });
 
         // remember the cart so a customer who never finishes can be followed up (never blocks the payment)
-        await saveCheckoutDraft({ paymentIntentId: updated.id, userId, customer, cart, total: totalPaid });
+        await saveCheckoutDraft({ paymentIntentId: updated.id, userId, customer, cart, total: totalPaid, channel });
 
         return NextResponse.json({
           success: true,
@@ -212,7 +214,7 @@ export async function POST(request: NextRequest) {
       description: customer.email ? `NikFoods checkout (${customer.email})` : 'NikFoods checkout',
     });
 
-    await saveCheckoutDraft({ paymentIntentId: paymentIntent.id, userId, customer, cart, total: totalPaid });
+    await saveCheckoutDraft({ paymentIntentId: paymentIntent.id, userId, customer, cart, total: totalPaid, channel });
 
     return NextResponse.json({
       success: true,
