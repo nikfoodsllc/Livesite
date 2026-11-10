@@ -1,3 +1,4 @@
+import { trackPaymentError } from '@/lib/analytics';
 export type PaymentErrorStage =
   | 'create_payment_intent'
   | 'create_order'
@@ -30,6 +31,7 @@ export function paymentIntentIdFromClientSecret(clientSecret?: string | null): s
  * never triggers the session-expired handling a normal API call would.
  */
 export function reportPaymentError(report: PaymentErrorReport): void {
+  trackPaymentError(report.stage, report.code, report.declineCode);
   try {
     const token = typeof localStorage !== 'undefined' ? localStorage.getItem('accessToken') : null;
     if (!token || !report.message) return;

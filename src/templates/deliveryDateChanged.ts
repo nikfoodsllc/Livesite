@@ -1,5 +1,5 @@
 import { Order } from '@/types/order';
-import { getSiteUrl } from '@/lib/siteUrl';
+import { getSiteUrl, withUtm } from '@/lib/siteUrl';
 import { EMAIL_LOGO_CID } from '@/lib/emailLogo';
 import { dateText } from '@/lib/orderReschedule';
 
@@ -102,7 +102,7 @@ export function getDeliveryDateChangedEmailTemplate(order: Order, movedDeliverie
   const name = firstName(order);
   const greeting = name ? `Hi ${escapeHtml(name)},` : 'Hi there,';
   const moves = uniqueMoves(movedDeliveries);
-  const orderUrl = `${siteUrl}/account/orders?order=${encodeURIComponent(String(order.orderId ?? '').replace(/^#/, ''))}`;
+  const orderUrl = withUtm(`${siteUrl}/account/orders?order=${encodeURIComponent(String(order.orderId ?? '').replace(/^#/, ''))}`, 'delivery_date_changed');
 
   const moveRows = moves
     .map(

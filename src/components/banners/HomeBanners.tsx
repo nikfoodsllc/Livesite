@@ -5,6 +5,7 @@ import { Box, IconButton, Typography } from '@mui/material';
 import { IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
 import HeroBanner from '@/components/banners/HeroBanner';
 import { DEFAULT_BANNER_SECONDS, type PublicBanner } from '@/lib/banners';
+import { trackPromotion } from '@/lib/analytics';
 
 const CACHE_KEY = 'nikfoods_banners_v1';
 
@@ -73,6 +74,15 @@ export default function HomeBanners({ onOpenCategory }: { onOpenCategory: (categ
     setIndex((prev) => (prev === i ? prev : i));
   };
 
+  // Google Analytics: each banner counts as seen once it is on show
+  const seenBanners = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const b = banners?.[index];
+    if (!b || seenBanners.current.has(b.id)) return;
+    seenBanners.current.add(b.id);
+    trackPromotion('view_promotion', b, index);
+  }, [banners, index]);
+
   // advance by itself (not for people who asked for less motion, and not while the pointer is over it or it is being touched)
   useEffect(() => {
     if (count < 2 || paused) return;
@@ -87,6 +97,7 @@ export default function HomeBanners({ onOpenCategory }: { onOpenCategory: (categ
   if (count === 0) return <HeroBanner />;
 
   const open = (b: PublicBanner) => {
+    trackPromotion('select_promotion', b, banners?.findIndex((x) => x.id === b.id) ?? 0);
     if (b.linkType === 'category' && b.categoryId) {
       onOpenCategory(b.categoryId);
       document.getElementById('categories-container')?.scrollIntoView({ behavior: 'smooth', block: 'start' });

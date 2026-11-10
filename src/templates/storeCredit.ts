@@ -1,5 +1,5 @@
 import { Order } from '@/types/order';
-import { getSiteUrl } from '@/lib/siteUrl';
+import { getSiteUrl, withUtm } from '@/lib/siteUrl';
 import { EMAIL_LOGO_CID } from '@/lib/emailLogo';
 
 export interface CreditEmailItem {
@@ -160,7 +160,7 @@ export function getStoreCreditEmailTemplate(order: Order, credit: CreditEmailDat
   <tr><td class="px" align="center" bgcolor="${C.card}" style="padding:14px 32px 0;background:${C.card};">
     <table role="presentation" class="btn" cellpadding="0" cellspacing="0" style="border-collapse:separate;"><tr>
       <td align="center" bgcolor="${C.brand}" style="border-radius:14px;background:${C.brand};border:2px solid ${C.brand};">
-        <a href="${siteUrl}" style="display:inline-block;padding:9px 30px;font-size:16px;font-weight:800;color:${C.onBrand};border-radius:14px;">Order now &rarr;</a>
+        <a href="${withUtm(siteUrl, 'store_credit')}" style="display:inline-block;padding:9px 30px;font-size:16px;font-weight:800;color:${C.onBrand};border-radius:14px;">Order now &rarr;</a>
       </td>
     </tr></table>
   </td></tr>

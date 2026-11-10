@@ -10,7 +10,7 @@ import type { Order, OrderDay, OrderDayItem, CustomerInfo } from '@/types/order'
 import { comboQuantityText } from '@/lib/comboQuantity';
 import { getOptionSpice, getSectionSpice } from '@/lib/comboSpice';
 const PST = 'America/Los_Angeles';
-import { getSiteUrl } from '@/lib/siteUrl';
+import { getSiteUrl, withUtm } from '@/lib/siteUrl';
 import { EMAIL_LOGO_CID } from '@/lib/emailLogo';
 import { APP_STORE_URL, EMAIL_BADGE_CID } from '@/lib/emailAppBadge';
 import { hasAmount } from '@/lib/orderTotalsDisplay';
@@ -214,7 +214,7 @@ export function getOrderConfirmationEmailTemplate(order: Order, profileCustomerD
   const street = has(a.street) ? a.street.trim() : '';
   const cityLine = [a.city, a.state, a.zipCode].filter(has).join(', ');
   const addressText = street && has(a.city) && !street.toLowerCase().includes(a.city.trim().toLowerCase()) ? `${street}, ${cityLine}` : street || cityLine;
-  const ordersLink = `${SITE}/account/orders?order=${encodeURIComponent(String(order.orderId ?? ''))}`;
+  const ordersLink = withUtm(`${SITE}/account/orders?order=${encodeURIComponent(String(order.orderId ?? ''))}`, 'order_confirmation');
 
   const dayBlocks = days
     .map((day) => {

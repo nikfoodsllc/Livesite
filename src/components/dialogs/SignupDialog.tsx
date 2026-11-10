@@ -28,6 +28,7 @@ import {
 } from '@tabler/icons-react';
 import { useApiClient } from '@/hooks/useApiClient';
 import { useAuth } from '@/contexts/AuthContext';
+import { trackAuth } from '@/lib/analytics';
 import { passwordProblem, validatePassword } from '@/lib/password';
 import PasswordRequirements from '@/components/common/PasswordRequirements';
 
@@ -141,6 +142,7 @@ export default function SignupDialog({
       // Auto-login user after successful signup
       const { user, token, refreshToken } = data.data;
       login(user, token, refreshToken);
+      trackAuth('sign_up', 'password');
 
       // Store tokens in localStorage for backward compatibility
       localStorage.setItem('accessToken', token);

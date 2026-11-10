@@ -1,4 +1,4 @@
-import { getSiteUrl } from '@/lib/siteUrl';
+import { getSiteUrl, withUtm } from '@/lib/siteUrl';
 import { EMAIL_LOGO_CID } from '@/lib/emailLogo';
 import type { DraftItem } from '@/lib/server/checkoutDrafts';
 
@@ -81,7 +81,7 @@ function peekList(items: DraftItem[]): string {
 export function getCartReminderEmailTemplate(input: CartReminderInput): string {
   const logoUrl = `cid:${EMAIL_LOGO_CID}`;
   const siteUrl = getSiteUrl();
-  const cartUrl = `${siteUrl}/cart?restore=1${input.trackingToken ? `&r=${encodeURIComponent(input.trackingToken)}` : ''}`;
+  const cartUrl = withUtm(`${siteUrl}/cart?restore=1${input.trackingToken ? `&r=${encodeURIComponent(input.trackingToken)}` : ''}`, 'cart_reminder');
   const first = input.name?.trim().split(/\s+/)[0] ?? '';
   const count = input.items.reduce((n, i) => n + (Number(i.quantity) || 0), 0);
 
