@@ -40,6 +40,7 @@ import { closedItemsNotice, outOfStockNotice, parseClosedItems, parseOutOfStock 
 import { calculateDeliveryDates, type DayDeliveryInfo } from '@/lib/deliveryCalculator';
 import { DEFAULT_MIN_CART_VALUE } from '@/lib/cartLogic';
 import { reportPaymentError } from '@/lib/checkout/reportPaymentError';
+import { trackAddPaymentInfo, trackBeginCheckout } from '@/lib/analytics';
 import { planCreditForOrder, toCents, toDollars } from '@/lib/storeCredit';
 
 /**
@@ -566,6 +567,17 @@ export default function CheckoutPage() {
   const paidWithCreditRef = useRef(false);
   const [isInitializingPayment, setIsInitializingPayment] = useState(false);
   const [isPaymentSubmitting, setIsPaymentSubmitting] = useState(false);
+  const cartForAnalytics = useRef(cart);
+  cartForAnalytics.current = cart;
+  const handlePaymentSubmittingChange = useCallback((value: boolean) => {
+    setIsPaymentSubmitting(value);
+    if (value && cartForAnalytics.current) trackAddPaymentInfo(cartForAnalytics.current);
+  }, []);
+  // Google Analytics: the checkout was opened with items
+  const hasCheckoutItems = Boolean(cart && cart.days.length > 0);
+  useEffect(() => {
+    if (hasCheckoutItems && cartForAnalytics.current) trackBeginCheckout(cartForAnalytics.current);
+  }, [hasCheckoutItems]);
 
   // Validation error summary shown when Place Order is clicked
   const [validationErrors, setValidationErrors] = useState<ErrorSummary[]>([]);
@@ -1555,7 +1567,7 @@ export default function CheckoutPage() {
             onPaymentSuccess={handlePaymentSuccess}
             onPaymentError={handlePaymentError}
             isPaymentSubmitting={isPaymentSubmitting}
-            onPaymentSubmittingChange={setIsPaymentSubmitting}
+            onPaymentSubmittingChange={handlePaymentSubmittingChange}
             cardDetailsComplete={cardDetailsComplete}
              onCardDetailsChange={setCardDetailsComplete}
             creditBalance={creditBalance}

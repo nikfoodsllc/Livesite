@@ -1,5 +1,5 @@
 import { Order } from '@/types/order';
-import { getSiteUrl, LIVE_SITE_URL } from '@/lib/siteUrl';
+import { getSiteUrl, LIVE_SITE_URL, withUtm } from '@/lib/siteUrl';
 import { EMAIL_LOGO_CID } from '@/lib/emailLogo';
 
 function escapeHtml(value: string): string {
@@ -84,7 +84,7 @@ export function getPaymentFailedEmailTemplate(
   const logoUrl = `cid:${EMAIL_LOGO_CID}`;
   // The live site keeps its existing address; the test site (livesite-dev) links to itself instead of the live site.
   const siteUrl = getSiteUrl();
-  const checkoutUrl = `${process.env.NEXT_PUBLIC_BASE_URL || (siteUrl === LIVE_SITE_URL ? 'https://nikfoods.com' : siteUrl)}/checkout`;
+  const checkoutUrl = withUtm(`${process.env.NEXT_PUBLIC_BASE_URL || (siteUrl === LIVE_SITE_URL ? 'https://nikfoods.com' : siteUrl)}/checkout`, 'payment_failed');
   const amount = formatOrderAmount(order.totalPaid, order.currency);
   const gracefulFailureMessage = getGracefulFailureMessage(failureReason);
   const name = firstName(order);

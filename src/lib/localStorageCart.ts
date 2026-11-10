@@ -3,6 +3,7 @@ import { DayType } from '@/types/cart';
 import { LocalCart, LocalCartItem, LocalCartDay, CartCustomizations } from '@/types/localCart';
 import { generateAvailableDatesFromAPI } from './dayAvailabilityClient';
 import { getPSTDateString } from './timezone';
+import { trackAddToCart } from './analytics';
 import { STOCK_LIMIT_EVENT, formatAmount, lineAmounts, perUnitAmount, unitsThatFit, type StockLimitDetail, type StockLineInput } from './stockRules';
 
 const CART_STORAGE_KEY = 'nikfoods_guest_cart';
@@ -289,6 +290,7 @@ export function addItem(
     existing.foodItem = foodItem;
     applyItemDayInstruction(cart, day, foodItem._id, customizations.notes);
     saveCart(cart);
+    trackAddToCart(foodItem, existing.unitPrice, quantity);
     return cart;
   }
 
@@ -316,6 +318,7 @@ export function addItem(
 
   applyItemDayInstruction(cart, day, foodItem._id, customizations.notes);
   saveCart(cart);
+  trackAddToCart(foodItem, unitPrice, quantity);
   return cart;
 }
 
