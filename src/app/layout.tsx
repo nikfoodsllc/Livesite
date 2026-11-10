@@ -60,6 +60,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={inter.variable} suppressHydrationWarning>
+      <head>
+        <GoogleAnalytics />
+      </head>
       <body className={`font-inter ${playfair.variable}`}>
         <AuthProvider>
           <CartProvider>
@@ -80,7 +83,6 @@ export default function RootLayout({
           </CartProvider>
         </AuthProvider>
         <CrispChat />
-        <GoogleAnalytics />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdString(websiteJsonLd()) }} />
       </body>
     </html>
