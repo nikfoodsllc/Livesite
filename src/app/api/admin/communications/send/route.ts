@@ -28,6 +28,7 @@ export async function POST(request: NextRequest) {
       text: Boolean(body?.channels?.text),
       subject: body?.subject,
       emailBody: body?.emailBody,
+      emailFormat: body?.emailFormat,
       textBody: body?.textBody,
       excludeKeys: body?.excludeKeys,
       scheduledFor: body?.scheduledFor,

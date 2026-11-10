@@ -3,7 +3,7 @@
  * limits. No database here, so it can be checked on its own.
  */
 
-export type AudienceKind = 'delivery_date' | 'menu_day' | 'ordered_between' | 'people' | 'all';
+export type AudienceKind = 'delivery_date' | 'menu_day' | 'ordered_between' | 'people' | 'all' | 'subscribers';
 
 export interface AudienceFilter {
   kind: AudienceKind;
@@ -22,6 +22,8 @@ export const MAX_PEOPLE = 500;
 const OBJECT_ID = /^[a-f0-9]{24}$/;
 export const SUBJECT_MAX = 150;
 export const EMAIL_BODY_MAX = 5000;
+/** A custom HTML email: Gmail cuts a message off at about 102 KB, so stay clear of that */
+export const EMAIL_HTML_MAX = 90_000;
 /** Two text segments: longer messages cost more and read badly */
 export const TEXT_BODY_MAX = 320;
 /** Texts go out only between these Pacific hours (8:00 up to, not including, 21:00) */
@@ -61,6 +63,7 @@ export function parseAudienceFilter(input: unknown): { ok: true; filter: Audienc
     return { ok: true, filter: { kind: 'ordered_between', from: f.from, to: f.to } };
   }
   if (f.kind === 'all') return { ok: true, filter: { kind: 'all' } };
+  if (f.kind === 'subscribers') return { ok: true, filter: { kind: 'subscribers' } };
   if (f.kind === 'people') {
     const ids = Array.isArray(f.userIds) ? [...new Set(f.userIds.filter((v): v is string => typeof v === 'string' && OBJECT_ID.test(v)))] : [];
     if (ids.length === 0) return { ok: false, error: 'Add at least one person.' };
@@ -126,7 +129,7 @@ export function formatDayLong(day: string): string {
 // ---------------------------------------------------------------------------------------------------------------
 // The message
 
-export const PLACEHOLDERS = ['firstName', 'orderNumber', 'date'] as const;
+export const PLACEHOLDERS = ['firstName', 'orderNumber', 'date', 'unsubscribeUrl'] as const;
 export type Placeholder = (typeof PLACEHOLDERS)[number];
 
 export interface MessageContext {
@@ -156,6 +159,60 @@ export function filterHasOrders(filter: AudienceFilter): boolean {
   return filter.kind === 'delivery_date' || filter.kind === 'menu_day' || filter.kind === 'ordered_between';
 }
 
+export type EmailFormat = 'text' | 'html';
+
+export function parseEmailFormat(value: unknown): EmailFormat {
+  return value === 'html' ? 'html' : 'text';
+}
+
+const HTML_DANGER = /<\s*(script|iframe|object|embed|form|input|button|textarea|select|link|base)\b/i;
+
+/** What may not be in a custom HTML email: anything an email app would block or that could run code. Null when it is fine. */
+export function htmlProblem(html: string): string | null {
+  const tag = html.match(HTML_DANGER);
+  if (tag) return `Remove the <${tag[1].toLowerCase()}> tag: email apps do not allow it.`;
+  if (/\son[a-z]+\s*=/i.test(html)) return 'Remove the onclick-style attributes (onclick, onload, ...): email apps do not allow them.';
+  if (/javascript\s*:/i.test(html)) return 'Remove the javascript: link: email apps do not allow it.';
+  return null;
+}
+
+const escapeAttr = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+/** Same as renderMessage, but the values are escaped so a customer's name can never break the HTML. */
+export function renderHtmlMessage(template: string, ctx: MessageContext): string {
+  return renderMessage(template, { firstName: escapeAttr(ctx.firstName), orderNumber: escapeAttr(ctx.orderNumber), date: ctx.date });
+}
+
+/** A pasted snippet becomes a full email page (doctype, phone scaling); a full page is left as it is. */
+export function wrapHtmlDocument(html: string, subject: string): string {
+  if (/<html[\s>]/i.test(html)) return html;
+  return `<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${escapeAttr(subject)}</title></head>
+<body style="margin:0;padding:0;">${html}</body></html>`;
+}
+
+/** A readable plain-text version of an HTML email (the part some mail apps and spam filters look at). */
+export function htmlToText(html: string): string {
+  const decode = (t: string) => t.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+  const withLinks = html
+    .replace(/<(head|style|title)[\s\S]*?<\/\1>/gi, '')
+    .replace(/<a\s[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (_m, href: string, label: string) => {
+      const l = label.replace(/<[^>]+>/g, '').trim();
+      return /^(https?:)/i.test(href) && l && l !== href ? `${l} (${href})` : l || href;
+    });
+  return decode(
+    withLinks
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/(p|div|tr|h[1-6]|li|table)>/gi, '\n')
+      .replace(/<[^>]+>/g, '')
+  )
+    .split('\n')
+    .map((l) => l.replace(/[ \t]+/g, ' ').trim())
+    .filter((l, i, a) => l || (a[i - 1] ?? '') !== '')
+    .join('\n')
+    .trim();
+}
+
 export function renderMessage(template: string, ctx: MessageContext): string {
   return template
     .replace(/\{firstName\}/g, ctx.firstName || 'there')
@@ -179,6 +236,7 @@ export interface MessageInput {
   subject: unknown;
   emailBody: unknown;
   textBody: unknown;
+  emailFormat?: EmailFormat;
 }
 
 const clean = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
@@ -194,7 +252,11 @@ export function checkMessage(input: MessageInput, filter: AudienceFilter): Messa
     if (!subject) return { field: 'subject', error: 'Write a subject for the email.' };
     if (subject.length > SUBJECT_MAX) return { field: 'subject', error: `The subject is longer than ${SUBJECT_MAX} characters.` };
     if (!emailBody) return { field: 'emailBody', error: 'Write the email.' };
-    if (emailBody.length > EMAIL_BODY_MAX) return { field: 'emailBody', error: `The email is longer than ${EMAIL_BODY_MAX} characters.` };
+    if (input.emailFormat === 'html') {
+      if (emailBody.length > EMAIL_HTML_MAX) return { field: 'emailBody', error: `The HTML is longer than ${EMAIL_HTML_MAX.toLocaleString('en-US')} characters. Gmail cuts longer emails off.` };
+      const bad = htmlProblem(emailBody);
+      if (bad) return { field: 'emailBody', error: bad };
+    } else if (emailBody.length > EMAIL_BODY_MAX) return { field: 'emailBody', error: `The email is longer than ${EMAIL_BODY_MAX} characters.` };
     pieces.push(subject, emailBody);
   }
   if (input.text) {

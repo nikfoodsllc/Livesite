@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/adminAuth';
 import { sendCommunicationEmail } from '@/lib/communicationEmail';
-import { renderMessage } from '@/lib/communications/rules';
+import { EMAIL_HTML_MAX, htmlProblem, parseEmailFormat, renderHtmlMessage, renderMessage } from '@/lib/communications/rules';
 import { usableEmail } from '@/lib/server/communications';
 
 export const dynamic = 'force-dynamic';
@@ -18,9 +18,14 @@ export async function POST(request: NextRequest) {
   const subject = typeof body?.subject === 'string' ? body.subject.trim() : '';
   const text = typeof body?.emailBody === 'string' ? body.emailBody.trim() : '';
   if (!to) return NextResponse.json({ success: false, error: 'Give an email address to send the test to.' }, { status: 400 });
-  if (!subject || !text || subject.length > 150 || text.length > 5000) return NextResponse.json({ success: false, error: 'Write the subject and the email first.' }, { status: 400 });
+  const format = parseEmailFormat(body?.emailFormat);
+  if (!subject || !text || subject.length > 150 || text.length > (format === 'html' ? EMAIL_HTML_MAX : 5000)) return NextResponse.json({ success: false, error: 'Write the subject and the email first.' }, { status: 400 });
+  if (format === 'html') {
+    const bad = htmlProblem(text);
+    if (bad) return NextResponse.json({ success: false, error: bad }, { status: 400 });
+  }
   const ctx = { firstName: 'Alex', orderNumber: 'ORD-0000000000000', date: typeof body?.date === 'string' ? body.date : '' };
-  const result = await sendCommunicationEmail({ to, subject: renderMessage(subject, ctx), text: renderMessage(text, ctx) });
+  const result = await sendCommunicationEmail({ to, subject: renderMessage(subject, ctx), text: format === 'html' ? renderHtmlMessage(text, ctx) : renderMessage(text, ctx), format });
   if (!result.success) return NextResponse.json({ success: false, error: result.error ?? 'The test could not be sent.' }, { status: 502 });
   return NextResponse.json({ success: true, data: { messageId: result.messageId } });
 }
