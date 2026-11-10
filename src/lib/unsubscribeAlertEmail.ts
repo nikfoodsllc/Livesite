@@ -24,8 +24,8 @@ export function getUnsubscribeAlertHtml(email: string): string {
   const safe = escapeHtml(email);
   return `<!DOCTYPE html><html><body style="margin:0;padding:24px;background:#FFFBF5;font-family:Arial,Helvetica,sans-serif;color:#1f1f1f;">
 <div style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #eadfce;border-radius:12px;padding:24px;">
-<p style="margin:0 0 12px;font-size:16px;line-height:24px;"><strong>${safe}</strong> unsubscribed from the NikFoods menu emails.</p>
-<p style="margin:0;font-size:16px;line-height:24px;">Please take them off the mailing list in Wix.</p>
+<p style="margin:0 0 12px;font-size:16px;line-height:24px;"><strong>${safe}</strong> unsubscribed from NikFoods emails.</p>
+<p style="margin:0;font-size:16px;line-height:24px;">We have already turned off their emails on our site (see Emails in All Users). If they are on the Wix mailing list, please take them off there too.</p>
 </div></body></html>`;
 }
 
