@@ -458,6 +458,12 @@ function deriveMenuState(menu: HomeMenuResponse['data']) {
 /** `initialMenu` is the menu the server already read, so the page (and search engines) get the real menu in the first HTML. */
 export default function HomeClient({ initialMenu = null }: { initialMenu?: HomeMenuResponse['data'] | null }) {
   const [seed] = useState(() => (initialMenu ? deriveMenuState(initialMenu) : null));
+  // false on the server and during the browser's first paint (so both match), true right after
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setHydrated(true), 0);
+    return () => clearTimeout(t);
+  }, []);
 
   // Context and state management
   const { refreshCart } = useCart();
@@ -639,6 +645,8 @@ export default function HomeClient({ initialMenu = null }: { initialMenu?: HomeM
 
   // Get quantity for food item (sum across all dates, or specific date if provided)
   const getItemQuantity = (foodItemId: string, dateContext?: string | DayType): number => {
+    // the server has no cart: until the browser has taken over, show 0 so both draw the same page, then the real counts appear
+    if (!hydrated) return 0;
     if (dateContext) {
       // dateContext can be either:
       // 1. A date string (YYYY-MM-DD) from dayGroup.date
