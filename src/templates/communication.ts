@@ -20,7 +20,7 @@ const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;')
  * An update an admin writes in the Communication tab: same shell as the order emails (the gold logo on its own dark strip, every
  * coloured block a table cell with a bgcolor so dark mode keeps it light), then the message as plain paragraphs.
  */
-export function getCommunicationEmailTemplate(subject: string, bodyText: string): string {
+export function getCommunicationEmailTemplate(subject: string, bodyText: string, unsubscribeUrl = '#'): string {
   const logo = `cid:${EMAIL_LOGO_CID}`;
   const preview = escapeHtml(bodyText.replace(/\s+/g, ' ').trim().slice(0, 110));
   return `<!DOCTYPE html>
@@ -58,7 +58,7 @@ export function getCommunicationEmailTemplate(subject: string, bodyText: string)
     ${bodyToHtml(bodyText)}
   </td></tr>
   <tr><td class="px" bgcolor="${C.card}" style="padding:6px 32px 22px;background:${C.card};">
-    <div style="border-top:1px solid ${C.line};padding-top:12px;font-size:13px;line-height:19px;color:${C.muted};">Questions? Write to <a href="mailto:${SUPPORT}" style="color:${C.brandText};font-weight:700;">${SUPPORT}</a>.</div>
+    <div style="border-top:1px solid ${C.line};padding-top:12px;font-size:13px;line-height:19px;color:${C.muted};">Questions? Write to <a href="mailto:${SUPPORT}" style="color:${C.brandText};font-weight:700;">${SUPPORT}</a>.<br><a href="${escapeHtml(unsubscribeUrl)}" style="color:${C.muted};text-decoration:underline;">Unsubscribe</a></div>
   </td></tr>
 </table>
 </td></tr>
