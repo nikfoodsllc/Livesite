@@ -11,6 +11,9 @@ import CrispChat from "@/components/CrispChat";
 import TimezoneWarningBanner from "@/components/common/TimezoneWarningBanner";
 import FirstTimeAddressPrompt from "@/components/layout/FirstTimeAddressPrompt";
 import StockLimitNotice from "@/components/common/StockLimitNotice";
+import GoogleAnalytics from "@/components/GoogleAnalytics";
+import { isTestSite } from "@/lib/siteUrl";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_TAGLINE, SITE_URL, jsonLdString, siteJsonLd } from "@/lib/seo";
 
 const playfair = Playfair_Display({
   subsets: ["latin"],
@@ -26,11 +29,25 @@ const inter = Inter({
   variable: "--font-inter",
 });
 
-// Metadata configuration for Next.js
+// Metadata configuration for Next.js (search results, sharing cards, canonical address)
 export const metadata = {
-  title: "NikFoods - Indian Food Delivery",
-  description: "Order delicious Indian food for delivery across United States",
+  metadataBase: new URL(SITE_URL),
+  title: { default: `${SITE_NAME} - Indian Food Delivery`, template: `%s | ${SITE_NAME}` },
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  alternates: { canonical: "/" },
+  // the test site and preview builds must never be listed by search engines
+  ...(isTestSite() ? { robots: { index: false, follow: false } } : {}),
   icons: "/favicon.ico?v=2",
+  openGraph: {
+    type: "website",
+    siteName: SITE_NAME,
+    url: SITE_URL,
+    title: `${SITE_NAME} - Indian Food Delivery`,
+    description: SITE_TAGLINE,
+    locale: "en_US",
+  },
+  twitter: { card: "summary_large_image", title: `${SITE_NAME} - Indian Food Delivery`, description: SITE_TAGLINE },
   // Safari on iPhone shows Apple's own "Open / Get" strip for the NikFoods app
   other: { "apple-itunes-app": "app-id=6767141830" },
 };
@@ -61,6 +78,10 @@ export default function RootLayout({
           </CartProvider>
         </AuthProvider>
         <CrispChat />
+        <GoogleAnalytics />
+        {siteJsonLd().map((d, i) => (
+          <script key={i} type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdString(d) }} />
+        ))}
       </body>
     </html>
   );
