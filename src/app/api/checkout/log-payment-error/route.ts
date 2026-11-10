@@ -27,10 +27,12 @@ export async function POST(request: NextRequest) {
     }
 
     const at = new Date();
-    console.warn('[checkout] Payment error reported by the browser', { userId, ...error });
-
-    // Always keep a record, with the order if the customer already had one
-    await db.create('paymentErrorLogs', { userId, ...error, at });
+    // closing the payment screen is not an error: it only gets its note on the order below
+    if (error.stage !== 'dismissed') {
+      console.warn('[checkout] Payment error reported by the browser', { userId, ...error });
+      // Always keep a record, with the order if the customer already had one
+      await db.create('paymentErrorLogs', { userId, ...error, at });
+    }
 
     // Attach it to the customer's own order so it shows up next to the order in the admin
     if (error.orderId) {

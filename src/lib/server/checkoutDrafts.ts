@@ -207,6 +207,8 @@ export async function saveCheckoutDraft(input: {
   customer: DraftCustomer;
   cart: Cart;
   total: number;
+  /** where checkout was opened: the iPhone app ('mobile') or the website ('web') */
+  channel?: 'web' | 'mobile';
 }): Promise<void> {
   await bestEffort('save', async () => {
     await ensureIndexes();
@@ -226,6 +228,7 @@ export async function saveCheckoutDraft(input: {
           total: money(input.total),
           deliveryDates: [...new Set(items.map((i) => i.date))].sort(),
           zip: input.cart.selectedAddress?.zipCode,
+          ...(input.channel ? { channel: input.channel } : {}),
           updatedAt: now,
           lastActivityAt: now,
           expiresAt: expiry(now),
