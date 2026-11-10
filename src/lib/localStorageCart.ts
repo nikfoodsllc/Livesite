@@ -3,7 +3,7 @@ import { DayType } from '@/types/cart';
 import { LocalCart, LocalCartItem, LocalCartDay, CartCustomizations } from '@/types/localCart';
 import { generateAvailableDatesFromAPI } from './dayAvailabilityClient';
 import { getPSTDateString } from './timezone';
-import { trackAddToCart } from './analytics';
+import { trackAddToCart, trackRemoveFromCart } from './analytics';
 import { STOCK_LIMIT_EVENT, formatAmount, lineAmounts, perUnitAmount, unitsThatFit, type StockLimitDetail, type StockLineInput } from './stockRules';
 
 const CART_STORAGE_KEY = 'nikfoods_guest_cart';
@@ -372,6 +372,7 @@ export function updateQuantity(day: DayType, lineId: string, newQuantity: number
   }
 
   const item = cart.days[day].items[lineId];
+  if (newQuantity < item.quantity) trackRemoveFromCart(item.foodItem, item.unitPrice, item.quantity - newQuantity);
   if (newQuantity > item.quantity) {
     // an item with an order limit cannot go above what is left
     const left = stockLeftFor(item.foodItem, item.selectedPortion);
@@ -395,6 +396,8 @@ export function removeItem(day: DayType, lineId: string): LocalCart {
     return cart;
   }
 
+  const gone = cart.days[day].items[lineId];
+  trackRemoveFromCart(gone.foodItem, gone.unitPrice, gone.quantity);
   delete cart.days[day].items[lineId];
 
   if (Object.keys(cart.days[day].items).length === 0) {
@@ -416,6 +419,8 @@ export function removeAllLinesForFood(day: DayType, foodItemId: string): LocalCa
     .map((li) => li.lineId);
 
   lineIds.forEach((id) => {
+    const gone = cart.days[day].items[id];
+    if (gone) trackRemoveFromCart(gone.foodItem, gone.unitPrice, gone.quantity);
     delete cart.days[day].items[id];
   });
 

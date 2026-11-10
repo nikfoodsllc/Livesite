@@ -40,7 +40,7 @@ import { closedItemsNotice, outOfStockNotice, parseClosedItems, parseOutOfStock 
 import { calculateDeliveryDates, type DayDeliveryInfo } from '@/lib/deliveryCalculator';
 import { DEFAULT_MIN_CART_VALUE } from '@/lib/cartLogic';
 import { reportPaymentError } from '@/lib/checkout/reportPaymentError';
-import { trackAddPaymentInfo, trackBeginCheckout } from '@/lib/analytics';
+import { trackAddPaymentInfo, trackBeginCheckout, trackCutoffRemoval } from '@/lib/analytics';
 import { planCreditForOrder, toCents, toDollars } from '@/lib/storeCredit';
 
 /**
@@ -1055,6 +1055,7 @@ export default function CheckoutPage() {
       if (status !== 409 || data?.code !== 'ORDER_CUTOFF_CLOSED') return false;
       const closed = parseClosedItems(data.closedItems);
       const { removed, linesLeft } = localCart.removeClosedLines(closed);
+      trackCutoffRemoval(removed);
       setClosedNotice(closedItemsNotice(data.error ?? '', removed, linesLeft, closed));
       setError('');
       await refreshCart();

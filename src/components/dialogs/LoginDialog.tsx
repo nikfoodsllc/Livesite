@@ -25,6 +25,7 @@ import {
   IconX,
 } from '@tabler/icons-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { trackAuth } from '@/lib/analytics';
 
 interface LoginDialogProps {
   open: boolean;
@@ -96,6 +97,8 @@ export default function LoginDialog({ open, onClose, onSwitchToSignup, onSwitchT
         data.data.token,
         data.data.refreshToken
       );
+
+      trackAuth('login', 'password');
 
       // Reset form
       setEmail('');

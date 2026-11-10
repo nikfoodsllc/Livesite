@@ -30,6 +30,7 @@ import CategoryRail from '@/components/home/CategoryRail';
 import StickyCategoryNav, { HEADER_H, STRIP_H, SIDE_MIN } from '@/components/home/StickyCategoryNav';
 import BrandLoader from '@/components/common/BrandLoader';
 import { colors } from '@/theme/colors';
+import { trackSearch } from '@/lib/analytics';
 
 // Define types for the new API response structure
 interface CategoryDisplay {
@@ -471,6 +472,11 @@ export default function HomeClient({ initialMenu = null }: { initialMenu?: HomeM
   const { vegOnly, setVegOnly, ecoPreselect, skipAllergens } = useHeader();
   const [searchQuery, setSearchQuery] = useState('');
   const searching = searchQuery.trim().length > 0;
+  // Google Analytics: what people look for, once they stop typing
+  useEffect(() => {
+    const t = setTimeout(() => trackSearch(searchQuery), 1200);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
   const { user } = useAuth();
 
   const [selectedCategory, setSelectedCategory] = useState<string>('');

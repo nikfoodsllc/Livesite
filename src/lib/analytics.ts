@@ -96,3 +96,44 @@ export function trackBeginCheckout(cart: CheckoutCartLike): void {
 export function trackAddPaymentInfo(cart: CheckoutCartLike): void {
   trackEvent('add_payment_info', { currency: 'USD', value: cart.totalAmount ?? 0, items: checkoutItems(cart) });
 }
+
+/** Units left the cart. */
+export function trackRemoveFromCart(food: FoodLike | undefined, unitPrice: number, quantity: number): void {
+  trackEvent('remove_from_cart', { currency: 'USD', value: unitPrice * quantity, items: [gaItem(food, unitPrice, quantity)] });
+}
+
+/** The cart page was opened. */
+export function trackViewCart(value: number, itemCount: number): void {
+  trackEvent('view_cart', { currency: 'USD', value, item_count: itemCount });
+}
+
+/** Someone typed a menu search (the words only; no account details). */
+export function trackSearch(term: string): void {
+  const t = term.trim().toLowerCase().slice(0, 60);
+  if (t.length >= 2) trackEvent('search', { search_term: t });
+}
+
+/** A home banner was shown or tapped. */
+export function trackPromotion(kind: 'view_promotion' | 'select_promotion', banner: { id: string; title?: string }, position: number): void {
+  trackEvent(kind, { promotion_id: banner.id, promotion_name: banner.title || banner.id, creative_slot: String(position + 1) });
+}
+
+/** Signed in or created an account (the method only). */
+export function trackAuth(kind: 'login' | 'sign_up', method: string): void {
+  trackEvent(kind, { method });
+}
+
+/** Subscribed to menu alerts. */
+export function trackLead(source: string): void {
+  trackEvent('generate_lead', { source });
+}
+
+/** A card payment or its setup failed: where and Stripe's reason code (no card or customer details). */
+export function trackPaymentError(stage: string, code?: string, declineCode?: string): void {
+  trackEvent('payment_error', { stage, error_code: code ?? 'none', decline_code: declineCode ?? 'none' });
+}
+
+/** Items were taken out of the cart because their ordering time had passed. */
+export function trackCutoffRemoval(removed: number): void {
+  trackEvent('cutoff_items_removed', { count: removed });
+}
