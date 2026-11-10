@@ -4,16 +4,20 @@ import { smsMode } from '@/lib/sms/config';
 import { getSmsConsent, canText, sendText } from '@/lib/server/smsService';
 import { normalizeUsPhone } from '@/lib/server/userPhone';
 import type { SmsConsent } from '@/lib/sms/consent';
-import { sendCommunicationEmail } from '@/lib/communicationEmail';
+import { sendCommunicationEmail, unsubscribeUrlFor } from '@/lib/communicationEmail';
+import { optedOutEmails } from '@/lib/server/emailOptOut';
 import type { EmailEventInput } from '@/lib/server/paymentLinkTracking';
 import {
   checkMessage,
   firstNameOf,
   ordersQuery,
   parseAudienceFilter,
+  parseEmailFormat,
+  renderHtmlMessage,
   renderMessage,
   textsAllowedAt,
   type AudienceFilter,
+  type EmailFormat,
   type MessageContext,
 } from '@/lib/communications/rules';
 
@@ -43,6 +47,8 @@ export interface Campaign {
   channels: { email: boolean; text: boolean };
   subject: string;
   emailBody: string;
+  /** 'html' = the admin's own HTML is sent as it is (placeholders filled), 'text' = plain text in the NikFoods shell */
+  emailFormat?: EmailFormat;
   textBody: string;
   excludeKeys: string[];
   scheduledFor?: Date;
@@ -105,6 +111,8 @@ export interface AudienceCustomer {
   orderIds: string[];
   textOk: boolean;
   textReason?: string;
+  /** on the unsubscribe list: no emails go to this customer */
+  unsubscribed?: boolean;
 }
 
 const digits10 = (v: unknown): string | null => {
@@ -164,9 +172,54 @@ async function loadAccounts(filter: AudienceFilter): Promise<AudienceCustomer[]>
     .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
 }
 
-/** One row per customer (an account, else the order's email or phone) with the orders that matched. */
+/**
+ * Everyone who agreed to get emails from us: the menu alerts list (active, consent given). A customer with an account shows under the
+ * account; someone who only left an email shows by that email. Texts need their own agreement, so none of these can be texted here.
+ */
+async function loadSubscribers(): Promise<AudienceCustomer[]> {
+  const subs = await db.getCollectionForOperations<Record<string, unknown>>('menu_subscriptions');
+  const list = (await subs.find({ isActive: true, consentGiven: true } as never, { projection: { email: 1, userId: 1 } }).limit(20000).toArray()) as unknown as Array<{ email?: string; userId?: string }>;
+  const users = await db.getCollectionForOperations<Record<string, unknown>>('users');
+  const emails = [...new Set(list.map((s) => String(s.email ?? '').trim().toLowerCase()).filter(Boolean))];
+  const ids = [...new Set(list.map((s) => String(s.userId ?? '')).filter((id) => ObjectId.isValid(id)))].map((id) => new ObjectId(id));
+  const accounts = (await users
+    .find({ $or: [{ email: { $in: emails } }, ...(ids.length ? [{ _id: { $in: ids } }] : [])] } as never, { projection: { name: 1, fullName: 1, email: 1, phone: 1 } })
+    .limit(30000)
+    .toArray()) as unknown as UserRow[];
+  const byId = new Map(accounts.map((u) => [String(u._id), u]));
+  const byEmail = new Map(accounts.map((u) => [String(u.email ?? '').trim().toLowerCase(), u]));
+  const seen = new Map<string, AudienceCustomer>();
+  for (const s of list) {
+    const email = usableEmail(s.email);
+    const account = (s.userId && byId.get(String(s.userId))) || byEmail.get(String(s.email ?? '').trim().toLowerCase());
+    const key = account ? String(account._id) : email;
+    if (!key || seen.has(key)) continue;
+    seen.set(key, {
+      key,
+      userId: account ? String(account._id) : undefined,
+      name: account ? String(account.name ?? account.fullName ?? '').trim() : '',
+      email: email ?? usableEmail(account?.email),
+      phone: account ? digits10(account.phone) : null,
+      orderIds: [],
+      textOk: false,
+      textReason: 'Agreed to emails only',
+    });
+  }
+  return [...seen.values()].sort((a, b) => (a.name || a.email || '').localeCompare(b.name || b.email || '', undefined, { sensitivity: 'base' }));
+}
+
+/** The customers of a filter, each marked when their address is on the unsubscribe list. */
 export async function loadAudience(filter: AudienceFilter): Promise<AudienceCustomer[]> {
+  const customers = await loadAudienceRaw(filter);
+  const stopped = await optedOutEmails(customers.map((c) => c.email ?? ''));
+  for (const c of customers) if (c.email && stopped.has(c.email.toLowerCase())) c.unsubscribed = true;
+  return customers;
+}
+
+/** One row per customer (an account, else the order's email or phone) with the orders that matched. */
+async function loadAudienceRaw(filter: AudienceFilter): Promise<AudienceCustomer[]> {
   if (filter.kind === 'people' || filter.kind === 'all') return loadAccounts(filter);
+  if (filter.kind === 'subscribers') return loadSubscribers();
   const orders = await db.getCollectionForOperations<Record<string, unknown>>('orders');
   const rows = (await orders
     .find(ordersQuery(filter) as never, { projection: { orderId: 1, user: 1, customerInfo: 1, createdAt: 1 } })
@@ -222,6 +275,7 @@ export interface CreateArgs {
   text: boolean;
   subject: unknown;
   emailBody: unknown;
+  emailFormat?: unknown;
   textBody: unknown;
   excludeKeys?: unknown;
   scheduledFor?: unknown;
@@ -235,7 +289,8 @@ const MAX_SCHEDULE_DAYS = 60;
 export async function createCampaign(args: CreateArgs, now: Date = new Date()): Promise<CreateResult> {
   const parsed = parseAudienceFilter(args.filter);
   if (!parsed.ok) return { ok: false, status: 400, error: parsed.error };
-  const problem = checkMessage({ email: args.email, text: args.text, subject: args.subject, emailBody: args.emailBody, textBody: args.textBody }, parsed.filter);
+  const emailFormat = parseEmailFormat(args.emailFormat);
+  const problem = checkMessage({ email: args.email, text: args.text, subject: args.subject, emailBody: args.emailBody, textBody: args.textBody, emailFormat }, parsed.filter);
   if (problem) return { ok: false, status: 400, error: problem.error };
   if (args.text && smsMode() === 'off') return { ok: false, status: 409, error: 'Text messages are not switched on yet.' };
 
@@ -254,6 +309,7 @@ export async function createCampaign(args: CreateArgs, now: Date = new Date()): 
     channels: { email: args.email, text: args.text },
     subject: String(args.subject ?? '').trim(),
     emailBody: String(args.emailBody ?? '').trim(),
+    emailFormat,
     textBody: String(args.textBody ?? '').trim(),
     excludeKeys,
     ...(scheduledFor ? { scheduledFor } : {}),
@@ -282,7 +338,7 @@ export async function prepareRecipients(campaign: Campaign): Promise<{ total: nu
   for (const c of audience) {
     const base = { campaignId: campaign._id, key: c.key, userId: c.userId, name: c.name, firstName: firstNameOf(c.name), orderIds: c.orderIds };
     if (campaign.channels.email) {
-      docs.push(c.email ? { ...base, channel: 'email', email: c.email, status: 'queued' } : { ...base, channel: 'email', status: 'skipped', reason: 'No email address' });
+      docs.push(!c.email ? { ...base, channel: 'email', status: 'skipped', reason: 'No email address' } : c.unsubscribed ? { ...base, channel: 'email', email: c.email, status: 'skipped', reason: 'Unsubscribed' } : { ...base, channel: 'email', email: c.email, status: 'queued' });
     }
     if (campaign.channels.text) {
       docs.push(c.textOk && c.phone ? { ...base, channel: 'text', phone: c.phone, status: 'queued' } : { ...base, channel: 'text', ...(c.phone ? { phone: c.phone } : {}), status: 'skipped', reason: c.textReason ?? 'Has not agreed to texts' });
@@ -351,7 +407,12 @@ export async function processCampaign(id: string, budgetMs = 240_000, now: () =>
       if (!r) break;
       const ctx = contextOf(campaign, r);
       if (r.channel === 'email') {
-        const result = await sendCommunicationEmail({ to: r.email!, subject: renderMessage(campaign.subject, ctx), text: renderMessage(campaign.emailBody, ctx) });
+        // someone may have unsubscribed after the message was prepared (a long send, or one scheduled earlier)
+        if ((await optedOutEmails([r.email ?? ''])).size > 0) {
+          await rec.updateOne({ _id: (r as never as { _id: ObjectId })._id } as never, { $set: { status: 'skipped', reason: 'Unsubscribed' } } as never);
+          continue;
+        }
+        const result = await sendCommunicationEmail({ to: r.email!, subject: renderMessage(campaign.subject, ctx), text: campaign.emailFormat === 'html' ? renderHtmlMessage(campaign.emailBody, ctx) : renderMessage(campaign.emailBody, ctx), format: campaign.emailFormat === 'html' ? 'html' : 'text', unsubscribeUrl: unsubscribeUrlFor(r.email!) });
         if (result.success) {
           sent++;
           await rec.updateOne({ _id: (r as never as { _id: ObjectId })._id } as never, { $set: { status: 'sent', sentAt: now(), messageId: result.messageId } } as never);
@@ -479,7 +540,7 @@ export async function listCampaigns(limit = 50): Promise<CampaignSummary[]> {
   return rows.map((r) => summarize(r, counts.get(String(r._id))));
 }
 
-export async function getCampaign(id: string): Promise<{ campaign: CampaignSummary & { emailBody: string; textBody: string }; recipients: Array<Record<string, unknown>> } | null> {
+export async function getCampaign(id: string): Promise<{ campaign: CampaignSummary & { emailBody: string; emailFormat: EmailFormat; textBody: string }; recipients: Array<Record<string, unknown>> } | null> {
   if (!ObjectId.isValid(id)) return null;
   const col = await campaigns();
   const c = (await col.findOne({ _id: new ObjectId(id) } as never)) as unknown as Campaign | null;
@@ -488,7 +549,7 @@ export async function getCampaign(id: string): Promise<{ campaign: CampaignSumma
   const rec = await recipients();
   const rows = (await rec.find({ campaignId: c._id } as never).sort({ channel: 1, name: 1 }).limit(1000).toArray()) as unknown as RecipientDoc[];
   return {
-    campaign: { ...summarize(c, counts.get(String(c._id))), emailBody: c.emailBody, textBody: c.textBody },
+    campaign: { ...summarize(c, counts.get(String(c._id))), emailBody: c.emailBody, emailFormat: c.emailFormat === 'html' ? 'html' : 'text', textBody: c.textBody },
     recipients: rows.map((r) => ({ name: r.name, channel: r.channel, email: r.email, phone: r.phone, orders: r.orderIds, status: r.status, reason: r.reason, error: r.error, sentAt: r.sentAt, deliveredAt: r.deliveredAt, openCount: r.openCount ?? 0, dry: r.dry })),
   };
 }
