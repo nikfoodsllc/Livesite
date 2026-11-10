@@ -211,7 +211,7 @@ export default function StickyCategoryNav({
             value={searchQuery}
             onChange={(e) => onSearch(e.target.value)}
             placeholder="Search"
-            inputProps={{ 'aria-label': 'Search the menu', autoComplete: 'off', style: { fontSize: '0.875rem' } }}
+            inputProps={{ id: 'menu-search-sticky', 'aria-label': 'Search the menu', autoComplete: 'off', style: { fontSize: '0.875rem' } }}
             sx={{ flex: 1, color: INK }}
           />
           {searchQuery && (

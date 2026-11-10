@@ -218,6 +218,7 @@ export default function MenuSubscriptionSection({
           }}
         >
           <TextField
+            id="menu-alerts-email"
             fullWidth
             type="email"
             placeholder="Enter your email"
