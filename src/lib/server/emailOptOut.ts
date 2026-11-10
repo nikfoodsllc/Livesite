@@ -40,3 +40,19 @@ export async function optedOutEmails(emails: string[]): Promise<Set<string>> {
   }
   return found;
 }
+
+/**
+ * Switches off the menu alerts email subscription of an address (and of the account that uses it), so "subscribed to emails" turns off
+ * the moment someone unsubscribes. Safe to repeat. Returns how many subscriptions were switched off.
+ */
+export async function turnOffEmailSubscription(rawEmail: unknown): Promise<number> {
+  const email = cleanOptOutEmail(rawEmail);
+  if (!email) return 0;
+  const users = await db.getCollectionForOperations<Record<string, unknown>>('users');
+  const accounts = await users.find({ email } as never, { projection: { _id: 1 } }).limit(5).toArray();
+  const subs = await db.getCollectionForOperations<Record<string, unknown>>('menu_subscriptions');
+  const now = new Date();
+  const or: Array<Record<string, unknown>> = [{ email }, ...accounts.map((a) => ({ userId: String(a._id) }))];
+  const result = await subs.updateMany({ isActive: true, $or: or } as never, { $set: { isActive: false, unsubscribedAt: now, updatedAt: now } } as never);
+  return result.modifiedCount;
+}
