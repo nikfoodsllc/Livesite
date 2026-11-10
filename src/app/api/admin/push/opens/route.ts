@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/adminAuth';
-import { isPushId, openersOf, recentSends } from '@/lib/server/push/opens';
+import { audienceOf, isPushId, openersOf, recentSends } from '@/lib/server/push/opens';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,7 +13,8 @@ export async function GET(request: NextRequest) {
     const pushId = searchParams.get('pushId');
     if (pushId !== null) {
       if (!isPushId(pushId)) return NextResponse.json({ success: false, error: 'Invalid message id' }, { status: 400 });
-      return NextResponse.json({ success: true, data: { openers: await openersOf(pushId) } });
+      const [openers, audience] = await Promise.all([openersOf(pushId), audienceOf(pushId)]);
+      return NextResponse.json({ success: true, data: { openers, ...audience } });
     }
     const limit = Number(searchParams.get('limit') ?? 50);
     const days = Number(searchParams.get('days') ?? 30);

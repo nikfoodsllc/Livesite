@@ -48,6 +48,8 @@ export interface SendRow {
   sent: number;
   /** customers the message went to (those who allow it) */
   customers: number;
+  /** customers the message reached (a phone took it); null for messages sent before this was kept */
+  reached: number | null;
   /** customers who tapped it */
   openedBy: number;
 }
@@ -56,7 +58,15 @@ export interface SendRow {
 export async function recentSends(limit = 50, days = 30): Promise<SendRow[]> {
   const events = await db.getCollectionForOperations<Record<string, unknown>>(EVENTS);
   const since = new Date(Date.now() - days * 24 * 3_600_000);
-  const rows = await events.find({ pushId: { $exists: true }, createdAt: { $gte: since } } as never).sort({ createdAt: -1 }).limit(Math.min(Math.max(limit, 1), 200)).toArray();
+  const rows = await events
+    .aggregate([
+      { $match: { pushId: { $exists: true }, createdAt: { $gte: since } } },
+      { $sort: { createdAt: -1 } },
+      { $limit: Math.min(Math.max(limit, 1), 200) },
+      { $addFields: { reached: { $cond: [{ $isArray: '$recipientIds' }, { $size: '$recipientIds' }, null] } } },
+      { $project: { recipientIds: 0 } },
+    ])
+    .toArray();
   if (rows.length === 0) return [];
   const col = await opens();
   const counts = await col.aggregate([{ $match: { pushId: { $in: rows.map((r) => String(r.pushId)) } } }, { $group: { _id: '$pushId', n: { $sum: 1 } } }]).toArray();
@@ -69,6 +79,7 @@ export async function recentSends(limit = 50, days = 30): Promise<SendRow[]> {
     sentAt: new Date(r.createdAt as Date).toISOString(),
     sent: Number(r.sent ?? 0),
     customers: Number(r.allowed ?? 0),
+    reached: typeof r.reached === 'number' ? r.reached : null,
     openedBy: byId.get(String(r.pushId)) ?? 0,
   }));
 }
@@ -100,4 +111,53 @@ export async function openersOf(pushId: string): Promise<OpenerRow[]> {
       openCount: Number(r.openCount ?? 1),
     };
   });
+}
+
+export interface PersonRow {
+  userId: string;
+  name: string;
+  email: string;
+  opened: boolean;
+  firstOpenedAt: string | null;
+  openCount: number;
+}
+
+export interface Audience {
+  /** false for messages sent before the list of who got them was kept: then only the customers who opened it are known */
+  recipientsKnown: boolean;
+  people: PersonRow[];
+}
+
+/** Everyone the message went to, with who opened it: the ones who opened first (earliest first), then the rest by name. */
+export async function audienceOf(pushId: string): Promise<Audience> {
+  const events = await db.getCollectionForOperations<Record<string, unknown>>(EVENTS);
+  const event = await events.findOne({ pushId } as never, { projection: { recipientIds: 1 } } as never);
+  const rawIds = (event as unknown as { recipientIds?: unknown } | null)?.recipientIds;
+  const recipientIds = Array.isArray(rawIds) ? rawIds.map(String) : null;
+  const col = await opens();
+  const openRows = await col.find({ pushId } as never).limit(5000).toArray();
+  const openedBy = new Map(openRows.map((r) => [String(r.userId), r]));
+  const ids = [...new Set([...(recipientIds ?? []), ...openedBy.keys()])].slice(0, 5000);
+  const objectIds = ids.filter((id) => ObjectId.isValid(id)).map((id) => new ObjectId(id));
+  const users = await db.getCollectionForOperations<Record<string, unknown>>('users');
+  const found = objectIds.length > 0 ? await users.find({ _id: { $in: objectIds } } as never, { projection: { fullName: 1, name: 1, email: 1 } } as never).toArray() : [];
+  const byId = new Map(found.map((u) => [String(u._id), u]));
+  const people: PersonRow[] = ids.map((id) => {
+    const u = byId.get(id);
+    const o = openedBy.get(id);
+    return {
+      userId: id,
+      name: String(u?.fullName ?? u?.name ?? ''),
+      email: String(u?.email ?? ''),
+      opened: Boolean(o),
+      firstOpenedAt: o ? new Date(o.firstOpenedAt as Date).toISOString() : null,
+      openCount: o ? Number(o.openCount ?? 1) : 0,
+    };
+  });
+  people.sort((x, y) => {
+    if (x.opened !== y.opened) return x.opened ? -1 : 1;
+    if (x.opened && y.opened) return String(x.firstOpenedAt).localeCompare(String(y.firstOpenedAt));
+    return (x.name || x.email).toLowerCase().localeCompare((y.name || y.email).toLowerCase());
+  });
+  return { recipientsKnown: recipientIds !== null, people };
 }
