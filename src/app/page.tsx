@@ -1499,10 +1499,18 @@ export default function Home() {
 );
   };
 
+  // the page's main heading for search engines and screen readers (the design has no visible one); in every state, so the first HTML has it
+  const mainHeading = (
+    <Typography component="h1" sx={{ position: 'absolute', width: '1px', height: '1px', overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap', border: 0, p: 0, m: '-1px' }}>
+      NikFoods: authentic Indian food delivered to your door
+    </Typography>
+  );
+
   // Loading state - show when categories are loading initially
   if (loadingCategories && categories.length === 0) {
     return (
       <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+        {mainHeading}
         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1, py: 8 }}>
           <BrandLoader />
         </Box>
@@ -1515,6 +1523,7 @@ export default function Home() {
   if (error) {
     return (
       <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+        {mainHeading}
         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1, py: 8 }}>
           <Typography variant="h6" color="error">
             {error}
@@ -1527,6 +1536,7 @@ export default function Home() {
 
   return (
     <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      {mainHeading}
       {/* globals.css sets `overflow-x: hidden` on html and body, which turns body into its own
           scroll box and stops `position: sticky` from working (used for the day headings below).
           `clip` still prevents sideways scrolling without creating a scroll box. Scoped to this

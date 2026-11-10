@@ -7,6 +7,7 @@ import { IconHome, IconRefresh, IconReceipt } from '@tabler/icons-react';
 import OrderConfirmation from '@/components/checkout/OrderConfirmation';
 import { Order } from '@/types/order';
 import { useApiClient } from '@/hooks/useApiClient';
+import { trackPurchase } from '@/lib/analytics';
 
 function SuccessPageContent() {
   const router = useRouter();
@@ -83,6 +84,7 @@ function SuccessPageContent() {
         // Use setTimeout to avoid synchronous setState in useEffect
         setTimeout(() => {
           setOrder(data.data);
+          trackPurchase(data.data);
         }, 0);
       } catch (error) {
         console.error('Failed to fetch order details:', error);
