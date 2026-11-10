@@ -35,6 +35,11 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        // customer-only pages stay out of search results (robots.txt asks too; this header is the stronger signal)
+        source: '/:path(account|cart|checkout|pay|unsubscribe|sms)/:rest*',
+        headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }],
+      },
+      {
         source: '/api/:path*',
         headers: [
           { key: 'Access-Control-Allow-Origin', value: '*' },
