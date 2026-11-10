@@ -37,6 +37,16 @@ export function trackPurchase(order: PurchaseOrder): void {
   trackEvent('purchase', { transaction_id: order.orderId, value: order.totalPaid, currency: 'USD', tax: order.taxes ?? 0, items });
 }
 
+/**
+ * Tells Analytics which customer a visit belongs to, using our internal customer id (never a name, email or phone number).
+ * Pass null on log out. Safe to call repeatedly: it only changes what later events carry.
+ */
+export function setAnalyticsUser(userId: string | null): void {
+  if (!GA_ID || typeof window === 'undefined') return;
+  const gtag = (window as unknown as { gtag?: Gtag }).gtag;
+  if (typeof gtag === 'function') gtag('set', { user_id: userId });
+}
+
 interface FoodLike {
   _id?: unknown;
   name?: string;
