@@ -132,6 +132,8 @@ const CLIENT_ERROR_STAGES = [
   'submit_form',
   'confirm_payment',
   'confirm_incomplete',
+  /** the app: the customer closed the payment screen without paying (not an error) */
+  'dismissed',
   'unexpected',
 ] as const;
 export type ClientErrorStage = (typeof CLIENT_ERROR_STAGES)[number];
