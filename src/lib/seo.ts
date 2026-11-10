@@ -2,7 +2,7 @@
 export const SITE_URL = 'https://www.nikfoods.com';
 export const SITE_NAME = 'NikFoods';
 export const SITE_TAGLINE = 'Authentic Indian food delivered to your door';
-export const SITE_DESCRIPTION = 'Order fresh, home-style Indian meals online from NikFoods: weekly menus, combos, snacks and sweets, delivered to your door in Seattle, Bellevue, Kirkland, Redmond, Sammamish and nearby areas of Washington.';
+export const SITE_DESCRIPTION = 'Order fresh, home-style Indian meals online from NikFoods: weekly menus, combos, snacks and sweets, delivered to your door across the greater Seattle area.';
 export const SOCIAL_LINKS = ['https://facebook.com/nikfoodsllc', 'https://instagram.com/Nikfoods_IndianOrganic'];
 export const SUPPORT_EMAIL = 'support@nikfoods.com';
 export const APP_STORE_URL = 'https://apps.apple.com/app/id6767141830';
