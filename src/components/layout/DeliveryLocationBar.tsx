@@ -39,7 +39,12 @@ export default function DeliveryLocationBar({
 
   const [addresses, setAddresses] = useState<IAddress[]>([]);
   const [isLoadingAddresses, setIsLoadingAddresses] = useState(false);
-  const [zipcodeInput, setZipcodeInput] = useState(() => localStorage.getItem('selectedZipcode') || '');
+  // empty on the server and on the first browser paint (so both match), then the saved zip code is filled in
+  const [zipcodeInput, setZipcodeInput] = useState('');
+  useEffect(() => {
+    const saved = localStorage.getItem('selectedZipcode');
+    if (saved) setZipcodeInput(saved);
+  }, []);
   const [isValidatingZipcode, setIsValidatingZipcode] = useState(false);
   const [zipcodeError, setZipcodeError] = useState('');
   const hasAutoSelectedRef = useRef(false);
@@ -189,6 +194,7 @@ export default function DeliveryLocationBar({
   const zipcodeControl = (
     <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', width: '100%', maxWidth: { md: 360 } }}>
       <TextField
+        id="delivery-zipcode"
         size="small"
         placeholder="Enter zipcode"
         value={zipcodeInput}

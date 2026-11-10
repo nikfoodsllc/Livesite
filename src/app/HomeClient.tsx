@@ -1,0 +1,1851 @@
+'use client';
+
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import { Box, Container, Typography, IconButton, CircularProgress, Skeleton, Tabs, Tab, GlobalStyles, InputBase } from '@mui/material';
+import { IconChevronLeft, IconChevronRight, IconSearch, IconX } from '@tabler/icons-react';
+import Footer from '@/components/layout/Footer';
+import DeliveryLocationBar from '@/components/layout/DeliveryLocationBar';
+import HomeBanners from '@/components/banners/HomeBanners';
+import CategoryCard from '@/components/cards/CategoryCard';
+import FoodCard from '@/components/cards/FoodCard';
+import FoodDetailsDialog from '@/components/dialogs/FoodDetailsDialog';
+import DaySelectionPopup, { DaySelection } from '@/components/dialogs/DaySelectionPopup';
+import { FoodItem } from '@/types/food';
+import { DayType } from '@/types/cart';
+import { CartCustomizations } from '@/types/localCart';
+
+import * as localCart from '@/lib/localStorageCart';
+import { isFoodCustomizable } from '@/lib/foodItemUtils';
+import { ecoPreselected } from '@/lib/ecoPreselect';
+import { containsSkippedAllergen } from '@/lib/allergens';
+import { useCart } from '@/contexts/CartContext';
+import { useHeader } from '@/contexts/HeaderContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { DayOption } from '@/lib/dayAvailabilityClient';
+import { useNotifications, showSuccessNotification, showErrorNotification } from '@/components/common/NotificationSystem';
+import { PST_TIMEZONE, getPSTWeekday, createPSTDate } from '@/lib/timezone';
+import MenuSubscriptionSection from '@/components/home/MenuSubscriptionSection';
+import AppStoreSection from '@/components/home/AppStoreSection';
+import CategoryRail from '@/components/home/CategoryRail';
+import StickyCategoryNav, { HEADER_H, STRIP_H, SIDE_MIN } from '@/components/home/StickyCategoryNav';
+import BrandLoader from '@/components/common/BrandLoader';
+import { colors } from '@/theme/colors';
+
+// Define types for the new API response structure
+interface CategoryDisplay {
+  _id: string;
+  name: string;
+  description: string;
+  url: string;
+  listingType: 'flat' | 'day-wise';
+  foodItems: FoodItem[];
+  dayWiseItems: { [dateString: string]: FoodItem[] } | null; // Date strings as keys (YYYY-MM-DD)
+  dayGroups: Array<{
+    date: string; // Date string in YYYY-MM-DD format
+    formattedDate: string; // Formatted date for display (e.g., "Monday, Jan 15")
+    displayName: string; // Display name (alias for formattedDate)
+    day?: string; // Optional day name for backward compatibility
+    foodItems: FoodItem[];
+  }>;
+  /** One level of sub-categories shown under this parent on the home page */
+  subCategories?: CategoryDisplay[];
+  /** FLAT-mapped food item ids for sub-categories (used to group under day-wise parents) */
+  flatTaggedItemIds?: string[];
+}
+
+function normalizeItemId(id: unknown): string {
+  if (id == null) return '';
+  if (typeof id === 'string') return id;
+  if (typeof id === 'object' && id !== null && 'toString' in id) {
+    return String(id);
+  }
+  return String(id);
+}
+
+function getSubFlatTaggedIds(sub: CategoryDisplay): Set<string> {
+  if (sub.flatTaggedItemIds?.length) {
+    return new Set(sub.flatTaggedItemIds.map(normalizeItemId));
+  }
+  return new Set((sub.foodItems ?? []).map((i) => normalizeItemId(i._id)));
+}
+
+function itemTaggedToSub(item: FoodItem, subId: string): boolean {
+  const normSub = normalizeItemId(subId);
+  if (item.subCategoryIds?.length) {
+    return item.subCategoryIds.some((id) => normalizeItemId(id) === normSub);
+  }
+  const taggedSubId = item.subCategoryId ? normalizeItemId(item.subCategoryId) : '';
+  return taggedSubId === normSub;
+}
+
+function itemTaggedToAnySub(item: FoodItem, subs: CategoryDisplay[]): boolean {
+  return subs.some((sub) => itemTaggedToSub(item, sub._id));
+}
+
+function resolveSubCategoriesForDisplay(
+  category: CategoryDisplay,
+  categoriesList: CategoryListItem[],
+  itemsMap: Map<string, CategoryDisplay>
+): CategoryDisplay[] {
+  if (category.subCategories?.length) {
+    return category.subCategories;
+  }
+  const meta = categoriesList.find((c) => c._id === category._id);
+  if (!meta?.children?.length) return [];
+  return meta.children
+    .slice()
+    .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
+    .map((ch) => itemsMap.get(ch._id))
+    .filter((x): x is CategoryDisplay => !!x);
+}
+
+const INK = '#1F1712';
+const IVORY = '#FBF7F0';
+const GOLD = '#B8893B';
+const displayFont = 'var(--font-display), Georgia, serif';
+
+const subCategoryHeadingBoxSx = {
+  mb: 2.5,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 1.5,
+  '&::after': {
+    content: '""',
+    flex: 1,
+    height: '1px',
+    background: 'linear-gradient(90deg, rgba(184, 137, 59, 0.45), rgba(184, 137, 59, 0))',
+  },
+} as const;
+
+const subCategoryTitleSx = {
+  fontFamily: displayFont,
+  fontWeight: 500,
+  fontStyle: 'italic',
+  color: GOLD,
+  fontSize: { xs: '1.0625rem', sm: '1.1875rem', md: '1.3125rem' },
+  lineHeight: 1.3,
+  letterSpacing: '0.005em',
+} as const;
+
+const subCategoryTabsSx = {
+  mt: 1,
+  borderBottom: `2px solid ${colors.divider}`,
+  '& .MuiTab-root': {
+    textTransform: 'none' as const,
+    minHeight: 52,
+    fontSize: { xs: '0.95rem', sm: '1.05rem', md: '1.15rem' },
+    fontWeight: 600,
+    color: colors.textLight,
+    '&.Mui-selected': {
+      color: colors.primaryDark,
+    },
+  },
+  '& .MuiTabs-indicator': {
+    backgroundColor: colors.primary,
+    height: 3,
+  },
+  '& .MuiTabs-scrollButtons': {
+    flexShrink: 0,
+    width: 40,
+    transition: 'none',
+  },
+} as const;
+
+// API response types
+interface CategoriesResponse {
+  data: {
+    items: Array<{
+      _id: string;
+      name: string;
+      description: string;
+      imageUrl: string;
+      listingType: 'flat' | 'day-wise';
+      sequence: number;
+      children?: Array<{
+        _id: string;
+        name: string;
+        description: string;
+        imageUrl: string;
+        listingType: 'flat' | 'day-wise';
+        sequence: number;
+      }>;
+    }>;
+  };
+  message: string;
+}
+
+type CategoryListItem = CategoriesResponse['data']['items'][number];
+
+interface HomeMenuResponse {
+  data: {
+    categories: CategoryListItem[];
+    categoryItems: Record<
+      string,
+      {
+        _id: string;
+        name: string;
+        description: string;
+        url: string;
+        listingType: 'flat' | 'day-wise';
+        foodItems?: FoodItem[];
+        dayWiseItems?: { [dateString: string]: FoodItem[] } | null;
+      }
+    >;
+    dates: Array<{
+      id: string;
+      date: string;
+      flatCategoryEnabled: boolean;
+      dayWiseCategoryEnabled: boolean;
+      formattedDate: string;
+      fullDate: string;
+      isToday: boolean;
+      isPast: boolean;
+      isPastCutoff: boolean;
+    }>;
+  };
+  message: string;
+}
+
+function buildCategoryFoodItemsMap(
+  categoriesList: CategoryListItem[],
+  categoryItems: HomeMenuResponse['data']['categoryItems']
+): Map<string, CategoryDisplay> {
+  const newMap = new Map<string, CategoryDisplay>();
+
+  for (const [id, item] of Object.entries(categoryItems)) {
+    const categoryDisplay: CategoryDisplay = {
+      _id: item._id,
+      name: item.name,
+      description: item.description,
+      url: item.url,
+      listingType: item.listingType,
+      foodItems: item.foodItems || [],
+      dayWiseItems: item.dayWiseItems ?? null,
+      dayGroups: [],
+    };
+    if (categoryDisplay.foodItems.length > 0) {
+      categoryDisplay.flatTaggedItemIds = categoryDisplay.foodItems.map((i) =>
+        normalizeItemId(i._id)
+      );
+    }
+    newMap.set(id, categoryDisplay);
+  }
+
+  for (const parent of categoriesList) {
+    const parentEntry = newMap.get(parent._id);
+    if (!parentEntry || !parent.children?.length) continue;
+    const subCategories = parent.children
+      .slice()
+      .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
+      .map((ch) => newMap.get(ch._id))
+      .filter((x): x is CategoryDisplay => !!x);
+    if (subCategories.length > 0) {
+      parentEntry.subCategories = subCategories;
+      newMap.set(parent._id, parentEntry);
+    }
+  }
+
+  return newMap;
+}
+
+function categoryHasDisplayItems(c: CategoryDisplay): boolean {
+  if (c.listingType === 'flat') {
+    return (c.foodItems?.length ?? 0) > 0;
+  }
+  return (c.dayGroups?.length ?? 0) > 0;
+}
+
+function categoryOrSubsHaveItems(c: CategoryDisplay): boolean {
+  if (categoryHasDisplayItems(c)) return true;
+  return (c.subCategories ?? []).some(categoryOrSubsHaveItems);
+}
+
+function flattenCategoriesWithSubs(categories: CategoryDisplay[]): CategoryDisplay[] {
+  const out: CategoryDisplay[] = [];
+  for (const c of categories) {
+    out.push(c);
+    for (const s of c.subCategories ?? []) {
+      out.push(s);
+    }
+  }
+  return out;
+}
+
+/** Every typed word must appear in the item's name (case-insensitive). An empty search keeps everything. */
+function matchesSearch(item: FoodItem, search: string): boolean {
+  const words = search.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return true;
+  const hay = `${item.name ?? ''}`.toLowerCase();
+  return words.every((w) => hay.includes(w));
+}
+
+function applyCategoryDisplayFilters(
+  category: CategoryDisplay,
+  vegOnly: boolean,
+  availableDates: DayOption[],
+  search = '',
+  skipAllergens: readonly string[] = []
+): CategoryDisplay {
+  const subCategories = category.subCategories?.map((sub) =>
+    applyCategoryDisplayFilters(sub, vegOnly, availableDates, search, skipAllergens)
+  );
+
+  const listingType = category.listingType || 'flat';
+
+  if (listingType === 'flat') {
+    const filteredFoodItems = (vegOnly
+      ? (category.foodItems || []).filter((item) => item.veg !== false)
+      : (category.foodItems || [])
+    )
+      .filter((item) => matchesSearch(item, search))
+      .filter((item) => !containsSkippedAllergen(item.allergens, skipAllergens));
+
+    return {
+      ...category,
+      listingType,
+      foodItems: filteredFoodItems,
+      dayGroups: [],
+      ...(subCategories && subCategories.length > 0 ? { subCategories } : {}),
+    };
+  }
+
+  const dayWiseItems = category.dayWiseItems || {};
+  const dayGroups = Object.entries(dayWiseItems)
+    .filter(([, items]) => items && items.length > 0)
+    .map(([dateString, items]) => {
+      const filteredItems = (vegOnly
+        ? items.filter((item) => item.veg !== false)
+        : items.slice()
+      )
+        .filter((item) => matchesSearch(item, search))
+        .filter((item) => !containsSkippedAllergen(item.allergens, skipAllergens));
+      const forDay = filterFoodItemsForDate(filteredItems, dateString, availableDates);
+
+      const dateOption = availableDates.find((d) => d.date === dateString);
+      const [year, month, day] = dateString.split('-').map(Number);
+      const dateObj = createPSTDate(year, month - 1, day);
+      const dayName = getPSTWeekday(dateObj);
+
+      return {
+        date: dateString,
+        formattedDate: dateOption?.formattedDate || dateString,
+        displayName: dateOption?.formattedDate || dateString,
+        day: dayName,
+        foodItems: forDay,
+      };
+    })
+    .filter((dayGroup) => dayGroup.foodItems.length > 0)
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  return {
+    ...category,
+    listingType,
+    foodItems: category.foodItems ?? [],
+    dayGroups,
+    ...(subCategories && subCategories.length > 0 ? { subCategories } : {}),
+  };
+}
+
+/** Weekday label (e.g. Monday) for a calendar date in PST, preferring API day options when present. */
+function resolveWeekdayLabelForDate(dateString: string, availableDates: DayOption[]): string {
+  const opt = availableDates.find((d) => d.date === dateString);
+  if (opt?.day) {
+    return opt.day;
+  }
+  const [y, m, day] = dateString.split('-').map(Number);
+  const dateObj = createPSTDate(y, m - 1, day);
+  return getPSTWeekday(dateObj);
+}
+
+function foodItemAllowedOnDate(
+  item: FoodItem,
+  dateString: string,
+  availableDates: DayOption[]
+): boolean {
+  if (item.available === false) {
+    return false;
+  }
+  const allowed = item.availableWeekDays;
+  if (!allowed || allowed.length === 0) {
+    return true;
+  }
+  const dateRegex = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/;
+  const weekday = resolveWeekdayLabelForDate(dateString, availableDates).trim().toLowerCase();
+
+  return allowed.some((d) => {
+    const raw = d.trim();
+    if (!raw) {
+      return false;
+    }
+    if (dateRegex.test(raw)) {
+      return raw === dateString;
+    }
+    return raw.toLowerCase() === weekday;
+  });
+}
+
+function filterFoodItemsForDate(
+  items: FoodItem[],
+  dateString: string,
+  availableDates: DayOption[]
+): FoodItem[] {
+  return items.filter((item) => foodItemAllowedOnDate(item, dateString, availableDates));
+}
+
+function getItemsForSubOnDate(
+  sub: CategoryDisplay,
+  date: string,
+  availableDates: DayOption[],
+  parentDayItems?: FoodItem[]
+): FoodItem[] {
+  const flatTaggedIds = getSubFlatTaggedIds(sub);
+  const byId = new Map<string, FoodItem>();
+
+  const dayGroupItems = sub.dayGroups?.find((x) => x.date === date)?.foodItems ?? [];
+  for (const item of filterFoodItemsForDate(dayGroupItems, date, availableDates)) {
+    byId.set(normalizeItemId(item._id), item);
+  }
+
+  for (const item of parentDayItems ?? []) {
+    const id = normalizeItemId(item._id);
+    if (itemTaggedToSub(item, sub._id) || flatTaggedIds.has(id)) {
+      byId.set(id, item);
+    }
+  }
+
+  for (const item of filterFoodItemsForDate(sub.foodItems ?? [], date, availableDates)) {
+    const id = normalizeItemId(item._id);
+    if (!byId.has(id)) {
+      byId.set(id, item);
+    }
+  }
+
+  return Array.from(byId.values());
+}
+
+/** Dates to show for a day-wise parent that has sub-categories (union of parent + day-wise subs). */
+function collectSortedDatesForDayWiseParentWithSubs(category: CategoryDisplay): string[] {
+  const set = new Set<string>();
+  for (const dg of category.dayGroups ?? []) {
+    if (dg.foodItems.length > 0) {
+      set.add(dg.date);
+    }
+  }
+  for (const sub of category.subCategories ?? []) {
+    if (sub.listingType === 'day-wise') {
+      for (const dg of sub.dayGroups ?? []) {
+        if (dg.foodItems.length > 0) {
+          set.add(dg.date);
+        }
+      }
+    }
+  }
+  return Array.from(set).sort((a, b) => a.localeCompare(b));
+}
+
+/** Everything the page derives from a home menu answer (also used for the menu the server hands over, so the first paint has the menu). */
+function deriveMenuState(menu: HomeMenuResponse['data']) {
+  const dates: DayOption[] = menu.dates.map((dateOption) => ({
+    ...dateOption,
+    day: dateOption.formattedDate.split(',')[0],
+    enabled: dateOption.flatCategoryEnabled,
+  }));
+  const dayCache = new Map<string, DayOption>();
+  for (const dateOption of dates) dayCache.set(dateOption.date, dateOption);
+  return { categories: menu.categories, dates, dayCache, itemsMap: buildCategoryFoodItemsMap(menu.categories, menu.categoryItems) };
+}
+
+/** `initialMenu` is the menu the server already read, so the page (and search engines) get the real menu in the first HTML. */
+export default function HomeClient({ initialMenu = null }: { initialMenu?: HomeMenuResponse['data'] | null }) {
+  const [seed] = useState(() => (initialMenu ? deriveMenuState(initialMenu) : null));
+
+  // Context and state management
+  const { refreshCart } = useCart();
+  const { showNotification } = useNotifications();
+  const { vegOnly, setVegOnly, ecoPreselect, skipAllergens } = useHeader();
+  const [searchQuery, setSearchQuery] = useState('');
+  const searching = searchQuery.trim().length > 0;
+  const { user } = useAuth();
+
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [loadingStates, setLoadingStates] = useState<{
+    [key: string]: { add: boolean; increment: boolean; decrement: boolean };
+  }>({});
+  const [dialogOpen, setDialogOpen] = useState<boolean>(false);
+  const [selectedFoodItem, setSelectedFoodItem] = useState<FoodItem | null>(null);
+  const [daySelectionPopupOpen, setDaySelectionPopupOpen] = useState<boolean>(false);
+  const [selectedFoodItemForDayPopup, setSelectedFoodItemForDayPopup] = useState<FoodItem | null>(null);
+  const [pendingCustomizations, setPendingCustomizations] = useState<CartCustomizations | undefined>(undefined);
+
+  // API data state
+  const [categories, setCategories] = useState<CategoryListItem[]>(seed?.categories ?? []);
+  const [categoryFoodItemsMap, setCategoryFoodItemsMap] = useState<Map<string, CategoryDisplay>>(seed?.itemsMap ?? new Map());
+  const [loadingCategories, setLoadingCategories] = useState<boolean>(!seed);
+  const [loadingItems, setLoadingItems] = useState<boolean>(false);
+  const [loadingCategoryItems, setLoadingCategoryItems] = useState<Set<string>>(new Set());
+  const [error, setError] = useState<string | null>(null);
+  const [dayOptionsCache, setDayOptionsCache] = useState<Map<string, DayOption>>(seed?.dayCache ?? new Map());
+  const [availableDates, setAvailableDates] = useState<DayOption[]>(seed?.dates ?? []);
+  /** For day-wise parents with sub-categories: selected sub tab per `${parentId}::${date}` */
+  const [dayWiseSubTabByDay, setDayWiseSubTabByDay] = useState<Record<string, string>>({});
+  /** Selected calendar day (YYYY-MM-DD) per category for horizontal day tabs */
+  const [dayWiseSelectedDateByCategory, setDayWiseSelectedDateByCategory] = useState<
+    Record<string, string>
+  >({});
+
+  const getPriceForDisplay = (item: FoodItem): number | null => {
+    if (item.portions && item.portions.length > 0 && item.portionPrices && item.portionPrices.length > 0) {
+      return item.portionPrices[0];
+    }
+    return item.price || null;
+  };
+
+  // Load categories, menu items, and delivery dates in one request
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchHomeMenu = async () => {
+      try {
+        // with the menu from the server already on screen, refresh quietly (no loading screen)
+        if (!seed) {
+          setLoadingCategories(true);
+          setLoadingItems(true);
+        }
+        setError(null);
+
+        const response = await fetch('/api/home-menu');
+        const data: HomeMenuResponse = await response.json();
+
+        if (cancelled) return;
+
+        if (response.ok && data.data) {
+          const fresh = deriveMenuState(data.data);
+          setCategories(fresh.categories);
+          setAvailableDates(fresh.dates);
+          setDayOptionsCache(fresh.dayCache);
+          setCategoryFoodItemsMap(fresh.itemsMap);
+        } else {
+          console.error('Failed to fetch home menu:', data.message);
+          if (!seed) setError('Failed to load menu');
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Error fetching home menu:', error);
+          if (!seed) setError('Failed to load menu');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingCategories(false);
+          setLoadingItems(false);
+          setLoadingCategoryItems(new Set());
+        }
+      }
+    };
+
+    fetchHomeMenu();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Get food items by category map
+  const foodItemsByCategory = useMemo(() => {
+    const list: CategoryDisplay[] = [];
+    for (const cat of categories) {
+      const row = categoryFoodItemsMap.get(cat._id);
+      if (!row) continue;
+      let merged: CategoryDisplay = { ...row };
+      if (cat.children?.length) {
+        const subCategories = cat.children
+          .slice()
+          .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
+          .map((ch) => categoryFoodItemsMap.get(ch._id))
+          .filter((x): x is CategoryDisplay => !!x);
+        if (subCategories.length > 0) {
+          merged = { ...merged, subCategories };
+        }
+      }
+      list.push(merged);
+    }
+    return list;
+  }, [categories, categoryFoodItemsMap]);
+
+
+  // Transform data to organize categories based on their listing type
+  // Apply vegOnly filtering client-side
+  const displayFoodItemsByCategory = useMemo(() => {
+    if (!foodItemsByCategory || foodItemsByCategory.length === 0) {
+      return [];
+    }
+
+    const filteredCategories = selectedCategory
+      ? foodItemsByCategory.filter((category) => category._id === selectedCategory)
+      : foodItemsByCategory;
+
+    return filteredCategories.map((category) =>
+      applyCategoryDisplayFilters(category, vegOnly, availableDates, searchQuery, skipAllergens)
+    );
+  }, [foodItemsByCategory, selectedCategory, vegOnly, availableDates, searchQuery, skipAllergens]);
+
+  const menuSectionsToRender = useMemo(() => {
+    const parents = selectedCategory
+      ? categories.filter((c) => c._id === selectedCategory)
+      : categories;
+
+    return parents.map((cat) => {
+      const row = categoryFoodItemsMap.get(cat._id);
+      let merged: CategoryDisplay | null = null;
+
+      if (row) {
+        merged = { ...row };
+        if (cat.children?.length) {
+          const subCategories = cat.children
+            .slice()
+            .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
+            .map((ch) => categoryFoodItemsMap.get(ch._id))
+            .filter((x): x is CategoryDisplay => !!x);
+          if (subCategories.length > 0) {
+            merged = { ...merged, subCategories };
+          }
+        }
+      }
+
+      const displayCategory = merged
+        ? applyCategoryDisplayFilters(merged, vegOnly, availableDates, searchQuery, skipAllergens)
+        : null;
+
+      const childIds = (cat.children ?? []).map((c) => c._id);
+      const isParentLoading = loadingCategoryItems.has(cat._id) || !row;
+      const subsStillLoading = childIds.some((id) => loadingCategoryItems.has(id));
+
+      return {
+        meta: cat,
+        category: displayCategory,
+        isParentLoading,
+        subsStillLoading,
+      };
+    });
+  }, [
+    categories,
+    categoryFoodItemsMap,
+    selectedCategory,
+    vegOnly,
+    availableDates,
+    loadingCategoryItems,
+    searchQuery,
+    skipAllergens,
+  ]);
+
+  // Get quantity for food item (sum across all dates, or specific date if provided)
+  const getItemQuantity = (foodItemId: string, dateContext?: string | DayType): number => {
+    if (dateContext) {
+      // dateContext can be either:
+      // 1. A date string (YYYY-MM-DD) from dayGroup.date
+      // 2. A DayType (day name like 'Monday') for backward compatibility
+      if (dateContext.includes('-')) {
+        // It's a date string, find the corresponding day name
+        const dateOption = availableDates.find(d => d.date === dateContext);
+        if (dateOption?.day) {
+          const dayType = dateOption.day as DayType;
+          return localCart.getDayQuantity(dayType, foodItemId);
+        }
+        return 0;
+      } else {
+        // It's already a DayType (day name)
+        return localCart.getDayQuantity(dateContext as DayType, foodItemId);
+      }
+    }
+
+    // Sum across all available dates from cache
+    // Convert date strings back to DayType for cart operations
+    // The cart is keyed by weekday, and two dates can share one (two Tuesdays), so count each weekday once
+    const weekdays = new Set<DayType>();
+    for (const dateOption of dayOptionsCache.values()) {
+      if (dateOption.day) weekdays.add(dateOption.day as DayType);
+    }
+    let total = 0;
+    for (const dayType of weekdays) total += localCart.getDayQuantity(dayType, foodItemId);
+    return total;
+  };
+
+  // Helper function to find which category a food item belongs to and its listing type
+  const getCategoryForItem = (foodItemId: string): { category: CategoryDisplay | null; dayGroup?: any } => {
+    for (const category of flattenCategoriesWithSubs(displayFoodItemsByCategory)) {
+      if (category.listingType === 'flat') {
+        // For flat categories, check if the item is in the foodItems array
+        const item = category.foodItems.find(item => item._id === foodItemId);
+        if (item) {
+          return { category };
+        }
+      } else if (category.listingType === 'day-wise') {
+        // For day-wise categories, check each day group
+        for (const dayGroup of category.dayGroups) {
+          const item = dayGroup.foodItems.find(item => item._id === foodItemId);
+          if (item) {
+            return { category, dayGroup };
+          }
+        }
+      }
+    }
+    return { category: null };
+  };
+
+  
+  // Cart operations with simulated loading
+  const simulateLoading = (foodItemId: string, action: 'add' | 'increment' | 'decrement') => {
+    setLoadingStates((prev) => ({
+      ...prev,
+      [foodItemId]: {
+        add: action === 'add',
+        increment: action === 'increment',
+        decrement: action === 'decrement',
+      },
+    }));
+
+    setTimeout(() => {
+      setLoadingStates((prev) => ({
+        ...prev,
+        [foodItemId]: { add: false, increment: false, decrement: false },
+      }));
+      // Refresh cart context after operation completes
+      refreshCart();
+    }, 500);
+  };
+
+  const handleAddToCart = (foodItemId: string, foodItem: FoodItem, dayGroup?: any) => {
+    // Check if item has portions - if so, open FoodDetailsDialog to force portion selection
+    if (foodItem.portions && foodItem.portions.length > 0) {
+      handleOpenDialog(foodItem, dayGroup);
+      return;
+    }
+
+    // Check if item has combo - if so, open FoodDetailsDialog to show combo customization options
+    if (foodItem.hasCombo && foodItem.sections && foodItem.sections.length > 0) {
+      handleOpenDialog(foodItem, dayGroup);
+      return;
+    }
+
+    // Spice level must be chosen in the details dialog before adding to cart
+    if (foodItem.hasSpiceLevel) {
+      handleOpenDialog(foodItem, dayGroup);
+      return;
+    }
+
+    // An item with a Special instructions box opens its details first, so the customer can write them
+    if (foodItem.allowInstructions) {
+      handleOpenDialog(foodItem, dayGroup);
+      return;
+    }
+
+    // If dayGroup is provided, use it directly (day-wise category with correct day)
+    if (dayGroup) {
+      handleAddToDayWiseCategory(foodItem, dayGroup);
+      return;
+    }
+
+    // Otherwise, find which category this item belongs to (flat category or fallback)
+    const { category } = getCategoryForItem(foodItemId);
+
+    if (!category) {
+      // Item not found in any category, show default behavior (day selection popup)
+      setSelectedFoodItemForDayPopup(foodItem);
+      setDaySelectionPopupOpen(true);
+      return;
+    }
+
+    if (category.listingType === 'flat') {
+      // For flat categories, show day selection popup (current behavior)
+      setSelectedFoodItemForDayPopup(foodItem);
+      setDaySelectionPopupOpen(true);
+    } else {
+      // Fallback to day selection popup
+      setSelectedFoodItemForDayPopup(foodItem);
+      setDaySelectionPopupOpen(true);
+    }
+  };
+
+  const handleIncrement = (foodItemId: string, foodItem: FoodItem, dayGroup?: any) => {
+    // If dayGroup is provided, check if item already exists in cart for that specific date
+    if (dayGroup) {
+      const dateString = dayGroup.date;
+      const dayName = dayGroup.day;
+      const dateOption = availableDates.find(d => d.date === dateString);
+      const dayNameForCart = dateOption?.day || dayName;
+
+      if (dayNameForCart) {
+        const dayType = dayNameForCart as DayType;
+        const existingQuantity = localCart.getDayQuantity(dayType, foodItemId);
+
+        // If item already exists in cart for this date, increment directly
+        if (existingQuantity > 0) {
+          handleIncrementForDayWiseCategory(foodItem, dayGroup);
+          return;
+        }
+      }
+    }
+
+    // Check if item has portions - if so, open FoodDetailsDialog to force portion selection
+    if (foodItem.portions && foodItem.portions.length > 0) {
+      handleOpenDialog(foodItem, dayGroup);
+      return;
+    }
+
+    // Check if item has combo - if so, open FoodDetailsDialog to show combo customization options
+    if (foodItem.hasCombo && foodItem.sections && foodItem.sections.length > 0) {
+      handleOpenDialog(foodItem, dayGroup);
+      return;
+    }
+
+    if (foodItem.hasSpiceLevel) {
+      handleOpenDialog(foodItem, dayGroup);
+      return;
+    }
+
+    // If dayGroup is provided, use it directly (day-wise category with correct day)
+    if (dayGroup) {
+      handleIncrementForDayWiseCategory(foodItem, dayGroup);
+      return;
+    }
+
+    // Otherwise, find which category this item belongs to (flat category or fallback)
+    const { category } = getCategoryForItem(foodItemId);
+
+    if (!category) {
+      // Item not found in any category, show default behavior (day selection popup)
+      setSelectedFoodItemForDayPopup(foodItem);
+      setDaySelectionPopupOpen(true);
+      return;
+    }
+
+    if (category.listingType === 'flat') {
+      // For flat categories, show day selection popup (current behavior)
+      setSelectedFoodItemForDayPopup(foodItem);
+      setDaySelectionPopupOpen(true);
+    } else {
+      // Fallback to day selection popup
+      setSelectedFoodItemForDayPopup(foodItem);
+      setDaySelectionPopupOpen(true);
+    }
+  };
+
+  const handleDecrement = (foodItemId: string, dayGroup?: any) => {
+    if (dayGroup) {
+      const dateString = dayGroup.date;
+      const dayName = dayGroup.day;
+      const dateOption = availableDates.find(d => d.date === dateString);
+      const dayNameForCart = dateOption?.day || dayName;
+
+      if (dayNameForCart) {
+        const dayType = dayNameForCart as DayType;
+        const dayQty = localCart.getDayQuantity(dayType, foodItemId);
+        if (dayQty === 0) return;
+
+        simulateLoading(foodItemId, 'decrement');
+        setTimeout(() => {
+          localCart.decrementOneUnitForFoodOnDay(dayType, foodItemId);
+          refreshCart();
+        }, 500);
+        return;
+      }
+    }
+
+    const currentQty = getItemQuantity(foodItemId);
+    if (currentQty === 0) return;
+
+    const dates = Array.from(dayOptionsCache.values());
+    for (const dateOption of dates) {
+      if (!dateOption.day) continue;
+      const dayType = dateOption.day as DayType;
+      const dayQty = localCart.getDayQuantity(dayType, foodItemId);
+      if (dayQty > 0) {
+        simulateLoading(foodItemId, 'decrement');
+        setTimeout(() => {
+          localCart.decrementOneUnitForFoodOnDay(dayType, foodItemId);
+          refreshCart();
+        }, 500);
+        break;
+      }
+    }
+  };
+
+  // Handle auto-add for day-wise categories
+  const handleAddToDayWiseCategory = async (foodItem: FoodItem, dayGroup: any) => {
+    // dayGroup now contains date string and formatted display name
+    const dateString = dayGroup.date;
+    const displayName = dayGroup.displayName;
+    const dayName = dayGroup.day;
+
+    // Find the date option to check availability and get day name for cart
+    const dateOption = availableDates.find(d => d.date === dateString);
+    const dayNameForCart = dateOption?.day || dayName;
+
+    if (!dayNameForCart || !dateOption) {
+      // Date not found in available dates
+      showErrorNotification(
+        showNotification,
+        `${displayName} is not available for ordering. Please choose a different item.`,
+        'Date Unavailable'
+      );
+      return;
+    }
+
+    if (!dateOption.dayWiseCategoryEnabled) {
+      // Date is not enabled for day-wise categories
+      showErrorNotification(
+        showNotification,
+        `${displayName} is not available for ordering. Please choose a different item.`,
+        'Date Unavailable'
+      );
+      return;
+    }
+
+    const dayType = dayNameForCart as DayType;
+
+    try {
+      // Add item to cart for the designated date
+      simulateLoading(foodItem._id, 'add');
+
+      setTimeout(() => {
+        localCart.addItem(
+          dayType,
+          dateString, // Pass the date string for cart context
+          foodItem,
+          1, // Default quantity of 1
+          ecoPreselected(foodItem, ecoPreselect) // quick add: only the eco container when that switch is on
+        );
+
+        // Show success message with formatted date
+        showSuccessNotification(
+          showNotification,
+          `${foodItem.name} has been added to your cart for ${displayName}`,
+          'Added to Cart'
+        );
+
+        // Refresh cart context
+        refreshCart();
+      }, 500);
+    } catch (error) {
+      console.error('Error adding item to cart:', error);
+      showErrorNotification(
+        showNotification,
+        'Failed to add item to cart. Please try again.',
+        'Error'
+      );
+    }
+  };
+
+  // Handle increment for day-wise categories
+  const handleIncrementForDayWiseCategory = async (foodItem: FoodItem, dayGroup: any) => {
+    // dayGroup now contains date string and formatted display name
+    const dateString = dayGroup.date;
+    const displayName = dayGroup.displayName;
+    const dayName = dayGroup.day;
+
+    // Find the date option to check availability and get day name for cart
+    const dateOption = availableDates.find(d => d.date === dateString);
+    const dayNameForCart = dateOption?.day || dayName;
+
+    if (!dayNameForCart || !dateOption) {
+      // Date not found in available dates
+      showErrorNotification(
+        showNotification,
+        `${displayName} is not available for ordering. Please choose a different item.`,
+        'Date Unavailable'
+      );
+      return;
+    }
+
+    if (!dateOption.dayWiseCategoryEnabled) {
+      // Date is not enabled for day-wise categories
+      showErrorNotification(
+        showNotification,
+        `${displayName} is not available for ordering. Please choose a different item.`,
+        'Date Unavailable'
+      );
+      return;
+    }
+
+    const dayType = dayNameForCart as DayType;
+
+    try {
+      // Start loading state for increment
+      simulateLoading(foodItem._id, 'increment');
+
+      setTimeout(() => {
+        // Check if item already exists in cart for this designated date
+        const existingQuantity = localCart.getDayQuantity(dayType, foodItem._id);
+
+        if (existingQuantity > 0) {
+          const line = localCart.getFirstLineForFoodOnDay(dayType, foodItem._id);
+          if (line) {
+            localCart.updateQuantity(dayType, line.lineId, line.quantity + 1);
+          } else {
+            localCart.addItem(dayType, dateString, foodItem, 1, ecoPreselected(foodItem, ecoPreselect));
+          }
+          showSuccessNotification(
+            showNotification,
+            `${foodItem.name} quantity increased to ${existingQuantity + 1} for ${displayName}`,
+            'Cart Updated'
+          );
+        } else {
+          // Item doesn't exist in designated date, add it there
+          localCart.addItem(
+            dayType,
+            dateString, // Pass the date string for cart context
+            foodItem,
+            1, // Default quantity of 1
+            ecoPreselected(foodItem, ecoPreselect) // quick add: only the eco container when that switch is on
+          );
+          showSuccessNotification(
+            showNotification,
+            `${foodItem.name} has been added to your cart for ${displayName}`,
+            'Added to Cart'
+          );
+        }
+
+        // Note: If the item exists on other dates, we keep those quantities unchanged
+        // and only add/increment in the designated date for consistency
+
+        // Refresh the cart panel and header badge AFTER the update. The refresh that simulateLoading schedules
+        // runs first (same 500 ms, scheduled earlier) and would read the old quantity, so the panel stayed one behind.
+        refreshCart();
+      }, 500);
+    } catch (error) {
+      console.error('Error incrementing item in cart:', error);
+      showErrorNotification(
+        showNotification,
+        'Failed to increment item in cart. Please try again.',
+        'Error'
+      );
+    }
+  };
+
+  // Dialog handlers
+  const handleOpenDialog = (item: FoodItem, dayGroup?: any) => {
+    setSelectedFoodItem(item);
+    setDialogOpen(true);
+    // Store the dayGroup context if provided from a day-wise section
+    (item as any).__dayGroup = dayGroup;
+  };
+
+  const handleCloseDialog = () => {
+    setDialogOpen(false);
+    setSelectedFoodItem(null);
+  };
+
+  const handleAddToCartFromDialog = (
+    item: FoodItem,
+    quantity: number,
+    customizations: CartCustomizations,
+    day: DayType | string,
+    date: string
+  ) => {
+    console.log('[page.tsx] handleAddToCartFromDialog called with:', {
+      item,
+      quantity,
+      customizations,
+      day,
+      date
+    });
+
+    const dayKey = day as DayType;
+
+    // Create a clean copy without __dayGroup or other non-serializable properties
+    // This prevents circular reference errors when saving to localStorage
+    const { __dayGroup, ...cleanItem } = item as any;
+
+    console.log('[page.tsx] About to call localCart.addItem with:', {
+      dayKey,
+      date,
+      item: cleanItem,
+      quantity,
+      customizations
+    });
+
+    if (quantity === 0) {
+      localCart.removeAllLinesForFood(dayKey, cleanItem._id);
+    } else {
+      localCart.addItem(dayKey, date, cleanItem, quantity, customizations);
+    }
+
+    console.log('[page.tsx] After localCart.addItem, cart is:', localCart.getCart());
+
+    // Refresh cart context
+    refreshCart();
+  };
+
+  const handleOpenDaySelectionWithCustomizations = (customizations: CartCustomizations) => {
+    if (!selectedFoodItem) return;
+
+    // Save customizations and food item for day selection
+    setPendingCustomizations(customizations);
+    setSelectedFoodItemForDayPopup(selectedFoodItem);
+
+    // Open day selection popup
+    setDaySelectionPopupOpen(true);
+  };
+
+  const handleDaySelectionFromPopup = (selectedDays: DaySelection[], customizations?: CartCustomizations) => {
+    if (!selectedFoodItemForDayPopup) return;
+
+    // Use provided customizations or pending customizations or empty object
+    const finalCustomizations = customizations || pendingCustomizations || ecoPreselected(selectedFoodItemForDayPopup, ecoPreselect);
+
+    // Add item to cart for each selected day with respective quantity
+    selectedDays.forEach((selection) => {
+      localCart.addItem(
+        selection.day,
+        selection.date,
+        selectedFoodItemForDayPopup,
+        selection.quantity,
+        // this popup is only for flat items: they follow the flat cutoff
+        { ...finalCustomizations, listingType: 'flat' }
+      );
+    });
+
+    // Refresh cart context
+    refreshCart();
+
+    // Close the popup and clear pending customizations
+    setDaySelectionPopupOpen(false);
+    setSelectedFoodItemForDayPopup(null);
+    setPendingCustomizations(undefined);
+  };
+
+  // Cart preview handlers are now provided by header context
+
+  // Handler for refreshing cart from dialog
+  const handleRefreshCart = () => {
+    refreshCart().catch(console.error);
+  };
+
+
+  const categoryGridSx = {
+    display: 'grid',
+    gridTemplateColumns: {
+      xs: 'repeat(2, 1fr)',
+      sm: 'repeat(3, 1fr)',
+      md: 'repeat(4, 1fr)',
+      lg: 'repeat(5, 1fr)',
+    },
+    gap: { xs: 2, md: 3.5 },
+    justifyItems: 'center',
+  } as const;
+
+  // choosing a category from the sticky strip / side list: show it, then bring the top of the menu up to the sticky bar (the wrapper starts one strip-height above the first heading, so the strip pins right above it)
+  const selectFromSticky = (id: string) => {
+    setSelectedCategory(id);
+    // the list changes size a moment after the choice (items load), so look again a few times
+    const bringUp = () => {
+      const top = document.getElementById('menu-sections')?.getBoundingClientRect().top;
+      if (top === undefined) return;
+      const header = window.innerWidth >= 900 ? HEADER_H.md : HEADER_H.xs;
+      const wanted = top + window.scrollY - header;
+      if (window.scrollY > wanted + 1) window.scrollTo({ top: Math.max(0, wanted), behavior: 'auto' });
+    };
+    window.requestAnimationFrame(bringUp);
+    window.setTimeout(bringUp, 250);
+    window.setTimeout(bringUp, 700);
+  };
+
+  const categorySkeletonGrid = (
+    <Box sx={categoryGridSx}>
+      {[...Array(5)].map((_, index) => (
+        <Box key={index} sx={{ width: '100%', maxWidth: 200 }}>
+          <Skeleton variant="rectangular" width={200} height={150} sx={{ mb: 1 }} />
+          <Skeleton variant="text" width={150} />
+          <Skeleton variant="text" width={100} />
+        </Box>
+      ))}
+    </Box>
+  );
+
+  const renderFlatCategoryGrid = (cat: CategoryDisplay) => (
+    <Box sx={categoryGridSx}>
+      {cat.foodItems.map((item: FoodItem) => {
+        const itemType =
+          item.hasCombo === true && item.sections && item.sections.length > 0
+            ? 'combo'
+            : item.portions && item.portions.length > 0
+              ? 'portions'
+              : 'simple';
+
+        const customizable = isFoodCustomizable(item);
+        const inCart = getItemQuantity(item._id);
+
+        return (
+          <FoodCard
+            key={item._id}
+            imageUrl={item.url}
+            name={item.name}
+            price={getPriceForDisplay(item)}
+            quantity={customizable ? 0 : inCart}
+            inCartCount={inCart}
+            alwaysShowAdd={customizable}
+            onAdd={() => handleAddToCart(item._id, item)}
+            onIncrement={customizable ? undefined : () => handleIncrement(item._id, item)}
+            onDecrement={customizable ? undefined : () => handleDecrement(item._id)}
+            onClick={() => handleOpenDialog(item)}
+            isLoading={loadingStates[item._id]}
+            itemType={itemType}
+            veg={item.veg}
+            allergens={item.allergens}
+            available={item.available}
+            atStockLimit={localCart.stockLeftFor(item) === 0}
+          />
+        );
+      })}
+    </Box>
+  );
+
+  const renderDayWiseFoodCardsGrid = (dayGroup: {
+    date: string;
+    displayName?: string;
+    day?: string;
+    foodItems: FoodItem[];
+  }) => (
+    <Box sx={categoryGridSx}>
+      {dayGroup.foodItems.map((item: FoodItem) => {
+        const itemType =
+          item.hasCombo === true && item.sections && item.sections.length > 0
+            ? 'combo'
+            : item.portions && item.portions.length > 0
+              ? 'portions'
+              : 'simple';
+
+        const customizable = isFoodCustomizable(item);
+        const inCart = getItemQuantity(item._id, dayGroup.date);
+
+        return (
+          <FoodCard
+            key={`${item._id}-${dayGroup.date}`}
+            imageUrl={item.url}
+            name={item.name}
+            price={getPriceForDisplay(item)}
+            quantity={customizable ? 0 : inCart}
+            inCartCount={inCart}
+            alwaysShowAdd={customizable}
+            onAdd={() => handleAddToCart(item._id, item, dayGroup)}
+            onIncrement={customizable ? undefined : () => handleIncrement(item._id, item, dayGroup)}
+            onDecrement={customizable ? undefined : () => handleDecrement(item._id, dayGroup)}
+            onClick={() => handleOpenDialog(item, dayGroup)}
+            isLoading={loadingStates[item._id]}
+            itemType={itemType}
+            veg={item.veg}
+            allergens={item.allergens}
+            available={item.available}
+            atStockLimit={localCart.stockLeftFor(item) === 0}
+          />
+        );
+      })}
+    </Box>
+  );
+
+  const renderDayWiseCategorySections = (cat: CategoryDisplay) => {
+    if (!cat.dayGroups.length) {
+      return null;
+    }
+    const selectedDate =
+      dayWiseSelectedDateByCategory[cat._id] &&
+      cat.dayGroups.some((g) => g.date === dayWiseSelectedDateByCategory[cat._id])
+        ? dayWiseSelectedDateByCategory[cat._id]!
+        : cat.dayGroups[0].date;
+
+    return (
+      <Box>
+        <Tabs
+          value={selectedDate}
+          onChange={(_, v) =>
+            setDayWiseSelectedDateByCategory((prev) => ({ ...prev, [cat._id]: String(v) }))
+          }
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
+          sx={{ ...subCategoryTabsSx, mt: 0 }}
+        >
+          {cat.dayGroups.map((dg: CategoryDisplay['dayGroups'][number]) => (
+            <Tab key={dg.date} value={dg.date} label={dg.displayName} />
+          ))}
+        </Tabs>
+        {cat.dayGroups.map((dayGroup: CategoryDisplay['dayGroups'][number]) => (
+          <Box
+            key={dayGroup.date}
+            role="tabpanel"
+            hidden={selectedDate !== dayGroup.date}
+            sx={{ pt: 2 }}
+          >
+            {renderDayWiseFoodCardsGrid(dayGroup)}
+          </Box>
+        ))}
+      </Box>
+    );
+  };
+
+  const renderDayWiseParentWithSubTabs = (category: CategoryDisplay) => {
+    const subs = resolveSubCategoriesForDisplay(
+      category,
+      categories,
+      categoryFoodItemsMap
+    );
+    if (subs.length === 0) {
+      return null;
+    }
+
+    const dates = collectSortedDatesForDayWiseParentWithSubs(category);
+    if (dates.length === 0) {
+      return (
+        <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
+          No scheduled days for this category yet.
+        </Typography>
+      );
+    }
+
+    const selectedDate =
+      dayWiseSelectedDateByCategory[category._id] &&
+      dates.includes(dayWiseSelectedDateByCategory[category._id])
+        ? dayWiseSelectedDateByCategory[category._id]!
+        : dates[0];
+
+    const tabKey = `${category._id}::${selectedDate}`;
+    const selectedSubId = dayWiseSubTabByDay[tabKey] ?? subs[0]._id;
+    const parentDg = category.dayGroups.find((g) => g.date === selectedDate);
+    const dateOption = availableDates.find((d) => d.date === selectedDate);
+
+   return (
+  <Box>
+    {dates.map((date) => {
+      const parentDg = category.dayGroups.find((g) => g.date === date);
+
+      const displayDate =
+        parentDg?.displayName ||
+        availableDates.find((d) => d.date === date)?.formattedDate ||
+        date;
+
+      return (
+        <Box key={date} sx={{ mb: 6 }}>
+
+          {/* DATE HEADING: sticks just below the fixed site header (64px mobile / 72px desktop) and the thin category strip
+              under it (the strip is not there on screens that show the side list instead) while this day's items scroll,
+              so customers always see which day they are for */}
+          <Box
+            sx={{
+              position: 'sticky',
+              top: { xs: HEADER_H.xs + STRIP_H, md: HEADER_H.md + STRIP_H },
+              [`@media (min-width:${SIDE_MIN}px)`]: { top: HEADER_H.md },
+              zIndex: 10,
+              bgcolor: IVORY,
+              pt: 1.25,
+              pb: 0.5,
+              mb: 2.5,
+              borderBottom: '1px solid rgba(184, 137, 59, 0.35)',
+            }}
+          >
+            <Typography
+              variant="h5"
+              sx={{
+                fontFamily: displayFont,
+                fontWeight: 600,
+                color: INK,
+                letterSpacing: '0.005em',
+                fontSize: { xs: '1.25rem', md: '1.5rem' },
+                pb: 0.75,
+                display: 'inline-block',
+              }}
+            >
+              {displayDate}
+            </Typography>
+          </Box>
+
+          {/* PARENT CATEGORY ITEMS (exclude items shown under a sub-category) */}
+          {parentDg && (() => {
+            const subItemIds = new Set<string>();
+            for (const sub of subs) {
+              for (const item of getItemsForSubOnDate(
+                sub,
+                date,
+                availableDates,
+                parentDg.foodItems
+              )) {
+                subItemIds.add(normalizeItemId(item._id));
+              }
+            }
+            const parentOnlyItems = parentDg.foodItems.filter((item) => {
+              const id = normalizeItemId(item._id);
+              if (subItemIds.has(id)) return false;
+              if (itemTaggedToAnySub(item, subs)) return false;
+              return true;
+            });
+            if (parentOnlyItems.length === 0) return null;
+            return (
+              <Box sx={{ mb: 5 }}>
+                {renderDayWiseFoodCardsGrid({
+                  ...parentDg,
+                  foodItems: parentOnlyItems,
+                })}
+              </Box>
+            );
+          })()}
+
+          {/* SUB CATEGORIES */}
+          {subs.map((sub) => {
+            const items = getItemsForSubOnDate(
+              sub,
+              date,
+              availableDates,
+              parentDg?.foodItems
+            );
+
+            if (items.length === 0) return null;
+
+            const subDayGroup = sub.dayGroups?.find(
+              (g) => g.date === date
+            );
+
+            const dayGroupForHandlers =
+              subDayGroup ??
+              ({
+                date: date,
+                displayName: displayDate,
+                day: parentDg?.day,
+                foodItems: items,
+              } as CategoryDisplay['dayGroups'][number]);
+
+            return (
+              <Box key={`${sub._id}-${date}`} sx={{ mb: 5 }}>
+
+                {/* SUB CATEGORY TITLE */}
+                <Box sx={subCategoryHeadingBoxSx}>
+                  <Typography component="h3" sx={subCategoryTitleSx}>
+                    {sub.name}
+                  </Typography>
+                </Box>
+
+                {/* ITEMS */}
+                <Box sx={categoryGridSx}>
+                  {items.map((item: FoodItem) => {
+                    const itemType =
+                      item.hasCombo === true &&
+                      item.sections &&
+                      item.sections.length > 0
+                        ? 'combo'
+                        : item.portions &&
+                            item.portions.length > 0
+                          ? 'portions'
+                          : 'simple';
+
+                    const customizable =
+                      isFoodCustomizable(item);
+
+                    const inCart = getItemQuantity(
+                      item._id,
+                      dayGroupForHandlers.date
+                    );
+
+                    return (
+                      <FoodCard
+                        key={`${item._id}-${date}-${sub._id}`}
+                        imageUrl={item.url}
+                        name={item.name}
+                        price={getPriceForDisplay(item)}
+                        quantity={customizable ? 0 : inCart}
+                        inCartCount={inCart}
+                        alwaysShowAdd={customizable}
+                        onAdd={() =>
+                          handleAddToCart(
+                            item._id,
+                            item,
+                            dayGroupForHandlers
+                          )
+                        }
+                        onIncrement={
+                          customizable
+                            ? undefined
+                            : () =>
+                                handleIncrement(
+                                  item._id,
+                                  item,
+                                  dayGroupForHandlers
+                                )
+                        }
+                        onDecrement={
+                          customizable
+                            ? undefined
+                            : () =>
+                                handleDecrement(
+                                  item._id,
+                                  dayGroupForHandlers
+                                )
+                        }
+                        onClick={() =>
+                          handleOpenDialog(
+                            item,
+                            dayGroupForHandlers
+                          )
+                        }
+                        isLoading={loadingStates[item._id]}
+                        itemType={itemType}
+                        veg={item.veg}
+                        allergens={item.allergens}
+                        available={item.available}
+                        atStockLimit={localCart.stockLeftFor(item) === 0}
+                      />
+                    );
+                  })}
+                </Box>
+              </Box>
+            );
+          })}
+        </Box>
+      );
+    })}
+  </Box>
+);
+  };
+
+  // the page's main heading for search engines and screen readers (the design has no visible one); in every state, so the first HTML has it
+  const mainHeading = (
+    <Typography component="h1" sx={{ position: 'absolute', width: '1px', height: '1px', overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap', border: 0, p: 0, m: '-1px' }}>
+      NikFoods: authentic Indian food delivered to your door
+    </Typography>
+  );
+
+  // Loading state - show when categories are loading initially
+  if (loadingCategories && categories.length === 0) {
+    return (
+      <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+        {mainHeading}
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1, py: 8 }}>
+          <BrandLoader />
+        </Box>
+        <Footer />
+      </Box>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+        {mainHeading}
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1, py: 8 }}>
+          <Typography variant="h6" color="error">
+            {error}
+          </Typography>
+        </Box>
+        <Footer />
+      </Box>
+    );
+  }
+
+  return (
+    <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      {mainHeading}
+      {/* globals.css sets `overflow-x: hidden` on html and body, which turns body into its own
+          scroll box and stops `position: sticky` from working (used for the day headings below).
+          `clip` still prevents sideways scrolling without creating a scroll box. Scoped to this
+          page so other pages are unaffected; browsers without `clip` keep the global `hidden`.
+
+          The same global rule also breaks MUI's pop-up scroll lock: MUI sets `overflow: hidden` on
+          <body>, but that never reaches the page's real scroller, so the page kept scrolling
+          behind open pop-ups (item details, login, menu drawer). The second rule mirrors the lock
+          onto <html> while any pop-up is open (MUI marks open ones with .MuiModal-root). It is
+          matched by class, not by body's inline style, because Safari does not re-check
+          attribute selectors on the style attribute. */}
+      <GlobalStyles
+        styles={{
+          'html, body': { overflowX: 'clip' },
+          body: { backgroundColor: IVORY },
+          'html:has(.MuiModal-root:not(.MuiModal-hidden))': { overflow: 'hidden' },
+        }}
+      />
+
+      {/* Main Content */}
+      <Box component="main" sx={{ flex: 1 }}>
+
+        {/* The app, right above the banners */}
+        <AppStoreSection />
+
+        {/* Banners the admin set up (the original hero when there are none) */}
+        <HomeBanners onOpenCategory={(id) => setSelectedCategory(id)} />
+
+        {/* Menu Subscription Section */}
+        <MenuSubscriptionSection user={user} />
+
+        {/* Delivery Location Bar */}
+        <Container maxWidth="lg" sx={{ mt: { xs: 3, md: 1.5 }, mb: { xs: 2, md: 2.5 } }}>
+          <DeliveryLocationBar />
+        </Container>
+
+        {/* Menu search */}
+        <Container maxWidth="lg" sx={{ mb: { xs: 1, md: 1.5 } }}>
+          <Box
+            id="menu-search"
+            role="search"
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1.25,
+              height: 52,
+              px: 2.25,
+              borderRadius: 999,
+              backgroundColor: '#FFFEFB',
+              border: '1px solid rgba(184, 137, 59, 0.35)',
+              boxShadow: '0 1px 2px rgba(60, 35, 10, 0.05), 0 14px 28px -16px rgba(60, 35, 10, 0.2)',
+              transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
+              '&:focus-within': { borderColor: GOLD, boxShadow: '0 0 0 3px rgba(184, 137, 59, 0.18)' },
+            }}
+          >
+            <IconSearch size={20} color={GOLD} aria-hidden />
+            <InputBase
+              fullWidth
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search the menu"
+              inputProps={{ id: 'menu-search', 'aria-label': 'Search the menu', enterKeyHint: 'search', autoComplete: 'off', style: { fontSize: '1rem' } }}
+              sx={{ color: INK, '& input::placeholder': { color: '#8C7E6C', opacity: 1 } }}
+            />
+            {searchQuery && (
+              <IconButton aria-label="Clear search" size="small" onClick={() => setSearchQuery('')} sx={{ color: '#5C4F40' }}>
+                <IconX size={18} />
+              </IconButton>
+            )}
+          </Box>
+        </Container>
+  
+        {/* Categories Section */}
+        {categories.length > 0 && (
+          <Container maxWidth="lg" sx={{ mt: { xs: 2, md: 3 }, mb: 1 }}>
+            <CategoryRail categories={categories} selectedCategory={selectedCategory} onSelect={(id) => setSelectedCategory(id)} />
+          </Container>
+        )}
+
+        {/* Food Items by Day and Category (the category strip / side list stays in reach while this scrolls) */}
+        <Box id="menu-sections" sx={{ position: 'relative', pt: `${STRIP_H}px`, mt: `-${STRIP_H}px`, pointerEvents: 'none', '& > .MuiContainer-root': { pointerEvents: 'auto' } }}>
+        {categories.length > 0 && (
+          <StickyCategoryNav
+            categories={categories}
+            selectedCategory={selectedCategory}
+            onSelect={selectFromSticky}
+            searchQuery={searchQuery}
+            onSearch={setSearchQuery}
+          />
+        )}
+        <Container maxWidth="lg" sx={{ mt: 0, mb: 6 }}>
+          {categories.length === 0 ? (
+            <Box sx={{ textAlign: 'center', py: 8 }}>
+              <Typography variant="h6" color="text.secondary">
+                {error ?? 'No categories available'}
+              </Typography>
+            </Box>
+          ) : (
+            <>
+              {menuSectionsToRender.map(
+                ({ meta, category, isParentLoading, subsStillLoading }) => {
+                  const subsForCategory = category
+                    ? resolveSubCategoriesForDisplay(category, categories, categoryFoodItemsMap)
+                    : [];
+                  const hasSubCategories = (meta.children?.length ?? 0) > 0;
+                  const listingType = category?.listingType ?? meta.listingType ?? 'flat';
+                  const hasContent = category ? categoryOrSubsHaveItems(category) : false;
+                  const parentReady = !!category && !isParentLoading;
+
+                  // while searching, categories with no match are left out
+                  if (searching && parentReady && !hasContent && !subsStillLoading) return null;
+
+                  return (
+                    <Box key={meta._id} sx={{ mb: 8 }}>
+                      <Box
+                        sx={{
+                          mt: { xs: 3, md: 3 },
+                          mb: { xs: 3, md: 4.5 },
+                          textAlign: 'center',
+                        }}
+                      >
+                        <Typography
+                          variant="h4"
+                          sx={{
+                            fontFamily: displayFont,
+                            fontWeight: 600,
+                            color: INK,
+                            letterSpacing: '0.002em',
+                            lineHeight: 1.15,
+                            fontSize: { xs: '1.75rem', sm: '2.125rem', md: '2.625rem' },
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 2,
+                            textWrap: 'balance',
+                          }}
+                        >
+                          {meta.name}
+                          {isParentLoading && <CircularProgress size={20} sx={{ color: GOLD }} />}
+                        </Typography>
+                        <Box
+                          aria-hidden
+                          sx={{
+                            mx: 'auto',
+                            mt: 1.75,
+                            width: 56,
+                            height: '1px',
+                            background: `linear-gradient(90deg, transparent, ${GOLD}, transparent)`,
+                          }}
+                        />
+                      </Box>
+
+                      {isParentLoading ? (
+                        categorySkeletonGrid
+                      ) : !parentReady ? (
+                        categorySkeletonGrid
+                      ) : !hasContent && !subsStillLoading ? (
+                        <Box sx={{ textAlign: 'center', py: 4 }}>
+                          <Typography variant="body2" color="text.secondary">
+                            {vegOnly
+                              ? 'No vegetarian items available in this category'
+                              : skipAllergens.length > 0
+                                ? 'Nothing here without the allergens you skip'
+                                : 'No items available in this category'}
+                          </Typography>
+                        </Box>
+                      ) : (
+                        <>
+                          {listingType === 'flat' &&
+                            categoryHasDisplayItems(category) &&
+                            renderFlatCategoryGrid(category)}
+                          {listingType === 'day-wise' &&
+                            hasSubCategories &&
+                            subsStillLoading &&
+                            categorySkeletonGrid}
+                          {listingType === 'day-wise' &&
+                            hasSubCategories &&
+                            !subsStillLoading &&
+                            subsForCategory.length > 0 &&
+                            (categoryOrSubsHaveItems(category)
+                              ? renderDayWiseParentWithSubTabs({
+                                  ...category,
+                                  subCategories: subsForCategory,
+                                })
+                              : null)}
+                          {listingType === 'day-wise' &&
+                            !hasSubCategories &&
+                            categoryHasDisplayItems(category) &&
+                            renderDayWiseCategorySections(category)}
+                          {!(listingType === 'day-wise' && hasSubCategories) &&
+                            subsForCategory.map((sub) => (
+                              <Box key={sub._id} sx={{ mt: 4 }}>
+                                <Box sx={subCategoryHeadingBoxSx}>
+                                  <Typography component="h3" sx={subCategoryTitleSx}>
+                                    {sub.name}
+                                    {loadingCategoryItems.has(sub._id) && (
+                                      <CircularProgress
+                                        size={18}
+                                        sx={{
+                                          ml: 1.5,
+                                          verticalAlign: 'middle',
+                                          color: colors.primary,
+                                        }}
+                                      />
+                                    )}
+                                  </Typography>
+                                </Box>
+                                {loadingCategoryItems.has(sub._id) ? (
+                                  categorySkeletonGrid
+                                ) : sub.listingType === 'flat' ? (
+                                  renderFlatCategoryGrid(sub)
+                                ) : (
+                                  renderDayWiseCategorySections(sub)
+                                )}
+                              </Box>
+                            ))}
+                          {!(listingType === 'day-wise' && hasSubCategories) &&
+                            subsStillLoading &&
+                            (meta.children ?? []).map((child) =>
+                              loadingCategoryItems.has(child._id) &&
+                              !categoryFoodItemsMap.has(child._id) ? (
+                                <Box key={child._id} sx={{ mt: 4 }}>
+                                  <Box sx={subCategoryHeadingBoxSx}>
+                                    <Typography component="h3" sx={subCategoryTitleSx}>
+                                      {child.name}
+                                      <CircularProgress
+                                        size={18}
+                                        sx={{
+                                          ml: 1.5,
+                                          verticalAlign: 'middle',
+                                          color: colors.primary,
+                                        }}
+                                      />
+                                    </Typography>
+                                  </Box>
+                                  {categorySkeletonGrid}
+                                </Box>
+                              ) : null
+                            )}
+                        </>
+                      )}
+                    </Box>
+                  );
+                }
+              )}
+
+              {searching &&
+                loadingCategoryItems.size === 0 &&
+                !menuSectionsToRender.some(({ category }) => category && categoryOrSubsHaveItems(category)) && (
+                  <Box sx={{ textAlign: 'center', py: 8 }}>
+                    <Typography sx={{ fontFamily: displayFont, fontSize: '1.25rem', color: INK }}>
+                      No matches
+                    </Typography>
+                  </Box>
+                )}
+
+              {loadingItems && loadingCategoryItems.size > 0 && (
+                <Box sx={{ textAlign: 'center', py: 3 }}>
+                  <CircularProgress size={28} />
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+                    Loading more menu items...
+                  </Typography>
+                </Box>
+              )}
+            </>
+          )}
+        </Container>
+        </Box>
+      </Box>
+
+      {/* Footer */}
+      <Footer />
+
+      {/* Food Details Dialog */}
+      <FoodDetailsDialog
+        open={dialogOpen}
+        onClose={handleCloseDialog}
+        foodItem={selectedFoodItem}
+        currentQuantity={
+          selectedFoodItem
+            ? isFoodCustomizable(selectedFoodItem)
+              ? 0
+              : getItemQuantity(selectedFoodItem._id, (selectedFoodItem as any).__dayGroup?.date)
+            : 0
+        }
+        onAddToCart={handleAddToCartFromDialog}
+        onOpenDaySelection={handleOpenDaySelectionWithCustomizations}
+        refreshCart={handleRefreshCart}
+        foodItemsByCategory={displayFoodItemsByCategory}
+        dayGroup={selectedFoodItem ? (selectedFoodItem as any).__dayGroup : undefined}
+        availableDates={availableDates}
+      />
+
+      {/* Day Selection Popup */}
+      <DaySelectionPopup
+        open={daySelectionPopupOpen}
+        onClose={() => {
+          setDaySelectionPopupOpen(false);
+          setSelectedFoodItemForDayPopup(null);
+          setPendingCustomizations(undefined);
+        }}
+        foodItem={selectedFoodItemForDayPopup}
+        customizations={pendingCustomizations}
+        onSelectDays={handleDaySelectionFromPopup}
+      />
+    </Box>
+  );
+}

@@ -13,7 +13,7 @@ import FirstTimeAddressPrompt from "@/components/layout/FirstTimeAddressPrompt";
 import StockLimitNotice from "@/components/common/StockLimitNotice";
 import GoogleAnalytics from "@/components/GoogleAnalytics";
 import { isTestSite } from "@/lib/siteUrl";
-import { SITE_DESCRIPTION, SITE_NAME, SITE_TAGLINE, SITE_URL, jsonLdString, siteJsonLd } from "@/lib/seo";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_TAGLINE, SITE_URL, jsonLdString, websiteJsonLd } from "@/lib/seo";
 
 const playfair = Playfair_Display({
   subsets: ["latin"],
@@ -79,9 +79,7 @@ export default function RootLayout({
         </AuthProvider>
         <CrispChat />
         <GoogleAnalytics />
-        {siteJsonLd().map((d, i) => (
-          <script key={i} type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdString(d) }} />
-        ))}
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdString(websiteJsonLd()) }} />
       </body>
     </html>
   );
