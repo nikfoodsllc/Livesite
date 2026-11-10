@@ -31,6 +31,7 @@ import SpiceLevelSelector from './SpiceLevelSelector';
 import ComboSectionComponent from './ComboSectionComponent';
 import ItemImageGallery from './ItemImageGallery';
 import { comboNeedsOverallSpice, getSectionSpice, optionsMissingSpice, pickedSpiceOptions, pruneComboSpice, sectionsMissingSpice, withOptionSpice, withSectionSpice } from '@/lib/comboSpice';
+import { trackViewItem } from '@/lib/analytics';
 import { useNotifications, showSuccessNotification, showErrorNotification } from '@/components/common/NotificationSystem';
 
 // Define types for the category display structure (matching main page)
@@ -113,6 +114,11 @@ export default function FoodDetailsDialog({
       }, 0);
     }
   }, [currentQuantity, foodItem?._id, quantity]);
+
+  // Google Analytics: the item was looked at
+  useEffect(() => {
+    if (open && foodItem) trackViewItem(foodItem);
+  }, [open, foodItem?._id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // When dialog opens: load customizations from cart for existing line items, or reset for new adds
   useEffect(() => {

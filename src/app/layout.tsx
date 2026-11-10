@@ -10,6 +10,7 @@ import { NotificationProvider } from "@/components/common/NotificationSystem";
 import CrispChat from "@/components/CrispChat";
 import TimezoneWarningBanner from "@/components/common/TimezoneWarningBanner";
 import FirstTimeAddressPrompt from "@/components/layout/FirstTimeAddressPrompt";
+import AnalyticsUser from "@/components/common/AnalyticsUser";
 import StockLimitNotice from "@/components/common/StockLimitNotice";
 import GoogleAnalytics from "@/components/GoogleAnalytics";
 import { isTestSite } from "@/lib/siteUrl";
@@ -59,6 +60,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={inter.variable} suppressHydrationWarning>
+      <head>
+        <GoogleAnalytics />
+      </head>
       <body className={`font-inter ${playfair.variable}`}>
         <AuthProvider>
           <CartProvider>
@@ -68,6 +72,7 @@ export default function RootLayout({
                   <Header />
                   <TimezoneWarningBanner />
                   <FirstTimeAddressPrompt />
+                  <AnalyticsUser />
                   <StockLimitNotice />
                   <DialogsProvider>
                     {children}
@@ -78,7 +83,6 @@ export default function RootLayout({
           </CartProvider>
         </AuthProvider>
         <CrispChat />
-        <GoogleAnalytics />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdString(websiteJsonLd()) }} />
       </body>
     </html>

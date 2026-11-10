@@ -22,6 +22,19 @@ export function isTestSite(env: Record<string, string | undefined> = process.env
   return TEST_SITE_HOSTS.includes(productionHost(env));
 }
 
+/**
+ * Adds Google Analytics campaign tags to a link in an email, so visits from it show as "email" with the email's name in the reports.
+ * Keeps any query string and #part the link already has, and never adds the tags twice.
+ */
+export function withUtm(url: string, campaign: string): string {
+  if (/[?&]utm_source=/.test(url)) return url;
+  const tags = `utm_source=nikfoods&utm_medium=email&utm_campaign=${encodeURIComponent(campaign)}`;
+  const hash = url.indexOf('#');
+  const base = hash === -1 ? url : url.slice(0, hash);
+  const tail = hash === -1 ? '' : url.slice(hash);
+  return `${base}${base.includes('?') ? '&' : '?'}${tags}${tail}`;
+}
+
 /** The base address for links in emails: the test site's own address on the test site, otherwise the live site. */
 export function getSiteUrl(env: Record<string, string | undefined> = process.env): string {
   const host = productionHost(env);

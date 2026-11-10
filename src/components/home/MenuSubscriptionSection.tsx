@@ -14,6 +14,7 @@ import {
 import { IconBell, IconChevronDown, IconChevronUp } from '@tabler/icons-react';
 import { useNotifications, showSuccessNotification, showErrorNotification } from '@/components/common/NotificationSystem';
 import { subscribeSchema } from '@/lib/validations/subscription';
+import { trackLead } from '@/lib/analytics';
 
 interface User {
   id: string;
@@ -107,6 +108,7 @@ export default function MenuSubscriptionSection({
       if (response.ok && data.success) {
         showSuccessNotification(showNotification, 'Successfully subscribed to menu notifications!');
         rememberEmail(email.trim());
+        trackLead('menu_alerts');
         setSubscribed(true);
       } else if (response.status === 409) {
         setError('This email is already subscribed');
