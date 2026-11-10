@@ -56,13 +56,17 @@ export async function sendPush(req: PushRequest): Promise<PushSummary> {
     const only = req.onlyTokens ? new Set(req.onlyTokens) : null;
     const list = (await tokensForUsers(allowedUsers)).filter((t) => !only || only.has(t.token));
     summary.tokens = list.length;
+    // who the message went to (customers with a phone it reached; in a test run, the phones it would reach): kept so the admin can see who opened it
+    const reached = new Set<string>(mode === 'on' ? [] : list.map((t) => t.userId));
     if (list.length > 0 && mode === 'on') {
       const messages: PushMessage[] = list.map((t) => ({ to: t.token, title: req.title, body: req.body, data: { ...(req.data ?? {}), kind: req.kind, pushId } }));
       const tickets = await sendExpoMessages(messages);
       const dead: string[] = [];
       tickets.forEach((t, i) => {
-        if (t.ok) summary.sent += 1;
-        else {
+        if (t.ok) {
+          summary.sent += 1;
+          reached.add(list[i].userId);
+        } else {
           summary.failed += 1;
           const code = t.error ?? 'Unknown';
           summary.errors[code] = (summary.errors[code] ?? 0) + 1;
@@ -73,7 +77,7 @@ export async function sendPush(req: PushRequest): Promise<PushSummary> {
     }
     await db
       .getCollectionForOperations<Record<string, unknown>>('pushEvents')
-      .then((c) => c.insertOne({ kind: req.kind, ...req.log, title: req.title.slice(0, 120), ...summary, createdAt: new Date() } as never))
+      .then((c) => c.insertOne({ kind: req.kind, ...req.log, title: req.title.slice(0, 120), ...summary, recipientIds: [...reached], createdAt: new Date() } as never))
       .catch(() => undefined);
   } catch (error) {
     console.error('[push] send failed', error instanceof Error ? error.message : String(error));
