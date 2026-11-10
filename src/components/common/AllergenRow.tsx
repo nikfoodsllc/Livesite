@@ -17,7 +17,7 @@ export default function AllergenRow({ allergens, size = 16, gap = 0.5 }: { aller
   );
 }
 
-/** For the dish popup: the badges and, next to them, the plain line "Contains: Milk, Gluten". */
+/** For the dish popup: the badges and, next to them, the plain line "Contains: Dairy, Gluten". */
 export function AllergenContains({ allergens }: { allergens?: unknown }) {
   const list = cleanAllergens(allergens);
   if (list.length === 0) return null;
