@@ -1,6 +1,6 @@
 'use client';
 
-import React, { forwardRef, useImperativeHandle, useState } from 'react';
+import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { Box, Typography, Paper, Alert, CircularProgress } from '@mui/material';
 import { PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
 import { IconLock } from '@tabler/icons-react';
@@ -28,6 +28,8 @@ export interface CheckoutPaymentDetailsProps {
   onSubmittingChange: (value: boolean) => void;
 
    onCardDetailsChange?: (complete: boolean) => void;
+  /** goes up each time the server changed the payment's amount (a tip change, new fees): the form then fetches the new amount, so Apple Pay shows the same total as the page */
+  amountVersion?: number;
 }
 
 const CheckoutPaymentDetails = forwardRef<
@@ -44,13 +46,22 @@ const CheckoutPaymentDetails = forwardRef<
     onPaymentError,
     isSubmitting,
     onSubmittingChange,
-    onCardDetailsChange
+    onCardDetailsChange,
+    amountVersion,
   },
   ref
 ) {
   const stripe = useStripe();
   const elements = useElements();
   const [localError, setLocalError] = useState<string | null>(null);
+
+  // The payment is UPDATED on the server when the tip or fees change (same payment, same secret), so this form is not rebuilt and would keep
+  // showing the first amount, and Apple Pay would open with that old total. Fetch the new amount whenever the server changed it.
+  const firstAmountVersion = useRef(amountVersion);
+  useEffect(() => {
+    if (!elements || amountVersion === undefined || amountVersion === firstAmountVersion.current) return;
+    void elements.fetchUpdates().catch(() => undefined);
+  }, [amountVersion, elements]);
 
   const submitForm = async (): Promise<boolean> => {
     if (!stripe || !elements) {
