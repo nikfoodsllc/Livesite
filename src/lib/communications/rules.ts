@@ -14,6 +14,8 @@ export interface AudienceFilter {
   to?: string;
   /** people: the customers picked by hand (account ids) */
   userIds?: string[];
+  /** every other kind: customers added by hand on top of the filter (account ids); they get the message whatever the filter says */
+  alsoUserIds?: string[];
 }
 
 export const MAX_ORDERED_RANGE_DAYS = 92;
@@ -51,6 +53,15 @@ export function daysBetween(from: string, to: string): number {
 }
 
 export function parseAudienceFilter(input: unknown): { ok: true; filter: AudienceFilter } | { ok: false; error: string } {
+  const parsed = parseBaseFilter(input);
+  if (!parsed.ok || parsed.filter.kind === 'people') return parsed;
+  const f = (input ?? {}) as Record<string, unknown>;
+  const also = Array.isArray(f.alsoUserIds) ? [...new Set(f.alsoUserIds.filter((v): v is string => typeof v === 'string' && OBJECT_ID.test(v)))] : [];
+  if (also.length > MAX_PEOPLE) return { ok: false, error: `Add at most ${MAX_PEOPLE} people by hand.` };
+  return also.length > 0 ? { ok: true, filter: { ...parsed.filter, alsoUserIds: also } } : parsed;
+}
+
+function parseBaseFilter(input: unknown): { ok: true; filter: AudienceFilter } | { ok: false; error: string } {
   const f = (input ?? {}) as Record<string, unknown>;
   if (f.kind === 'delivery_date' || f.kind === 'menu_day') {
     if (!isRealDay(f.date)) return { ok: false, error: 'Pick a real date.' };
