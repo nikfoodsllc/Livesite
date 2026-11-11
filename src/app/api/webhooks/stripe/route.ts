@@ -340,6 +340,18 @@ export async function POST(request: NextRequest) {
         }
 
         console.log(`[Webhook] Order ${order.orderId} marked as failed`);
+
+        // The customer keeps their store credit: a failed payment hands it back at once (website orders). Retrying the same order and
+        // paying takes it again (reapplyReleasedCredit on success), so the credit is spent only when the order is actually paid.
+        // Pay-link orders an admin entered keep their own rules (the customer switches the credit off on the pay page, or it returns after 3 hours).
+        if (order.storeCreditUsed && order.source !== 'admin') {
+          try {
+            const given = await restoreOrderCredit(order.orderId, 'The card payment failed');
+            if (given > 0) console.log(`[Webhook] Gave ${given} cents of store credit back for failed order ${order.orderId}`);
+          } catch (creditError) {
+            console.error(`[Webhook] Could not give the store credit back for ${order.orderId}:`, creditError);
+          }
+        }
         await annotatePaymentIntent(stripe, paymentIntent.id, order, {
           kind: 'failed',
           code: paymentError.code,
