@@ -26,6 +26,7 @@ import { sendPaymentLinkEmail, sendZelleInstructionsEmail } from '@/lib/offlineO
 import { notifyOrderSafely } from '@/lib/server/push/orderPush';
 import { recordPaymentLinkEmailSent, type PaymentLinkEmailRecord, type PaymentLinkViews } from '@/lib/server/paymentLinkTracking';
 import { sendOrderConfirmationEmail } from '@/lib/email';
+import { restoreOrderCredit } from '@/lib/server/storeCredit';
 import { getOptionSpice, getSectionSpice } from '@/lib/comboSpice';
 import { comboQuantityText } from '@/lib/comboQuantity';
 import { QUOTE_METHOD } from '@/lib/quoteOrder';
@@ -267,6 +268,11 @@ export interface CreatedOfflineOrder {
   emailError?: string;
   /** Set when this order replaced another: whether the old one is now cancelled */
   replaced?: { orderId: string; cancelled: boolean; error?: string };
+  /**
+   * Set when this order was started from a failed or unpaid website order: whether that order is now cancelled. It is cancelled only
+   * once the customer's email has gone out; otherwise it is left alone (the customer may still pay it) and `reason` says why.
+   */
+  followedUp?: { orderId: string; cancelled: boolean; reason?: 'email_not_sent' | 'already_paid' | 'payment_not_closed' | 'not_saved'; error?: string };
 }
 
 /**
@@ -288,7 +294,16 @@ export async function createOfflineOrder(
       if (!source.ok) return source;
     }
     const made = await createNewOfflineOrder(input, context);
-    if (made.ok && from) await recordFollowUp(from, made.order.orderId, context.adminId);
+    if (made.ok && from) {
+      await recordFollowUp(from, made.order.orderId, context.adminId);
+      // the old order is cancelled only after the customer has the new one (otherwise they would have nothing to pay)
+      if (made.order.emailSent) {
+        const closed = await cancelSupersededOrder(from, made.order.orderId, context.adminId);
+        made.order.followedUp = { orderId: from, ...closed };
+      } else {
+        made.order.followedUp = { orderId: from, cancelled: false, reason: 'email_not_sent' };
+      }
+    }
     return made;
   }
 
@@ -792,6 +807,54 @@ export async function getFailedOrderForRebuild(orderId: string): Promise<{ ok: t
       },
     },
   };
+}
+
+/**
+ * The unpaid website order an offline order was made from is cancelled, so the customer has one order to pay. Its card payment is
+ * closed first (Stripe refuses if the customer already paid), the order is marked cancelled (never a paid one), and any store credit
+ * it held goes back. Best effort: when something stops it the old order is simply left as it was and the reason is returned.
+ */
+async function cancelSupersededOrder(
+  fromOrderId: string,
+  newOrderId: string,
+  adminId: string
+): Promise<{ cancelled: boolean; reason?: 'already_paid' | 'payment_not_closed' | 'not_saved'; error?: string }> {
+  try {
+    const found = await db.readOne<Order>('orders', { orderId: fromOrderId } as never);
+    const order = found.success ? found.data : null;
+    if (!order || order.source === 'admin') return { cancelled: false, reason: 'not_saved', error: 'The unpaid order could not be found' };
+    if (order.paymentStatus === 'paid' || order.paymentStatus === 'refunded') return { cancelled: false, reason: 'already_paid', error: 'The customer paid that order in the meantime, so it was left as it is.' };
+
+    if (order.stripePaymentIntentId) {
+      const stripe = stripeClient();
+      if (!stripe) return { cancelled: false, reason: 'payment_not_closed', error: 'Stripe is not configured on the site, so the unpaid order was left as it is.' };
+      const pi = await stripe.paymentIntents.retrieve(order.stripePaymentIntentId);
+      if (pi.status === 'succeeded' || pi.status === 'processing') return { cancelled: false, reason: 'already_paid', error: 'The customer paid that order in the meantime, so it was left as it is.' };
+      if (pi.status !== 'canceled') {
+        try {
+          await stripe.paymentIntents.cancel(pi.id);
+        } catch (error) {
+          const again = await stripe.paymentIntents.retrieve(pi.id).catch(() => null);
+          if (again?.status === 'succeeded' || again?.status === 'processing') return { cancelled: false, reason: 'already_paid', error: 'The customer paid that order in the meantime, so it was left as it is.' };
+          if (again?.status !== 'canceled') throw error;
+        }
+      }
+    }
+
+    const update = await db.updateOne(
+      'orders',
+      { orderId: fromOrderId, paymentStatus: { $in: ['unpaid', 'failed'] } } as never,
+      { $set: { status: 'cancelled', cancelledAt: new Date(), cancelledByAdmin: adminId, updatedAt: new Date() } } as never
+    );
+    if (!update.success) return { cancelled: false, reason: 'not_saved', error: 'The unpaid order could not be marked cancelled.' };
+    await restoreOrderCredit(fromOrderId, `Replaced by offline order ${newOrderId}`).catch((error) => {
+      console.error('[offline-order] could not give back store credit', { fromOrderId, message: error instanceof Error ? error.message : String(error) });
+    });
+    return { cancelled: true };
+  } catch (error) {
+    console.error('[offline-order] could not cancel the unpaid order', { fromOrderId, newOrderId, message: error instanceof Error ? error.message : String(error) });
+    return { cancelled: false, reason: 'payment_not_closed', error: 'The unpaid order could not be cancelled. It was left as it is.' };
+  }
 }
 
 /** Remembers on both orders that the failed one was followed up (best effort: the new order already exists, so a failure here must not fail the request). */
