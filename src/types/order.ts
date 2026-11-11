@@ -186,6 +186,10 @@ export interface Order {
   zellePending?: boolean;
   /** Admin-entered order that counts in the kitchen, packing and delivery reports and goes to OptimoRoute even though it is not paid yet */
   countBeforePayment?: boolean;
+  /** Set on a failed or unpaid WEBSITE order when an admin made an offline order (pay link) for the same customer from it: which order and when (business only) */
+  offlineFollowUp?: { orderId: string; at: Date; by?: string };
+  /** Set on an admin-entered order that was started from a failed or unpaid website order: that order's number (business only) */
+  rebuiltFromOrderId?: string;
   /** Set when an admin counted the order from the Orders table: who and when */
   countedByAdmin?: string;
   countedAt?: Date;
