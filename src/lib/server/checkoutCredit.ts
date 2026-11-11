@@ -11,8 +11,9 @@ export interface CheckoutCredit extends CreditedTotals {
 /**
  * How much store credit pays for this checkout, and the Platform Fee, tax and total that go with it (the fee is charged only
  * on what goes through Stripe, see planCreditForOrder). The customer's own choice (`useStoreCredit`) and balance decide, except
- * when the order already exists (a card payment is being retried): then the credit and totals it was created with are kept,
- * because that credit is already taken off the balance.
+ * when the order already exists (a card payment is being retried) AND it holds store credit: then the credit and totals it was created with
+ * are kept, because that credit is already taken off the balance. An existing order without credit is worked out again from the current
+ * tip (a customer who closed the payment screen and then changed the tip pays the new total, not the old one).
  */
 export async function creditForCheckout(input: {
   userId: string;
@@ -35,14 +36,16 @@ export async function creditForCheckout(input: {
   if (input.orderId) {
     const found = await db.readOne<Order>('orders', { orderId: input.orderId } as never);
     const order = found.success ? found.data : null;
-    if (order && String(order.user) === input.userId) {
+    if (order && String(order.user) === input.userId && toCents(order.storeCreditUsed ?? 0) > 0) {
       const totalCents = toCents(order.totalPaid);
       const creditCents = Math.min(totalCents, toCents(order.storeCreditUsed ?? 0));
       return { creditCents, cardCents: totalCents - creditCents, platformFee: order.platformFee, tax: order.taxes, total: order.totalPaid, balanceCents: await getBalanceCents(input.userId) };
     }
   }
   const balanceCents = await getBalanceCents(input.userId);
-  if (!input.useStoreCredit) return { creditCents: 0, cardCents: toCents(plain.total), ...plain, balanceCents };
+  // credit cannot be added to an order that already exists (the order was created without it)
+  const useCredit = input.useStoreCredit === true && !input.orderId;
+  if (!useCredit) return { creditCents: 0, cardCents: toCents(plain.total), ...plain, balanceCents };
   if (discount > 0) {
     // a discount changes what the fee is worked out on: keep the old rule (the fee stays whole) for such a cart
     const old = planCreditUse(toCents(plain.total), balanceCents);

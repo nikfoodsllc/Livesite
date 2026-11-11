@@ -11,6 +11,7 @@ import { findClosedLines } from '@/lib/server/availableDates';
 import { closedLinesMessage, legacyClosedDates } from '@/lib/server/orderCutoff';
 import { saveCheckoutDraft } from '@/lib/server/checkoutDrafts';
 import { creditForCheckout } from '@/lib/server/checkoutCredit';
+import { syncPendingOrderAmounts } from '@/lib/server/pendingOrderAmounts';
 import { feeRegionForStore } from '@/lib/cartLogic';
 import { toDollars } from '@/lib/storeCredit';
 
@@ -176,6 +177,23 @@ export async function POST(request: NextRequest) {
     });
     // an empty value clears the key in Stripe when the customer turned the credit off after it was set
     metadata.storeCreditUsed = credit.creditCents > 0 ? creditApplied.toFixed(2) : '';
+
+    // the customer already started paying (the order exists) and changed the tip: the order follows the payment, so they agree
+    if (pendingOrderId) {
+      try {
+        const sync = await syncPendingOrderAmounts({
+          orderId: pendingOrderId,
+          userId,
+          tip: resolveTipAmount(cart.subtotal, tipPercentage ?? 0, body.tipAmount),
+          total: totalPaid,
+          platformFee: credit.platformFee,
+          taxes: credit.tax,
+        });
+        if (sync === 'updated') console.log('[payment-intent] pending order amounts updated', { orderId: pendingOrderId });
+      } catch (syncError) {
+        console.error('[payment-intent] could not update the pending order', syncError instanceof Error ? syncError.message : syncError);
+      }
+    }
 
     if (paymentIntentId) {
       try {
