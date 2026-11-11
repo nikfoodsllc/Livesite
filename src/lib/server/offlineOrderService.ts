@@ -59,6 +59,11 @@ export interface OfflineOrderInput {
   /** Editing: the unpaid link order this one replaces. When the new order is saved, the old one is cancelled and its link stops working. */
   replacesOrderId?: string;
   /**
+   * Started from a failed or unpaid WEBSITE order of the same customer: that order's number. It stays as it is (nothing is cancelled);
+   * it is marked as followed up, and the new order remembers where it came from.
+   */
+  fromOrderId?: string;
+  /**
    * An order waiting for payment (pay link or Zelle) that is counted from the start: it shows in the kitchen, packing and delivery
    * reports and goes to OptimoRoute now, not only after it is paid. Ignored for orders that are paid when they are made.
    */
@@ -274,7 +279,18 @@ export async function createOfflineOrder(
   context: { adminId: string; site?: string }
 ): Promise<{ ok: true; order: CreatedOfflineOrder } | ServiceFailure> {
   const replaces = typeof input.replacesOrderId === 'string' ? input.replacesOrderId.trim() : '';
-  if (!replaces) return createNewOfflineOrder(input, context);
+  const from = typeof input.fromOrderId === 'string' ? input.fromOrderId.trim() : '';
+  if (from && replaces) return fail(400, 'An order cannot replace one and also follow up another');
+  if (!replaces) {
+    // following up a failed website order: it must still be unpaid, checked BEFORE anything new is made
+    if (from) {
+      const source = await loadRebuildableOrder(from);
+      if (!source.ok) return source;
+    }
+    const made = await createNewOfflineOrder(input, context);
+    if (made.ok && from) await recordFollowUp(from, made.order.orderId, context.adminId);
+    return made;
+  }
 
   // editing: the order being replaced must still be waiting for payment, checked BEFORE anything new is made
   const old = await loadCancellableOrder(replaces);
@@ -744,11 +760,59 @@ export interface EditableOrder {
   countBeforePayment: boolean;
 }
 
+/** A website (or app) order whose payment failed or never happened: the only kind an offline order can be started from. */
+async function loadRebuildableOrder(orderId: string): Promise<{ ok: true; order: Order } | ServiceFailure> {
+  const found = await db.readOne<Order>('orders', { orderId } as never);
+  const order = found.success ? found.data : null;
+  if (!order) return fail(404, 'No order with that number');
+  if (order.source === 'admin') return fail(409, 'This order was entered in Create Order. Use Edit on the Create Order screen instead.');
+  if (order.paymentStatus === 'paid' || order.paymentStatus === 'refunded') return fail(409, 'This order was paid, so there is nothing to follow up.');
+  if (order.status !== 'pending' && order.status !== 'cancelled') return fail(409, 'Only an unpaid or failed order can be followed up this way.');
+  return { ok: true, order };
+}
+
+export type RebuildableOrder = EditableOrder & {
+  fromOrder: { status: string; paymentStatus: string; followUp?: { orderId: string; at: string } };
+};
+
+/** A failed or unpaid website order laid out for the Create Order form, so an admin can send the customer an offline order (pay link) for it. */
+export async function getFailedOrderForRebuild(orderId: string): Promise<{ ok: true; order: RebuildableOrder } | ServiceFailure> {
+  const loaded = await loadRebuildableOrder(orderId);
+  if (!loaded.ok) return loaded;
+  const o = loaded.order;
+  const follow = o.offlineFollowUp;
+  return {
+    ok: true,
+    order: {
+      ...editableFromOrder(o),
+      fromOrder: {
+        status: o.status,
+        paymentStatus: o.paymentStatus,
+        ...(follow ? { followUp: { orderId: follow.orderId, at: follow.at instanceof Date ? follow.at.toISOString() : String(follow.at) } } : {}),
+      },
+    },
+  };
+}
+
+/** Remembers on both orders that the failed one was followed up (best effort: the new order already exists, so a failure here must not fail the request). */
+async function recordFollowUp(fromOrderId: string, newOrderId: string, adminId: string): Promise<void> {
+  try {
+    await db.updateOne('orders', { orderId: fromOrderId, paymentStatus: { $in: ['unpaid', 'failed'] } } as never, { $set: { offlineFollowUp: { orderId: newOrderId, at: new Date(), by: adminId }, updatedAt: new Date() } } as never);
+    await db.updateOne('orders', { orderId: newOrderId } as never, { $set: { rebuiltFromOrderId: fromOrderId } } as never);
+  } catch (error) {
+    console.error('[offline-order] could not record the follow-up', { fromOrderId, newOrderId, message: error instanceof Error ? error.message : String(error) });
+  }
+}
+
 /** The order laid out the way the Create Order form holds it, so an admin can change it and submit it as a replacement. */
 export async function getOrderForEdit(orderId: string): Promise<{ ok: true; order: EditableOrder } | ServiceFailure> {
   const loaded = await loadCancellableOrder(orderId);
   if (!loaded.ok) return loaded;
-  const o = loaded.order;
+  return { ok: true, order: editableFromOrder(loaded.order) };
+}
+
+/** Lays any saved order out the way the Create Order form holds it. */
+function editableFromOrder(o: Order): EditableOrder {
   const lines: EditableOrder['lines'] = [];
   for (const day of o.items ?? []) {
     const date = String(day.deliveryDate instanceof Date ? day.deliveryDate.toISOString() : day.deliveryDate).slice(0, 10);
@@ -788,26 +852,23 @@ export async function getOrderForEdit(orderId: string): Promise<{ ok: true; orde
   const pct = payable > 0 ? (o.tip / payable) * 100 : 0;
   const tipPercentage = TIP_PERCENTAGES.reduce((best, p) => (Math.abs(p - pct) < Math.abs(best - pct) ? p : best), 0 as number);
   return {
-    ok: true,
-    order: {
-      orderId: o.orderId,
-      customer: { name: o.customerInfo?.name ?? '', email: o.customerInfo?.email ?? '', phone: o.customerInfo?.phone ?? '' },
-      address: {
-        street_address: o.address?.street ?? '',
-        apartment: o.address?.apartment ?? '',
-        city: o.address?.city ?? '',
-        postal_code: o.address?.zipCode ?? '',
-        entrance: o.address?.entrance ?? '',
-        floor: o.address?.floor ?? '',
-      },
-      lines,
-      tipPercentage,
-      tipAmount: Math.abs((o.tip ?? 0) - Math.round(payable * tipPercentage) / 100) > 0.01 ? (o.tip ?? 0) : undefined,
-      waivePlatformFee: Boolean((o as unknown as { platformFeeWaived?: boolean }).platformFeeWaived),
-      discount: o.discount?.amount ?? 0,
-      payKind: o.zellePending ? 'zelle' : 'link',
-      countBeforePayment: o.countBeforePayment === true,
+    orderId: o.orderId,
+    customer: { name: o.customerInfo?.name ?? '', email: o.customerInfo?.email ?? '', phone: o.customerInfo?.phone ?? '' },
+    address: {
+      street_address: o.address?.street ?? '',
+      apartment: o.address?.apartment ?? '',
+      city: o.address?.city ?? '',
+      postal_code: o.address?.zipCode ?? '',
+      entrance: o.address?.entrance ?? '',
+      floor: o.address?.floor ?? '',
     },
+    lines,
+    tipPercentage,
+    tipAmount: Math.abs((o.tip ?? 0) - Math.round(payable * tipPercentage) / 100) > 0.01 ? (o.tip ?? 0) : undefined,
+    waivePlatformFee: Boolean((o as unknown as { platformFeeWaived?: boolean }).platformFeeWaived),
+    discount: o.discount?.amount ?? 0,
+    payKind: o.zellePending ? 'zelle' : 'link',
+    countBeforePayment: o.countBeforePayment === true,
   };
 }
 

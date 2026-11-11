@@ -34,6 +34,8 @@ export const INTERNAL_ORDER_FIELDS = [
   'offlinePaymentNote',
   'platformFeeWaived',
   'reschedules',
+  'offlineFollowUp',
+  'rebuiltFromOrderId',
   'addressChanges',
   'rescheduleEmail',
   'rescheduleEmailLock',
