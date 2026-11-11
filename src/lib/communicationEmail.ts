@@ -2,6 +2,7 @@ import { Resend } from 'resend';
 import { MailtrapClient } from 'mailtrap';
 import { getCommunicationEmailTemplate } from '@/templates/communication';
 import { EMAIL_LOGO_CID, EMAIL_LOGO_FILENAME, EMAIL_LOGO_PNG_BASE64 } from '@/lib/emailLogo';
+import { EMAIL_BADGE_CID, EMAIL_BADGE_FILENAME, EMAIL_BADGE_PNG_BASE64 } from '@/lib/emailAppBadge';
 import { markTestSubject } from '@/lib/emailSubject';
 import { getReplyTo } from '@/lib/replyTo';
 import { htmlToText, wrapHtmlDocument } from '@/lib/communications/rules';
@@ -21,6 +22,17 @@ export function withUnsubscribe(html: string, url: string): string {
 }
 
 /**
+ * The pictures an email carries as attachments, referenced in the HTML as cid:...: the NikFoods logo (always in the standard design,
+ * in a custom design only when it uses it) and the App Store badge (only when a custom design uses cid:app-store-badge).
+ */
+export function communicationAttachments(html: string, custom: boolean): Array<{ filename: string; cid: string; content: Buffer }> {
+  const out: Array<{ filename: string; cid: string; content: Buffer }> = [];
+  if (!custom || html.includes(`cid:${EMAIL_LOGO_CID}`)) out.push({ filename: EMAIL_LOGO_FILENAME, cid: EMAIL_LOGO_CID, content: Buffer.from(EMAIL_LOGO_PNG_BASE64, 'base64') });
+  if (html.includes(`cid:${EMAIL_BADGE_CID}`)) out.push({ filename: EMAIL_BADGE_FILENAME, cid: EMAIL_BADGE_CID, content: Buffer.from(EMAIL_BADGE_PNG_BASE64, 'base64') });
+  return out;
+}
+
+/**
  * Sends one Communication-tab email to one customer. Same own-small-sender pattern as the pay-link and delivery-date emails
  * (the order emails are not touched; provider, keys and from address are the same settings). No team copy: a campaign has its
  * own history in the admin. Never throws.
@@ -29,15 +41,14 @@ export async function sendCommunicationEmail(args: { to: string; subject: string
   try {
     const subject = markTestSubject(args.subject);
     // 'html': the admin's own HTML goes out as written (wrapped in a page if it is only a snippet) with a plain-text twin;
-    // the logo is attached only when the HTML uses it (cid:nikfoods-logo)
+    // the logo and the App Store badge are attached only when the HTML uses them (cid:nikfoods-logo, cid:app-store-badge)
     const custom = args.format === 'html';
     // every email carries an Unsubscribe link: the template has it; a custom design uses {unsubscribeUrl}, else one is added at the bottom
     const unsubscribe = args.unsubscribeUrl ?? unsubscribeUrlFor(args.to);
     const html = custom ? withUnsubscribe(wrapHtmlDocument(args.text, args.subject), unsubscribe) : getCommunicationEmailTemplate(args.subject, args.text, unsubscribe);
     const headers = { 'List-Unsubscribe': `<${unsubscribe}>, <mailto:${getReplyTo()}?subject=unsubscribe>` };
     const plain = custom ? htmlToText(html) : undefined;
-    const withLogo = !custom || html.includes(`cid:${EMAIL_LOGO_CID}`);
-    const logo = Buffer.from(EMAIL_LOGO_PNG_BASE64, 'base64');
+    const pictures = communicationAttachments(html, custom);
 
     if (process.env.EMAIL_PROVIDER === 'mailtrap') {
       const token = process.env.MAILTRAP_API_TOKEN;
@@ -55,7 +66,7 @@ export async function sendCommunicationEmail(args: { to: string; subject: string
         headers,
         ...(plain ? { text: plain } : {}),
         category: 'Communication',
-        ...(withLogo ? { attachments: [{ filename: EMAIL_LOGO_FILENAME, type: 'image/png', content: logo, disposition: 'inline' as const, content_id: EMAIL_LOGO_CID }] } : {}),
+        ...(pictures.length ? { attachments: pictures.map((a) => ({ filename: a.filename, type: 'image/png', content: a.content, disposition: 'inline' as const, content_id: a.cid })) } : {}),
       });
       return { success: true, messageId: sent.message_ids[0] };
     }
@@ -70,7 +81,7 @@ export async function sendCommunicationEmail(args: { to: string; subject: string
       html,
       headers,
       ...(plain ? { text: plain } : {}),
-      ...(withLogo ? { attachments: [{ filename: EMAIL_LOGO_FILENAME, contentType: 'image/png', content: logo, contentId: EMAIL_LOGO_CID }] } : {}),
+      ...(pictures.length ? { attachments: pictures.map((a) => ({ filename: a.filename, contentType: 'image/png', content: a.content, contentId: a.cid })) } : {}),
     });
     if (result.error) return { success: false, error: result.error.message };
     return { success: true, messageId: result.data?.id };
