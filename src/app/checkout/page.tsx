@@ -124,6 +124,8 @@ interface CheckoutFormContentProps {
   onPaymentSubmittingChange: (value: boolean) => void;
   cardDetailsComplete: boolean;
   onCardDetailsChange: (complete: boolean) => void;
+  /** goes up each time the server changed the amount of the payment (tip, fees), so the payment form refreshes its copy of the amount */
+  paymentAmountVersion: number;
   /** Store credit the customer has (dollars), whether it is switched on, how much this order uses, and whether it pays for everything */
   creditBalance: number;
   useCredit: boolean;
@@ -177,6 +179,7 @@ function CheckoutFormContent({
   onPaymentSubmittingChange,
   cardDetailsComplete,
   onCardDetailsChange,
+  paymentAmountVersion,
   creditBalance,
   useCredit,
   onUseCreditChange,
@@ -341,6 +344,7 @@ function CheckoutFormContent({
                   isSubmitting={isPaymentSubmitting}
                   onSubmittingChange={onPaymentSubmittingChange}
                   onCardDetailsChange={onCardDetailsChange}
+                  amountVersion={paymentAmountVersion}
                 />
               </Elements>
             )}
@@ -556,6 +560,8 @@ export default function CheckoutPage() {
   }>({});
 
   const [paymentClientSecret, setPaymentClientSecret] = useState<string | null>(null);
+  // goes up each time the server updated the amount of the payment; the Stripe form (and Apple Pay) then fetches the new amount
+  const [paymentAmountVersion, setPaymentAmountVersion] = useState(0);
   const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null);
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   // store credit: what the customer has, whether it is switched on, and what the server last said this checkout uses
@@ -1127,6 +1133,7 @@ export default function CheckoutPage() {
 
       setPaymentIntentId(intentId);
       setPaymentClientSecret(clientSecret);
+      setPaymentAmountVersion((v) => v + 1);
       return true;
     } catch (err) {
       console.error('Payment intent error:', err);
@@ -1571,6 +1578,7 @@ export default function CheckoutPage() {
             onPaymentSubmittingChange={handlePaymentSubmittingChange}
             cardDetailsComplete={cardDetailsComplete}
              onCardDetailsChange={setCardDetailsComplete}
+            paymentAmountVersion={paymentAmountVersion}
             creditBalance={creditBalance}
             useCredit={useCredit}
             onUseCreditChange={handleUseCreditChange}
