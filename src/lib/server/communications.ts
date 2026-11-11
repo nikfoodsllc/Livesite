@@ -512,6 +512,22 @@ export interface CampaignSummary {
   finishedAt?: string;
   audienceSize?: number;
   counts: Record<Channel, Record<string, number>>;
+  /** how many customers opened the message at least once (emails only; an open is a hint, some mail apps open by themselves) */
+  opened: Record<Channel, number>;
+}
+
+/** Customers who opened each campaign's email at least once. */
+async function openedFor(ids: ObjectId[]): Promise<Map<string, Record<Channel, number>>> {
+  const rec = await recipients();
+  const rows = await rec.aggregate([{ $match: { campaignId: { $in: ids }, openCount: { $gt: 0 } } }, { $group: { _id: { c: '$campaignId', ch: '$channel' }, n: { $sum: 1 } } }]).toArray();
+  const out = new Map<string, Record<Channel, number>>();
+  for (const r of rows as unknown as Array<{ _id: { c: ObjectId; ch: Channel }; n: number }>) {
+    const key = String(r._id.c);
+    const entry = out.get(key) ?? { email: 0, text: 0 };
+    entry[r._id.ch] = r.n;
+    out.set(key, entry);
+  }
+  return out;
 }
 
 async function countsFor(ids: ObjectId[]): Promise<Map<string, Record<Channel, Record<string, number>>>> {
@@ -527,7 +543,7 @@ async function countsFor(ids: ObjectId[]): Promise<Map<string, Record<Channel, R
   return out;
 }
 
-const summarize = (c: Campaign, counts?: Record<Channel, Record<string, number>>): CampaignSummary => ({
+const summarize = (c: Campaign, counts?: Record<Channel, Record<string, number>>, opened?: Record<Channel, number>): CampaignSummary => ({
   id: String(c._id),
   filter: c.filter,
   channels: c.channels,
@@ -540,13 +556,15 @@ const summarize = (c: Campaign, counts?: Record<Channel, Record<string, number>>
   ...(c.finishedAt ? { finishedAt: c.finishedAt.toISOString() } : {}),
   ...(c.audienceSize !== undefined ? { audienceSize: c.audienceSize } : {}),
   counts: counts ?? { email: {}, text: {} },
+  opened: opened ?? { email: 0, text: 0 },
 });
 
 export async function listCampaigns(limit = 50): Promise<CampaignSummary[]> {
   const col = await campaigns();
   const rows = (await col.find({} as never).sort({ createdAt: -1 }).limit(limit).toArray()) as unknown as Campaign[];
-  const counts = await countsFor(rows.map((r) => r._id));
-  return rows.map((r) => summarize(r, counts.get(String(r._id))));
+  const ids = rows.map((r) => r._id);
+  const [counts, opened] = await Promise.all([countsFor(ids), openedFor(ids)]);
+  return rows.map((r) => summarize(r, counts.get(String(r._id)), opened.get(String(r._id))));
 }
 
 export async function getCampaign(id: string): Promise<{ campaign: CampaignSummary & { emailBody: string; emailFormat: EmailFormat; textBody: string }; recipients: Array<Record<string, unknown>> } | null> {
@@ -554,12 +572,12 @@ export async function getCampaign(id: string): Promise<{ campaign: CampaignSumma
   const col = await campaigns();
   const c = (await col.findOne({ _id: new ObjectId(id) } as never)) as unknown as Campaign | null;
   if (!c) return null;
-  const counts = await countsFor([c._id]);
+  const [counts, opened] = await Promise.all([countsFor([c._id]), openedFor([c._id])]);
   const rec = await recipients();
   const rows = (await rec.find({ campaignId: c._id } as never).sort({ channel: 1, name: 1 }).limit(1000).toArray()) as unknown as RecipientDoc[];
   return {
-    campaign: { ...summarize(c, counts.get(String(c._id))), emailBody: c.emailBody, emailFormat: c.emailFormat === 'html' ? 'html' : 'text', textBody: c.textBody },
-    recipients: rows.map((r) => ({ name: r.name, channel: r.channel, email: r.email, phone: r.phone, orders: r.orderIds, status: r.status, reason: r.reason, error: r.error, sentAt: r.sentAt, deliveredAt: r.deliveredAt, openCount: r.openCount ?? 0, dry: r.dry })),
+    campaign: { ...summarize(c, counts.get(String(c._id)), opened.get(String(c._id))), emailBody: c.emailBody, emailFormat: c.emailFormat === 'html' ? 'html' : 'text', textBody: c.textBody },
+    recipients: rows.map((r) => ({ name: r.name, channel: r.channel, email: r.email, phone: r.phone, orders: r.orderIds, status: r.status, reason: r.reason, error: r.error, sentAt: r.sentAt, deliveredAt: r.deliveredAt, bouncedAt: r.bouncedAt, firstOpenedAt: r.firstOpenedAt, openCount: r.openCount ?? 0, dry: r.dry })),
   };
 }
 
