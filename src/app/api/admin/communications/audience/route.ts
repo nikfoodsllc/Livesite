@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
   if (!parsed.ok) return NextResponse.json({ success: false, error: parsed.error }, { status: 400 });
   try {
     const customers = await loadAudience(parsed.filter);
-    const rows = customers.map((c) => ({ key: c.key, name: c.name, email: c.email, phone: c.phone, orders: c.orderIds, textOk: c.textOk, textReason: c.textReason ?? null, unsubscribed: Boolean(c.unsubscribed) }));
+    const rows = customers.map((c) => ({ key: c.key, name: c.name, email: c.email, phone: c.phone, orders: c.orderIds, textOk: c.textOk, textReason: c.textReason ?? null, unsubscribed: Boolean(c.unsubscribed), ...(c.added ? { added: true } : {}) }));
     return NextResponse.json({
       success: true,
       data: {
