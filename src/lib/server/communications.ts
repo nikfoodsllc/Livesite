@@ -113,6 +113,8 @@ export interface AudienceCustomer {
   textReason?: string;
   /** on the unsubscribe list: no emails go to this customer */
   unsubscribed?: boolean;
+  /** added by hand on top of the filter (the filter would not have found this customer) */
+  added?: boolean;
 }
 
 const digits10 = (v: unknown): string | null => {
@@ -211,6 +213,13 @@ async function loadSubscribers(): Promise<AudienceCustomer[]> {
 /** The customers of a filter, each marked when their address is on the unsubscribe list. */
 export async function loadAudience(filter: AudienceFilter): Promise<AudienceCustomer[]> {
   const customers = await loadAudienceRaw(filter);
+  // customers added by hand come on top of the filter, whatever it says (one already found by the filter stays as it is)
+  if (filter.kind !== 'people' && (filter.alsoUserIds ?? []).length > 0) {
+    const have = new Set(customers.map((c) => c.userId ?? c.key));
+    const extras = await loadAccounts({ kind: 'people', userIds: filter.alsoUserIds });
+    for (const e of extras) if (!have.has(e.userId ?? e.key)) customers.push({ ...e, added: true });
+    customers.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+  }
   const stopped = await optedOutEmails(customers.map((c) => c.email ?? ''));
   for (const c of customers) if (c.email && stopped.has(c.email.toLowerCase())) c.unsubscribed = true;
   return customers;
