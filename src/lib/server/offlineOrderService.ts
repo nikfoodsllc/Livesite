@@ -30,6 +30,7 @@ import { restoreOrderCredit } from '@/lib/server/storeCredit';
 import { getOptionSpice, getSectionSpice } from '@/lib/comboSpice';
 import { comboQuantityText } from '@/lib/comboQuantity';
 import { QUOTE_METHOD } from '@/lib/quoteOrder';
+import { applyCreditToLinkOrder } from '@/lib/server/linkOrderCredit';
 
 const MAX_LINES = 60;
 
@@ -49,6 +50,8 @@ export interface OfflineOrderInput {
   /** A tip typed in dollars (admin); used instead of the percentage when present */
   tipAmount?: number;
   waivePlatformFee?: boolean;
+  /** Pay link only: take the customer's store credit off the order right away, so the link opens already reduced (the customer can still switch it off). Ignored when editing. */
+  applyStoreCredit?: boolean;
   /** Dollars off the order (admin only) */
   discount?: number;
   allowBelowMinimum?: boolean;
@@ -264,6 +267,10 @@ export interface CreatedOfflineOrder {
   mode: 'link' | 'offline' | 'zelle' | 'quote';
   accountCreated: boolean;
   payLink?: string;
+  /** Set when store credit was applied while the order was made: what it pays and whether it pays everything */
+  credit?: { used: number; covered: boolean };
+  /** Set when store credit was asked for but could not be applied (the order is still made, the customer pays in full) */
+  creditNote?: string;
   emailSent: boolean;
   emailError?: string;
   /** Set when this order replaced another: whether the old one is now cancelled */
@@ -490,8 +497,28 @@ async function createNewOfflineOrder(
   // counted before payment: the delivery stop goes on the OptimoRoute plan now (the reports read the order itself)
   if (pendingOrder.countBeforePayment) await syncOrderSafely(orderId);
 
+  // store credit chosen by the admin: held on the order before the email goes, so the email and the pay page show what the card pays
+  let emailOrder: Order = pendingOrder;
+  let credit: { used: number; covered: boolean } | undefined;
+  let creditNote: string | undefined;
+  if (input.applyStoreCredit === true && !input.replacesOrderId) {
+    try {
+      const applied = await applyCreditToLinkOrder(orderId);
+      if (applied.ok) {
+        credit = { used: applied.used, covered: applied.covered };
+        const fresh = await db.readOne<Order>('orders', { orderId } as never);
+        if (fresh.success && fresh.data) emailOrder = fresh.data;
+      } else {
+        creditNote = applied.error;
+      }
+    } catch (error) {
+      console.error('[offline-order] could not apply store credit', { orderId, message: error instanceof Error ? error.message : String(error) });
+      creditNote = 'Store credit could not be applied.';
+    }
+  }
+
   const payLink = buildPayLink(orderId, token);
-  const emailResult = await sendPaymentLinkEmail(pendingOrder, payLink, ensured.accountCreated);
+  const emailResult = await sendPaymentLinkEmail(emailOrder, payLink, ensured.accountCreated);
   if (emailResult.success) {
     await db.updateOne('orders', { orderId } as never, { $set: { paymentLinkSentAt: new Date() } } as never);
     await recordPaymentLinkEmailSent(orderId, emailResult);
@@ -502,10 +529,12 @@ async function createNewOfflineOrder(
     ok: true,
     order: {
       orderId,
-      totalPaid: totals.total,
+      totalPaid: emailOrder.totalPaid,
       mode: 'link',
       accountCreated: ensured.accountCreated,
       payLink,
+      ...(credit ? { credit } : {}),
+      ...(creditNote ? { creditNote } : {}),
       emailSent: emailResult.success,
       emailError: emailResult.error,
     },
