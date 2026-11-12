@@ -2,6 +2,7 @@ import { Order, OrderDay } from '@/types/order';
 import { getSiteUrl } from '@/lib/siteUrl';
 import { EMAIL_LOGO_CID } from '@/lib/emailLogo';
 import { hasAmount } from '@/lib/orderTotalsDisplay';
+import { cardTotalOf } from '@/lib/storeCredit';
 import { getZelleId } from '@/lib/zelle';
 import { comboQuantityText } from '@/lib/comboQuantity';
 import { getOptionSpice, getSectionSpice } from '@/lib/comboSpice';
@@ -203,15 +204,18 @@ function sumRow(label: string, value: string, note?: string): string {
 export function getPaymentLinkEmailTemplate(order: Order, payUrl: string, accountCreated: boolean): string {
   const name = order.customerInfo?.name?.trim().split(/\s+/)[0] ?? '';
   const greeting = name ? `Hi ${esc(name)},` : 'Hi there,';
-  const total = money(order.totalPaid, order.currency);
+  const total = money(cardTotalOf(order), order.currency);
+  // the whole order is covered by store credit the admin applied: nothing to pay by card, the customer just places the order
+  const covered = (order.storeCreditUsed ?? 0) > 0 && cardTotalOf(order) <= 0.005;
+  const buttonText = covered ? 'Place order' : `Pay ${esc(total)}`;
   return renderOfflineEmail(order, accountCreated, {
     title: 'Your NikFoods order is ready for payment',
-    preheader: `Tap to pay ${esc(total)} securely by card or Apple Pay.`,
+    preheader: covered ? 'Your store credit covers this order. Tap to place it.' : `Tap to pay ${esc(total)} securely by card or Apple Pay.`,
     heading: `${greeting} kindly pay to confirm your offline order.`,
-    intro: 'Tap the button to pay securely by card or Apple Pay.',
+    intro: covered ? 'Your store credit covers this order. Tap the button to place it.' : 'Tap the button to pay securely by card or Apple Pay.',
     cta: `<table role="presentation" class="btn" cellpadding="0" cellspacing="0" style="border-collapse:separate;"><tr>
       <td align="center" bgcolor="${C.brand}" style="border-radius:14px;background:${C.brand};border:2px solid ${C.brand};">
-        <a href="${esc(payUrl)}" style="display:inline-block;padding:11px 34px;font-size:17px;font-weight:800;color:${C.onBrand};border-radius:14px;">Pay ${esc(total)} &rarr;</a>
+        <a href="${esc(payUrl)}" style="display:inline-block;padding:11px 34px;font-size:17px;font-weight:800;color:${C.onBrand};border-radius:14px;">${buttonText} &rarr;</a>
       </td>
     </tr></table>
     <div style="font-size:12px;color:${C.muted};margin-top:6px;line-height:17px;">Button not working? Copy this link into your browser:<br><a href="${esc(payUrl)}" style="color:${C.brandText};word-break:break-all;">${esc(payUrl)}</a></div>`,
@@ -259,7 +263,7 @@ interface OfflineEmailParts {
 function renderOfflineEmail(order: Order, accountCreated: boolean, parts: OfflineEmailParts): string {
   const logoUrl = `cid:${EMAIL_LOGO_CID}`;
   const siteUrl = getSiteUrl();
-  const total = money(order.totalPaid, order.currency);
+  const total = money(cardTotalOf(order), order.currency);
   const taxesAndFees = order.taxes + order.platformFee + order.deliveryFee;
   const accountNote = accountCreated
     ? `<tr><td class="px" bgcolor="${C.card}" style="padding:12px 32px 0;background:${C.card};">
@@ -335,6 +339,7 @@ function renderOfflineEmail(order: Order, accountCreated: boolean, parts: Offlin
           ${hasAmount(order.discount?.amount) ? sumRow('Discount', '&minus;' + money(order.discount!.amount, order.currency)) : ''}
           ${hasAmount(taxesAndFees) ? sumRow('Taxes &amp; Fees', money(taxesAndFees, order.currency)) : ''}
           ${order.tip > 0 ? sumRow('Tip', money(order.tip, order.currency), '&mdash; thank you!') : ''}
+          ${(order.storeCreditUsed ?? 0) > 0 ? sumRow('Store credit', '&minus;' + money(order.storeCreditUsed!, order.currency)) : ''}
         </table>
       </td></tr>
       <tr><td bgcolor="${C.brand}" style="padding:11px 18px;background:${C.brand};border-radius:0 0 15px 15px;">

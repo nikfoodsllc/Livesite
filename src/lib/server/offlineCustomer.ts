@@ -5,6 +5,8 @@ import { hashPassword } from '@/lib/password';
 import { IUser } from '@/types/auth';
 import { OfflineAddressInput } from '@/lib/server/offlineOrder';
 import { rememberUserPhone } from '@/lib/server/userPhone';
+import { getBalanceCents } from '@/lib/server/storeCredit';
+import { toDollars } from '@/lib/storeCredit';
 
 /**
  * Customers for orders an admin enters. A customer who has no account gets one (no password: nobody can sign
@@ -35,6 +37,8 @@ export interface CustomerView {
   email: string;
   phone: string;
   addresses: CustomerAddressView[];
+  /** Store credit balance in dollars (shown in Create Order so the admin can apply it) */
+  storeCreditBalance?: number;
 }
 
 export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -102,6 +106,7 @@ export async function searchCustomers(query: string): Promise<CustomerView[]> {
       email: u.email,
       phone: u.phone ?? '',
       addresses: addresses.map(toAddressView),
+      storeCreditBalance: toDollars(await getBalanceCents(u._id.toString())),
     });
   }
   return views;
