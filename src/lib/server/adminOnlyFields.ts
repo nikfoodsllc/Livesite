@@ -7,9 +7,10 @@
  *  - fooditems.sticker: 'yes' | 'no', whether the item's orders get a packing sticker (Kitchen Report).
  *  - fooditems.splitSticker: 'yes' | 'no', whether its stickers are one per box (Kitchen Report).
  *  - fooditems.heatingInstructions: string, the heating / storage line printed on its sticker (Kitchen Report).
+ *  - fooditems.unitQuantity: number, how many pieces one order of a flat item makes ("2 Makki Roti" = 2), used by the kitchen counts.
  */
 export const ADMIN_ONLY_FIELDS: Record<string, readonly string[]> = {
-  fooditems: ['preparationType', 'sticker', 'splitSticker', 'heatingInstructions'],
+  fooditems: ['preparationType', 'sticker', 'splitSticker', 'heatingInstructions', 'unitQuantity'],
 };
 
 /** The same document without the admin-only fields of its collection (the input is not changed). */
