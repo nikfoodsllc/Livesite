@@ -16,6 +16,8 @@ export interface AudienceFilter {
   userIds?: string[];
   /** every other kind: customers added by hand on top of the filter (account ids); they get the message whatever the filter says */
   alsoUserIds?: string[];
+  /** every kind: email addresses typed by hand (people who may not be customers); they get the message on top of the filter */
+  alsoEmails?: string[];
 }
 
 export const MAX_ORDERED_RANGE_DAYS = 92;
@@ -52,16 +54,33 @@ export function daysBetween(from: string, to: string): number {
   return Math.round((t - f) / 86_400_000);
 }
 
-export function parseAudienceFilter(input: unknown): { ok: true; filter: AudienceFilter } | { ok: false; error: string } {
-  const parsed = parseBaseFilter(input);
-  if (!parsed.ok || parsed.filter.kind === 'people') return parsed;
-  const f = (input ?? {}) as Record<string, unknown>;
-  const also = Array.isArray(f.alsoUserIds) ? [...new Set(f.alsoUserIds.filter((v): v is string => typeof v === 'string' && OBJECT_ID.test(v)))] : [];
-  if (also.length > MAX_PEOPLE) return { ok: false, error: `Add at most ${MAX_PEOPLE} people by hand.` };
-  return also.length > 0 ? { ok: true, filter: { ...parsed.filter, alsoUserIds: also } } : parsed;
+/** One typed address: lower case, a real shape, and not a test or placeholder domain. Null when it cannot be used. */
+export function cleanTypedEmail(value: unknown): string | null {
+  const e = String(value ?? '').trim().toLowerCase();
+  if (e.length > 254 || !/^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]{2,}$/.test(e)) return null;
+  if (e.endsWith('.invalid') || e.endsWith('@example.com') || e.endsWith('@example.org')) return null;
+  return e;
 }
 
-function parseBaseFilter(input: unknown): { ok: true; filter: AudienceFilter } | { ok: false; error: string } {
+export function parseAudienceFilter(input: unknown): { ok: true; filter: AudienceFilter } | { ok: false; error: string } {
+  const f = (input ?? {}) as Record<string, unknown>;
+  // addresses typed by hand: every one must be usable (nothing is silently dropped)
+  const rawEmails = Array.isArray(f.alsoEmails) ? f.alsoEmails : [];
+  const emails: string[] = [];
+  for (const raw of rawEmails) {
+    const e = cleanTypedEmail(raw);
+    if (!e) return { ok: false, error: `${String(raw ?? '').slice(0, 80) || 'An address'} is not an email address we can send to.` };
+    if (!emails.includes(e)) emails.push(e);
+  }
+  const parsed = parseBaseFilter(input, emails.length > 0);
+  if (!parsed.ok) return parsed;
+  const also = parsed.filter.kind !== 'people' && Array.isArray(f.alsoUserIds) ? [...new Set(f.alsoUserIds.filter((v): v is string => typeof v === 'string' && OBJECT_ID.test(v)))] : [];
+  if (also.length + emails.length + (parsed.filter.userIds?.length ?? 0) > MAX_PEOPLE) return { ok: false, error: `Add at most ${MAX_PEOPLE} people by hand.` };
+  const filter: AudienceFilter = { ...parsed.filter, ...(also.length > 0 ? { alsoUserIds: also } : {}), ...(emails.length > 0 ? { alsoEmails: emails } : {}) };
+  return { ok: true, filter };
+}
+
+function parseBaseFilter(input: unknown, hasEmails = false): { ok: true; filter: AudienceFilter } | { ok: false; error: string } {
   const f = (input ?? {}) as Record<string, unknown>;
   if (f.kind === 'delivery_date' || f.kind === 'menu_day') {
     if (!isRealDay(f.date)) return { ok: false, error: 'Pick a real date.' };
@@ -77,7 +96,7 @@ function parseBaseFilter(input: unknown): { ok: true; filter: AudienceFilter } |
   if (f.kind === 'subscribers') return { ok: true, filter: { kind: 'subscribers' } };
   if (f.kind === 'people') {
     const ids = Array.isArray(f.userIds) ? [...new Set(f.userIds.filter((v): v is string => typeof v === 'string' && OBJECT_ID.test(v)))] : [];
-    if (ids.length === 0) return { ok: false, error: 'Add at least one person.' };
+    if (ids.length === 0 && !hasEmails) return { ok: false, error: 'Add at least one person.' };
     if (ids.length > MAX_PEOPLE) return { ok: false, error: `Pick at most ${MAX_PEOPLE} people by hand. For more, use Everyone.` };
     return { ok: true, filter: { kind: 'people', userIds: ids } };
   }
