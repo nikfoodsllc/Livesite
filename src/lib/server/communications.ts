@@ -220,6 +220,25 @@ export async function loadAudience(filter: AudienceFilter): Promise<AudienceCust
     for (const e of extras) if (!have.has(e.userId ?? e.key)) customers.push({ ...e, added: true });
     customers.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
   }
+  // email addresses typed by hand: an address that belongs to a customer account is that customer, any other is a person by email only
+  const typed = filter.alsoEmails ?? [];
+  if (typed.length > 0) {
+    const have = new Set(customers.map((c) => (c.email ?? '').toLowerCase()).filter(Boolean));
+    const fresh = typed.filter((e) => !have.has(e));
+    if (fresh.length > 0) {
+      const users = await db.getCollectionForOperations<Record<string, unknown>>('users');
+      const accounts = (await users.find({ role: { $in: ['USER', 'user'] }, email: { $in: fresh } } as never, { projection: { _id: 1, email: 1 } }).limit(1000).toArray()) as unknown as Array<{ _id: ObjectId; email?: string }>;
+      const known = new Set(accounts.map((a) => String(a.email ?? '').toLowerCase()));
+      const haveIds = new Set(customers.map((c) => c.userId ?? c.key));
+      const ids = accounts.map((a) => String(a._id)).filter((id) => !haveIds.has(id));
+      if (ids.length > 0) for (const e of await loadAccounts({ kind: 'people', userIds: ids })) customers.push({ ...e, added: true });
+      for (const email of fresh) {
+        if (known.has(email)) continue;
+        customers.push({ key: email, name: '', email, phone: null, orderIds: [], textOk: false, textReason: 'Email only', added: true });
+      }
+    }
+  }
+  customers.sort((a, b) => (a.name || a.email || '').localeCompare(b.name || b.email || '', undefined, { sensitivity: 'base' }));
   const stopped = await optedOutEmails(customers.map((c) => c.email ?? ''));
   for (const c of customers) if (c.email && stopped.has(c.email.toLowerCase())) c.unsubscribed = true;
   return customers;
