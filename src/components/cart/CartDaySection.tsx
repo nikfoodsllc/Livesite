@@ -40,15 +40,33 @@ export default function CartDaySection({ cartDay, hasAddress = false, onClose }:
     const actual = plan?.get(cartDay.date);
     const moved = Boolean(actual && actual !== cartDay.date);
     let fixText: string | undefined;
-    if (plan && moved) {
+    let reasonText: string | undefined;
+    let includesText: string | undefined;
+    const money = (n: number) => `$${n.toFixed(2)}`;
+    const mine = days.find((d) => d.date === cartDay.date);
+    if (plan && actual && moved) {
+      // why this day travels with a later one:
+      // - the day itself is under the minimum, or
+      // - it meets the minimum, but the days after it add up to less than the minimum and cannot be delivered on their own
+      if (mine && mine.dayTotal < minValue) {
+        reasonText = `${dayName} is under the $${minValue.toFixed(0)} minimum, so it is delivered together with ${nameOf(actual)}.`;
+      } else {
+        const later = days.filter((d) => new Date(d.date).getTime() > new Date(cartDay.date).getTime());
+        const laterTotal = later.reduce((a, d) => a + d.dayTotal, 0);
+        const names = later.map((d) => nameOf(d.date));
+        const who = names.length === 1 ? `${names[0]} (${money(laterTotal)})` : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]} (${money(laterTotal)} together)`;
+        reasonText = `${dayName} meets the $${minValue.toFixed(0)} minimum, but ${who} ${names.length === 1 ? 'is' : 'are'} under it and cannot be delivered on ${names.length === 1 ? 'its' : 'their'} own, so ${dayName}'s items are delivered with ${names.length === 1 ? 'it' : 'them'}.`;
+      }
       const fix = ownDayFix(days, minValue, cartDay.date);
       if (fix) {
-        fixText = fix.toDate === cartDay.date
-          ? `Add $${fix.amount.toFixed(2)} more to deliver on ${dayName}.`
-          : `Add $${fix.amount.toFixed(2)} more to ${nameOf(fix.toDate)} to deliver ${dayName} on ${dayName}.`;
+        fixText = `To deliver ${dayName}'s items on ${dayName}, add ${money(fix.amount)} more to ${fix.toDate === cartDay.date ? dayName : nameOf(fix.toDate)}.`;
       }
+    } else if (plan && actual === cartDay.date) {
+      // the day other days are delivered with
+      const riders = days.filter((d) => d.date !== cartDay.date && plan.get(d.date) === cartDay.date).map((d) => `${nameOf(d.date)}'s`);
+      if (riders.length) includesText = `Also delivered here: ${riders.length === 1 ? riders[0] : `${riders.slice(0, -1).join(', ')} and ${riders[riders.length - 1]}`} items.`;
     }
-    return { deliveredOn: actual ? labelOf(actual) : undefined, fixText };
+    return { deliveredOn: actual ? labelOf(actual) : undefined, fixText, reasonText, includesText };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cart, minValue, cartDay]);
   const showBar = Boolean(note && dayTotal < minValue);
@@ -133,6 +151,8 @@ export default function CartDaySection({ cartDay, hasAddress = false, onClose }:
           dayTotal={dayTotal}
           minValue={minValue}
           deliveredOn={note.deliveredOn}
+          reasonText={note.reasonText}
+          includesText={note.includesText}
           fixText={note.fixText}
           showBar={showBar}
         />
