@@ -13,6 +13,8 @@ interface DayMinimumCardProps {
   isLastDay?: boolean;
   /** The order total meets the minimum, so the cart can be checked out and a short day really is delivered with the last day */
   canCheckout: boolean;
+  /** For the last day: the earlier days (under the minimum) whose items are delivered with it, e.g. ["Tuesday"] */
+  movedFrom?: string[];
 }
 
 /**
@@ -20,7 +22,7 @@ interface DayMinimumCardProps {
  * where it stands, where its items will be delivered instead, and what it takes to keep its own day. White and grey with one
  * gold bar, so it reads at a glance.
  */
-export default function DayMinimumCard({ dayName, dayTotal, minValue, deliveryDate, isLastDay = false, canCheckout }: DayMinimumCardProps) {
+export default function DayMinimumCard({ dayName, dayTotal, minValue, deliveryDate, isLastDay = false, canCheckout, movedFrom = [] }: DayMinimumCardProps) {
   const shortfall = Math.max(0, minValue - dayTotal);
   const progress = Math.min(1, minValue > 0 ? dayTotal / minValue : 1);
   if (shortfall <= 0) return null;
@@ -68,6 +70,18 @@ export default function DayMinimumCard({ dayName, dayTotal, minValue, deliveryDa
           <Typography sx={{ fontSize: '0.875rem', lineHeight: 1.4, color: '#6B6760' }}>
             Add ${shortfall.toFixed(2)} more to deliver it on {dayName} instead.
           </Typography>
+        </>
+      )}
+      {isLastDay && canCheckout && (
+        <>
+          <Typography sx={{ mt: 1.25, fontSize: '0.9375rem', lineHeight: 1.4, color: '#1F1712' }}>
+            Delivered {deliveryDate.replace(/,\s*\d{4}$/, '').replace(/([A-Za-z]{3}) (\d)/, '$1\u00a0$2')}
+          </Typography>
+          {movedFrom.length > 0 && (
+            <Typography sx={{ fontSize: '0.875rem', lineHeight: 1.4, color: '#6B6760' }}>
+              Includes {movedFrom.map((n) => `${n}'s`).join(' and ')} items.
+            </Typography>
+          )}
         </>
       )}
       {!isLastDay && !canCheckout && (
