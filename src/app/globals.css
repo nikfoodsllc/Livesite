@@ -111,3 +111,9 @@ body {
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite linear;
 }
+
+/* The chat bubble floats above everything, so it covered the buttons of the item sheet and the cart: hide it while any dialog,
+   sheet or drawer is open */
+html:has(.MuiModal-root:not(.MuiModal-hidden)) .crisp-client {
+  display: none !important;
+}

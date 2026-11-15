@@ -86,7 +86,6 @@ export default function CartItemCard({ item }: CartItemCardProps) {
   const totalPrice = item.totalPrice; // Total price (unitPrice × quantity)
 
   // For display purposes only - showing customization charges
-  const portionPrice = item.selectedPortionPrice || 0;
   const ecoCharge = item.isEcoFriendlyContainer ? (item.ecoContainerCharge || 0) : 0;
 
   return (
@@ -182,7 +181,7 @@ export default function CartItemCard({ item }: CartItemCardProps) {
                 {/* Portion */}
                 {item.selectedPortion && (
                   <Chip
-                    label={`${item.selectedPortion}${portionPrice > 0 ? ` (+$${(portionPrice || 0).toFixed(2)})` : ''}`}
+                    label={item.selectedPortion}
                     size="small"
                     sx={{
                       height: 22,
