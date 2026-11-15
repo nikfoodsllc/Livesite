@@ -29,8 +29,15 @@ export default function CartDaySection({ cartDay, hasAddress = false, onClose }:
   const dayLabel = cartDay.formattedDate || String(cartDay.day);
   const dayName = dayLabel.split(',')[0];
   const isLastDay = Boolean(lastDay && lastDay._id === cartDay._id);
-  // an earlier day under the minimum always gets the card; the last day (delivered on its own day) gets it only while the cart cannot be checked out yet
-  const showMinimum = Boolean(cart && lastDay && cartDay.items.length > 0 && dayTotal < minValue && (!isLastDay || !cart.canCheckout));
+  // every day under the minimum gets the card (the last day too: it says what rides along with it), and a day that meets it says
+  // where it is delivered, so the whole delivery plan is visible here and not only at checkout
+  const showMinimum = Boolean(cart && lastDay && cartDay.items.length > 0 && dayTotal < minValue);
+  const showDeliveredLine = Boolean(cart && cart.canCheckout && cart.days.length > 1 && cartDay.items.length > 0 && dayTotal >= minValue);
+  const movedFrom = isLastDay && cart
+    ? cart.days
+        .filter((d) => d._id !== cartDay._id && d.items.length > 0 && calculateDayTotal(d.items) < minValue)
+        .map((d) => (d.formattedDate || String(d.day)).split(',')[0])
+    : [];
 
   return (
     <Box sx={{ mb: 3 }}>
@@ -114,7 +121,14 @@ export default function CartDaySection({ cartDay, hasAddress = false, onClose }:
           deliveryDate={lastDay.formattedDate || String(lastDay.day)}
           isLastDay={isLastDay}
           canCheckout={Boolean(cart?.canCheckout)}
+          movedFrom={movedFrom}
         />
+      )}
+
+      {showDeliveredLine && (
+        <Typography sx={{ mb: 1.5, fontSize: '0.9375rem', lineHeight: 1.4, color: '#1F1712' }}>
+          Delivered {dayLabel.replace(/,\s*\d{4}$/, '').replace(/([A-Za-z]{3}) (\d)/, '$1\u00a0$2')}
+        </Typography>
       )}
 
       {/* Any other delivery message (the two above are covered by the card) waits for an address */}
