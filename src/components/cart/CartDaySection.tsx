@@ -8,6 +8,8 @@ import DeliveryMessageBadge from './DeliveryMessageBadge';
 import DayMinimumCard from './DayMinimumCard';
 import { calculateDayTotal, DEFAULT_MIN_CART_VALUE } from '@/lib/cartLogic';
 import { useCart } from '@/contexts/CartContext';
+import { planDeliveries, ownDayFix } from '@/lib/deliveryPlan';
+import { useMemo } from 'react';
 import { PST_TIMEZONE } from '@/lib/timezone';
 
 interface CartDaySectionProps {
@@ -22,22 +24,34 @@ export default function CartDaySection({ cartDay, hasAddress = false, onClose }:
 
   const dayTotal = calculateDayTotal(cartDay.items);
 
-  // the minimum is per delivery day: a day under it gets its own card (also before an address is chosen, with the minimum in use)
+  // The minimum is per delivery day, and where a day is delivered comes from the SAME function checkout and the order use
+  // (see lib/deliveryPlan.ts), so the cart cannot say one thing while the order does another.
   const { cart, minOrderValue } = useCart();
   const minValue = minOrderValue && minOrderValue > 0 ? minOrderValue : DEFAULT_MIN_CART_VALUE;
-  const lastDay = cart?.days.reduce((a, d) => (new Date(d.date).getTime() > new Date(a.date).getTime() ? d : a), cart.days[0]);
   const dayLabel = cartDay.formattedDate || String(cartDay.day);
   const dayName = dayLabel.split(',')[0];
-  const isLastDay = Boolean(lastDay && lastDay._id === cartDay._id);
-  // every day under the minimum gets the card (the last day too: it says what rides along with it), and a day that meets it says
-  // where it is delivered, so the whole delivery plan is visible here and not only at checkout
-  const showMinimum = Boolean(cart && lastDay && cartDay.items.length > 0 && dayTotal < minValue);
-  const showDeliveredLine = Boolean(cart && cart.canCheckout && cart.days.length > 1 && cartDay.items.length > 0 && dayTotal >= minValue);
-  const movedFrom = isLastDay && cart
-    ? cart.days
-        .filter((d) => d._id !== cartDay._id && d.items.length > 0 && calculateDayTotal(d.items) < minValue)
-        .map((d) => (d.formattedDate || String(d.day)).split(',')[0])
-    : [];
+  const nameOf = (date: string) => ((cart?.days.find((d) => d.date === date)?.formattedDate) || date).split(',')[0];
+  const labelOf = (date: string) => cart?.days.find((d) => d.date === date)?.formattedDate || date;
+
+  const note = useMemo(() => {
+    if (!cart || cart.days.length < 2 || cartDay.items.length === 0) return null;
+    const days = cart.days.map((d) => ({ date: d.date, dayTotal: calculateDayTotal(d.items) }));
+    const plan = planDeliveries(days, minValue); // null = the order cannot be placed yet
+    const actual = plan?.get(cartDay.date);
+    const moved = Boolean(actual && actual !== cartDay.date);
+    let fixText: string | undefined;
+    if (plan && moved) {
+      const fix = ownDayFix(days, minValue, cartDay.date);
+      if (fix) {
+        fixText = fix.toDate === cartDay.date
+          ? `Add $${fix.amount.toFixed(2)} more to deliver on ${dayName}.`
+          : `Add $${fix.amount.toFixed(2)} more to ${nameOf(fix.toDate)} to deliver ${dayName} on ${dayName}.`;
+      }
+    }
+    return { deliveredOn: actual ? labelOf(actual) : undefined, fixText };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cart, minValue, cartDay]);
+  const showBar = Boolean(note && dayTotal < minValue);
 
   return (
     <Box sx={{ mb: 3 }}>
@@ -112,27 +126,20 @@ export default function CartDaySection({ cartDay, hasAddress = false, onClose }:
         </Box>
       </Box>
 
-      {/* This day's minimum: how far it is, and what it means for the delivery */}
-      {showMinimum && lastDay && (
+      {/* This day: how it stands against the minimum and where it is really delivered */}
+      {note && (
         <DayMinimumCard
           dayName={dayName}
           dayTotal={dayTotal}
           minValue={minValue}
-          deliveryDate={lastDay.formattedDate || String(lastDay.day)}
-          isLastDay={isLastDay}
-          canCheckout={Boolean(cart?.canCheckout)}
-          movedFrom={movedFrom}
+          deliveredOn={note.deliveredOn}
+          fixText={note.fixText}
+          showBar={showBar}
         />
       )}
 
-      {showDeliveredLine && (
-        <Typography sx={{ mb: 1.5, fontSize: '0.9375rem', lineHeight: 1.4, color: '#1F1712' }}>
-          Delivered {dayLabel.replace(/,\s*\d{4}$/, '').replace(/([A-Za-z]{3}) (\d)/, '$1\u00a0$2')}
-        </Typography>
-      )}
-
       {/* Any other delivery message (the two above are covered by the card) waits for an address */}
-      {hasAddress && cartDay.deliveryMessage && !showMinimum && cartDay.deliveryMessage.type !== 'warning' && cartDay.deliveryMessage.type !== 'error' && (
+      {hasAddress && cartDay.deliveryMessage && !note && cartDay.deliveryMessage.type !== 'warning' && cartDay.deliveryMessage.type !== 'error' && (
         <DeliveryMessageBadge message={cartDay.deliveryMessage} onClose={onClose} />
       )}
 

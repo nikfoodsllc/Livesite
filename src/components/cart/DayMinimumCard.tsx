@@ -7,25 +7,37 @@ interface DayMinimumCardProps {
   dayName: string;
   dayTotal: number;
   minValue: number;
-  /** "Thursday, Nov 19": where this day's items are delivered (the last day in the cart when this day moves, else its own date) */
-  deliveryDate: string;
-  /** The last day keeps its own delivery day: it only shows where it stands (the checkout box says what to add) */
-  isLastDay?: boolean;
-  /** The order total meets the minimum, so the cart can be checked out and a short day really is delivered with the last day */
-  canCheckout: boolean;
-  /** For the last day: the earlier days (under the minimum) whose items are delivered with it, e.g. ["Tuesday"] */
-  movedFrom?: string[];
+  /** Where this day's items are delivered, e.g. "Thursday, Nov 19". Left out while the order cannot be placed yet (no plan exists). */
+  deliveredOn?: string;
+  /** What it takes to deliver this day on its own day, already worded ("Add $15.00 more to Thursday to deliver Wednesday on Wednesday.") */
+  fixText?: string;
+  /** Show the progress bar (the day is under the minimum) */
+  showBar: boolean;
 }
 
+const tidy = (s: string) => s.replace(/,\s*\d{4}$/, '').replace(/([A-Za-z]{3}) (\d)/, '$1 $2');
+
 /**
- * The minimum order is per delivery day. A day under it (that is not the last day) gets this small card under its date:
- * where it stands, where its items will be delivered instead, and what it takes to keep its own day. White and grey with one
- * gold bar, so it reads at a glance.
+ * What the cart says about one delivery day: how it stands against the minimum (a day under it gets a small card with a gold bar),
+ * where its items are really delivered (the same answer checkout and the order will give), and, for a day that is delivered on a
+ * different day than it was picked for, the smallest addition that would change that. White and grey with one gold bar.
  */
-export default function DayMinimumCard({ dayName, dayTotal, minValue, deliveryDate, isLastDay = false, canCheckout, movedFrom = [] }: DayMinimumCardProps) {
-  const shortfall = Math.max(0, minValue - dayTotal);
+export default function DayMinimumCard({ dayName, dayTotal, minValue, deliveredOn, fixText, showBar }: DayMinimumCardProps) {
   const progress = Math.min(1, minValue > 0 ? dayTotal / minValue : 1);
-  if (shortfall <= 0) return null;
+
+  const lines = (
+    <>
+      {deliveredOn && (
+        <Typography sx={{ mt: showBar ? 1.25 : 0, fontSize: '0.9375rem', lineHeight: 1.4, color: '#1F1712' }}>Delivered {tidy(deliveredOn)}</Typography>
+      )}
+      {fixText && <Typography sx={{ fontSize: '0.875rem', lineHeight: 1.4, color: '#6B6760' }}>{fixText}</Typography>}
+    </>
+  );
+
+  if (!showBar) {
+    // a day that meets the minimum: just where it is delivered (no card)
+    return deliveredOn ? <Box sx={{ mb: 1.5 }}>{lines}</Box> : null;
+  }
 
   return (
     <Box
@@ -61,34 +73,7 @@ export default function DayMinimumCard({ dayName, dayTotal, minValue, deliveryDa
           }}
         />
       </Box>
-      {/* "Delivered <last day>" is only said once the order total is met; before that the card says what it takes to deliver on this day */}
-      {!isLastDay && canCheckout && (
-        <>
-          <Typography sx={{ mt: 1.25, fontSize: '0.9375rem', lineHeight: 1.4, color: '#1F1712' }}>
-            Delivered {deliveryDate.replace(/,\s*\d{4}$/, '').replace(/([A-Za-z]{3}) (\d)/, '$1\u00a0$2')}
-          </Typography>
-          <Typography sx={{ fontSize: '0.875rem', lineHeight: 1.4, color: '#6B6760' }}>
-            Add ${shortfall.toFixed(2)} more to deliver it on {dayName} instead.
-          </Typography>
-        </>
-      )}
-      {isLastDay && canCheckout && (
-        <>
-          <Typography sx={{ mt: 1.25, fontSize: '0.9375rem', lineHeight: 1.4, color: '#1F1712' }}>
-            Delivered {deliveryDate.replace(/,\s*\d{4}$/, '').replace(/([A-Za-z]{3}) (\d)/, '$1\u00a0$2')}
-          </Typography>
-          {movedFrom.length > 0 && (
-            <Typography sx={{ fontSize: '0.875rem', lineHeight: 1.4, color: '#6B6760' }}>
-              Includes {movedFrom.map((n) => `${n}'s`).join(' and ')} items.
-            </Typography>
-          )}
-        </>
-      )}
-      {!isLastDay && !canCheckout && (
-        <Typography sx={{ mt: 1.25, fontSize: '0.9375rem', lineHeight: 1.4, color: '#1F1712' }}>
-          Add ${shortfall.toFixed(2)} more for {dayName} delivery.
-        </Typography>
-      )}
+      {lines}
     </Box>
   );
 }

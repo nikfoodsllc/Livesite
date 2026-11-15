@@ -58,9 +58,6 @@ export default function CartPreviewSidebar({
   const cartTotal = summary?.subtotal ?? 0;
   const shortfall = Math.max(0, minValue - cartTotal);
   const blocked = Boolean(cart && summary && summary.itemCount > 0 && !cart.canCheckout && shortfall > 0);
-  // days under the minimum are delivered with the last day in the cart
-  const lastDay = cart?.days.length ? cart.days.reduce((a, d) => (new Date(d.date).getTime() > new Date(a.date).getTime() ? d : a), cart.days[0]) : undefined;
-  const lastDayLabel = lastDay ? (lastDay.formattedDate || String(lastDay.day)).replace(/,\s*\d{4}$/, '').replace(/([A-Za-z]{3}) (\d)/, '$1\u00a0$2') : '';
 
   const drawerWidth = isMobile ? 'min(92%, 420px)' : 420;
 
@@ -266,7 +263,7 @@ export default function CartPreviewSidebar({
                   Add ${shortfall.toFixed(2)} more to check out
                 </Typography>
                 <Typography sx={{ mt: 0.25, fontSize: '0.875rem', lineHeight: 1.4, color: '#6B6760' }}>
-                  {lastDayLabel && (cart?.days.length ?? 0) > 1 ? `Days under $${minValue.toFixed(0)} arrive ${lastDayLabel}.` : `Minimum $${minValue.toFixed(0)} per day.`}
+                  {(cart?.days.length ?? 0) > 1 ? `Orders must total at least $${minValue.toFixed(0)}.` : `Minimum $${minValue.toFixed(0)} per day.`}
                 </Typography>
               </Box>
             </Box>
