@@ -130,7 +130,7 @@ export function getPaymentFailedEmailTemplate(
   <tr><td class="px" align="center" bgcolor="${C.card}" style="padding:12px 32px 12px;background:${C.card};">
     <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:0 auto 6px;"><tr><td>
       <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:separate;"><tr>
-        <td width="44" height="44" align="center" valign="middle" bgcolor="${C.tile}" style="width:44px;height:44px;background:${C.tile};border:2px solid ${C.brand};border-radius:26px;"><span style="font-size:24px;font-weight:800;line-height:44px;color:${C.brandText};">!</span></td>
+        <td align="center"><div style="width:44px;height:44px;margin:0 auto;background:${C.tile};border:2px solid ${C.brand};border-radius:26px;text-align:center;font-size:24px;font-weight:800;line-height:44px;color:${C.brandText};">!</div></td>
       </tr></table>
     </td></tr></table>
     <div class="hero-l" style="font-size:12px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:${C.brandText};margin-bottom:4px;word-break:break-word;">Order # ${orderId} not placed</div>
