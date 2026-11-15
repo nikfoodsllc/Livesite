@@ -15,7 +15,7 @@ interface DayMinimumCardProps {
   includesText?: string;
   /** What it takes to deliver this day on its own day, already worded ("To deliver Wednesday's items on Wednesday, add $15.00 more to Thursday.") */
   fixText?: string;
-  /** Show the progress bar (the day is under the minimum) */
+  /** Show the card with the progress bar (the day is under the minimum, or delivered on a different day) */
   showBar: boolean;
 }
 
