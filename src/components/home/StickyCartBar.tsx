@@ -39,6 +39,7 @@ export default function StickyCartBar() {
         bottom: 'max(16px, env(safe-area-inset-bottom))',
         width: { xs: 'calc(100% - 156px)', sm: 'min(calc(100% - 152px), 460px)' },
         minWidth: { xs: 184, sm: 300 },
+        '@media (max-width:340px)': { width: 'calc(100% - 172px)', minWidth: 130 },
         transform: visible ? 'translate(-50%, 0)' : 'translate(-50%, 140%)',
         opacity: visible ? 1 : 0,
         pointerEvents: visible ? 'auto' : 'none',
@@ -96,7 +97,7 @@ export default function StickyCartBar() {
           <Typography sx={{ fontSize: 14.5, fontWeight: 600, lineHeight: 1.2, whiteSpace: 'nowrap' }}>
             {count} {count === 1 ? 'item' : 'items'}
             {typeof subtotal === 'number' && subtotal > 0 && (
-              <Box component="span" sx={{ ml: 1, color: '#E9C878', fontVariantNumeric: 'tabular-nums' }}>
+              <Box component="span" sx={{ ml: 1, color: '#E9C878', fontVariantNumeric: 'tabular-nums', '@media (max-width:340px)': { display: 'none' } }}>
                 ${subtotal.toFixed(2)}
               </Box>
             )}
