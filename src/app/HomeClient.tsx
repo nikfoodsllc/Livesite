@@ -1600,14 +1600,14 @@ export default function HomeClient({ initialMenu = null }: { initialMenu?: HomeM
               display: 'flex',
               alignItems: 'center',
               gap: 1.25,
-              height: 52,
-              px: 2.25,
+              height: 56,
+              px: 2.5,
               borderRadius: 999,
               backgroundColor: '#FFFEFB',
-              border: '1px solid rgba(184, 137, 59, 0.35)',
-              boxShadow: '0 1px 2px rgba(60, 35, 10, 0.05), 0 14px 28px -16px rgba(60, 35, 10, 0.2)',
-              transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
-              '&:focus-within': { borderColor: GOLD, boxShadow: '0 0 0 3px rgba(184, 137, 59, 0.18)' },
+              border: '1px solid rgba(184, 137, 59, 0.4)',
+              boxShadow: '0 0 0 4px rgba(226, 188, 106, 0.16), 0 18px 32px -20px rgba(60, 35, 10, 0.4)',
+              transition: 'border-color 400ms cubic-bezier(0.32, 0.72, 0, 1), box-shadow 400ms cubic-bezier(0.32, 0.72, 0, 1)',
+              '&:focus-within': { borderColor: GOLD, boxShadow: '0 0 0 5px rgba(184, 137, 59, 0.22), 0 18px 32px -20px rgba(60, 35, 10, 0.4)' },
             }}
           >
             <IconSearch size={20} color={GOLD} aria-hidden />
