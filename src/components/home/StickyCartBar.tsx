@@ -37,8 +37,8 @@ export default function StickyCartBar() {
         // centred; on a phone it keeps the same room on both sides (the chat bubble sits on the right)
         left: '50%',
         bottom: 'max(16px, env(safe-area-inset-bottom))',
-        width: { xs: 'calc(100% - 152px)', sm: 'min(calc(100% - 152px), 460px)' },
-        minWidth: { xs: 200, sm: 300 },
+        width: { xs: 'calc(100% - 156px)', sm: 'min(calc(100% - 152px), 460px)' },
+        minWidth: { xs: 184, sm: 300 },
         transform: visible ? 'translate(-50%, 0)' : 'translate(-50%, 140%)',
         opacity: visible ? 1 : 0,
         pointerEvents: visible ? 'auto' : 'none',
