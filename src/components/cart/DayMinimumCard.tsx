@@ -9,7 +9,11 @@ interface DayMinimumCardProps {
   minValue: number;
   /** Where this day's items are delivered, e.g. "Thursday, Nov 19". Left out while the order cannot be placed yet (no plan exists). */
   deliveredOn?: string;
-  /** What it takes to deliver this day on its own day, already worded ("Add $15.00 more to Thursday to deliver Wednesday on Wednesday.") */
+  /** Why it is delivered on a different day, already worded ("Thursday ($5.00) is under the $20 minimum and cannot be delivered on its own, so Wednesday's items are delivered with it.") */
+  reasonText?: string;
+  /** For the day other days are delivered with: who rides along ("Also delivered here: Tuesday's and Wednesday's items.") */
+  includesText?: string;
+  /** What it takes to deliver this day on its own day, already worded ("To deliver Wednesday's items on Wednesday, add $15.00 more to Thursday.") */
   fixText?: string;
   /** Show the progress bar (the day is under the minimum) */
   showBar: boolean;
@@ -22,7 +26,7 @@ const tidy = (s: string) => s.replace(/,\s*\d{4}$/, '').replace(/([A-Za-z]{3}) (
  * where its items are really delivered (the same answer checkout and the order will give), and, for a day that is delivered on a
  * different day than it was picked for, the smallest addition that would change that. White and grey with one gold bar.
  */
-export default function DayMinimumCard({ dayName, dayTotal, minValue, deliveredOn, fixText, showBar }: DayMinimumCardProps) {
+export default function DayMinimumCard({ dayName, dayTotal, minValue, deliveredOn, reasonText, includesText, fixText, showBar }: DayMinimumCardProps) {
   const progress = Math.min(1, minValue > 0 ? dayTotal / minValue : 1);
 
   const lines = (
@@ -30,7 +34,11 @@ export default function DayMinimumCard({ dayName, dayTotal, minValue, deliveredO
       {deliveredOn && (
         <Typography sx={{ mt: showBar ? 1.25 : 0, fontSize: '0.9375rem', lineHeight: 1.4, color: '#1F1712' }}>Delivered {tidy(deliveredOn)}</Typography>
       )}
-      {fixText && <Typography sx={{ fontSize: '0.875rem', lineHeight: 1.4, color: '#6B6760' }}>{fixText}</Typography>}
+      {[reasonText, includesText, fixText].filter(Boolean).map((t) => (
+        <Typography key={t} sx={{ mt: 0.5, fontSize: '0.875rem', lineHeight: 1.45, color: '#6B6760' }}>
+          {t}
+        </Typography>
+      ))}
     </>
   );
 
