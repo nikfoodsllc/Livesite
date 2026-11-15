@@ -240,7 +240,7 @@ export function getOrderConfirmationEmailTemplate(order: Order, profileCustomerD
         <div style="font-size:17px;font-weight:800;color:${C.text};line-height:24px;">${esc(day.day)}</div>
         <div style="font-size:13px;color:${C.muted};line-height:18px;">Deliver on <strong style="color:${C.text};">${esc(weekday)}</strong>, ${esc(full)}</div>
       </td>
-      <td valign="middle" align="right" width="92">${block({ w: 84, h: 30, bg: C.tile, border: C.brand, radius: 16, inner: `<span style="font-size:12px;font-weight:800;line-height:26px;color:${C.brandText};white-space:nowrap;">${n} item${n === 1 ? '' : 's'}</span>` })}</td>
+      <td valign="middle" align="right" width="92"><div style="display:inline-block;height:26px;padding:0 14px;background:${C.tile};border:2px solid ${C.brand};border-radius:16px;font-size:12px;font-weight:800;line-height:26px;color:${C.brandText};white-space:nowrap;">${n} item${n === 1 ? '' : 's'}</div></td>
     </tr></table>
   </td></tr>
   <tr><td class="dpx" style="padding:0 18px 2px;">
@@ -346,7 +346,7 @@ export function getOrderConfirmationEmailTemplate(order: Order, profileCustomerD
   <!-- Hero -->
   <tr><td class="px" align="center" bgcolor="${C.card}" style="padding:12px 32px 12px;background:${C.card};">
     <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:0 auto 6px;"><tr><td>
-      ${block({ w: 44, h: 44, bg: C.brand, border: C.tileLine, radius: 26, inner: `<span style="font-size:24px;font-weight:800;line-height:44px;color:${C.onBrand};">&#10003;</span>` })}
+      <div style="width:44px;height:44px;margin:0 auto;background:${C.brand};border:2px solid ${C.tileLine};border-radius:26px;text-align:center;font-size:24px;font-weight:800;line-height:44px;color:${C.onBrand};">&#10003;</div>
     </td></tr></table>
     <div class="hero-l" style="font-size:12px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:${C.brandText};margin-bottom:4px;word-break:break-word;">Order # ${esc(order.orderId)} confirmed</div>
     <div class="hero-h" style="font-size:30px;line-height:36px;font-weight:800;color:${C.text};margin:0;">Thank you, ${esc(first)}!</div>
