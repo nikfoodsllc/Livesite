@@ -63,7 +63,7 @@ export default function ItemImageGallery({ name, images }: { name: string; image
   const round = { width: 36, height: 36, backgroundColor: 'rgba(255,255,255,0.92)', color: '#111827', boxShadow: '0 2px 8px rgba(0,0,0,0.18)', '&:hover': { backgroundColor: '#fff' } } as const;
 
   return (
-    <Box sx={{ position: 'relative', width: '100%', height: { xs: 240, sm: 300 }, flexShrink: 0, overflow: 'hidden', backgroundColor: '#f3f4f6' }}>
+    <Box sx={{ position: 'relative', width: '100%', height: { xs: 'min(240px, 36dvh)', sm: 'min(300px, 36dvh)' }, flexShrink: 0, overflow: 'hidden', backgroundColor: '#f3f4f6' }}>
       <Box
         ref={scroller}
         onScroll={many ? onScroll : undefined}
