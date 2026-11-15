@@ -63,7 +63,7 @@ export default function DayMinimumCard({ dayName, dayTotal, minValue, deliveryDa
       {!isLastDay && canCheckout && (
         <>
           <Typography sx={{ mt: 1.25, fontSize: '0.9375rem', lineHeight: 1.4, color: '#1F1712' }}>
-            Delivered {deliveryDate.replace(/,\s*\d{4}$/, '')}
+            Delivered {deliveryDate.replace(/,\s*\d{4}$/, '').replace(/([A-Za-z]{3}) (\d)/, '$1\u00a0$2')}
           </Typography>
           <Typography sx={{ fontSize: '0.875rem', lineHeight: 1.4, color: '#6B6760' }}>
             Add ${shortfall.toFixed(2)} more to deliver it on {dayName} instead.

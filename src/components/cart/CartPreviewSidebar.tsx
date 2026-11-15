@@ -60,7 +60,7 @@ export default function CartPreviewSidebar({
   const blocked = Boolean(cart && summary && summary.itemCount > 0 && !cart.canCheckout && shortfall > 0);
   // days under the minimum are delivered with the last day in the cart
   const lastDay = cart?.days.length ? cart.days.reduce((a, d) => (new Date(d.date).getTime() > new Date(a.date).getTime() ? d : a), cart.days[0]) : undefined;
-  const lastDayLabel = lastDay ? (lastDay.formattedDate || String(lastDay.day)).replace(/,\s*\d{4}$/, '') : '';
+  const lastDayLabel = lastDay ? (lastDay.formattedDate || String(lastDay.day)).replace(/,\s*\d{4}$/, '').replace(/([A-Za-z]{3}) (\d)/, '$1\u00a0$2') : '';
 
   const drawerWidth = isMobile ? 'min(92%, 420px)' : 420;
 
