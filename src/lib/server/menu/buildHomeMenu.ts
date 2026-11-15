@@ -15,6 +15,7 @@ import { populateComboSections } from '@/lib/server/menu/comboSections';
 import { publicImageFields } from '@/lib/server/menu/itemImages';
 import { markSoldOutOptions, stockRemainingByFood } from '@/lib/server/stock';
 import { cleanAllergens } from '@/lib/allergens';
+import { pruneEmptyCategories } from '@/lib/server/menu/pruneEmptyCategories';
 
 interface CategoryFoodMapping {
   categoryId: MongoObjectId | { toString(): string };
@@ -347,5 +348,7 @@ export async function buildHomeMenu(): Promise<HomeMenuPayload> {
     categoryItems[categoryId] = response;
   }
 
-  return { categories, categoryItems, dates };
+  // a category or sub-category with nothing switched on is not shown (heading, category strip and tabs included)
+  const pruned = pruneEmptyCategories(categories, categoryItems);
+  return { categories: pruned.categories, categoryItems: pruned.categoryItems, dates };
 }
