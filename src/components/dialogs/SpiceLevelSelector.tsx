@@ -11,6 +11,8 @@ interface SpiceLevelSelectorProps {
   idSuffix?: string;
   /** 'chips' = one row of small pills (used inside a combo section); default = the full-width list */
   variant?: 'list' | 'chips';
+  /** chips only: a full-size heading like the other choices in the item dialog (inside a combo section the small label stays) */
+  prominentLabel?: boolean;
 }
 
 const spiceLevelConfig: Record<string, { dots: number; colors: string[] }> = {
@@ -47,11 +49,12 @@ export default function SpiceLevelSelector({
   label = 'Select Spice Level',
   idSuffix = '',
   variant = 'list',
+  prominentLabel = false,
 }: SpiceLevelSelectorProps) {
   if (variant === 'chips') {
     return (
       <Box sx={{ mb: 0 }}>
-        <Typography id={`spice-level-label${idSuffix}`} component="label" sx={{ display: 'block', fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#8A6420', mb: 0.75 }}>
+        <Typography id={`spice-level-label${idSuffix}`} component="label" sx={prominentLabel ? { display: 'block', fontSize: '1rem', fontWeight: 600, color: '#1F1712', mb: 1.25 } : { display: 'block', fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#8A6420', mb: 0.75 }}>
           {label}
           <Box component="span" aria-hidden sx={{ color: '#d32f2f', ml: 0.5 }}>
             *

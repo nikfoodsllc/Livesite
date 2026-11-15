@@ -1,11 +1,12 @@
 'use client';
 
+import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
-import { Card, CardContent, Box, Typography, useTheme, useMediaQuery, Tooltip } from '@mui/material';
-import { IconShoppingCart } from '@tabler/icons-react';
-import QuantitySelector from '../../forms/QuantitySelector';
+import { Card, CardContent, Box, Typography, useTheme, useMediaQuery, Tooltip, CircularProgress } from '@mui/material';
+import { IconShoppingCart, IconPlus, IconMinus, IconTrash } from '@tabler/icons-react';
 import { useHeader } from '@/contexts/HeaderContext';
 import AllergenRow from '@/components/common/AllergenRow';
+import { flyToCart } from '@/lib/flyToCart';
 
 interface FoodCardProps {
   imageUrl: string;
@@ -35,6 +36,34 @@ interface FoodCardProps {
   atStockLimit?: boolean;
 }
 
+const EASE = 'cubic-bezier(0.32, 0.72, 0, 1)';
+
+/** true once the element has scrolled into view (and stays true); true at once for people who prefer reduced motion or browsers without IntersectionObserver */
+function useRevealed<T extends Element>(): [React.RefObject<T | null>, boolean] {
+  const ref = useRef<T | null>(null);
+  const [seen, setSeen] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (typeof IntersectionObserver === 'undefined' || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setSeen(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setSeen(true);
+          io.disconnect();
+        }
+      },
+      { rootMargin: '0px 0px 80px 0px', threshold: 0.05 }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  return [ref, seen];
+}
+
 export default function FoodCard({
   imageUrl,
   name,
@@ -58,13 +87,39 @@ export default function FoodCard({
   const { openCartPreview } = useHeader();
 
   const badgeCount = inCartCount ?? quantity;
+  const [revealRef, revealed] = useRevealed<HTMLDivElement>();
+  // simple items get a stepper on the photo once added; items with options keep a + (it opens their choices) and a cart badge
+  const showStepper = !alwaysShowAdd && quantity > 0;
+  const glass = {
+    background: 'rgba(255, 252, 245, 0.92)',
+    boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.7), 0 8px 18px -6px rgba(20, 10, 0, 0.45)',
+    color: '#1F1712',
+  } as const;
+  const roundBtn = {
+    width: 36,
+    height: 36,
+    border: 0,
+    borderRadius: '50%',
+    display: 'grid',
+    placeItems: 'center',
+    cursor: 'pointer',
+    background: 'transparent',
+    color: '#1F1712',
+    padding: 0,
+    transition: `transform 300ms ${EASE}, background 300ms ${EASE}`,
+    '&:hover:not(:disabled)': { background: 'rgba(184,137,59,0.16)' },
+    '&:active:not(:disabled)': { transform: 'scale(0.9)' },
+    '&:disabled': { opacity: 0.35, cursor: 'default' },
+    '&:focus-visible': { outline: '2px solid #C9A24B', outlineOffset: 1 },
+  } as const;
 
   return (
     <Card
+      ref={revealRef}
       sx={{
         width: '100%',
         maxWidth: isMobile ? 190 : 230,
-        borderRadius: '18px',
+        borderRadius: '22px',
         backgroundColor: '#FFFEFB',
         border: '1px solid rgba(60, 35, 10, 0.08)',
         boxShadow: '0 1px 2px rgba(60, 35, 10, 0.05), 0 14px 28px -14px rgba(60, 35, 10, 0.2)',
@@ -72,8 +127,17 @@ export default function FoodCard({
         position: 'relative',
         overflow: 'hidden',
         transition: 'transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.35s ease',
-        opacity: available ? 1 : 0.75,
-        '& .food-photo img': { transition: 'transform 0.6s cubic-bezier(0.22, 1, 0.36, 1)' },
+        opacity: revealed ? (available ? 1 : 0.75) : 0,
+        // rises into place the first time it scrolls into view; cards in one row follow each other (the grid sets --d)
+        // (fill 'backwards' only, so once it has risen the hover lift is free to move the card again)
+        animation: revealed ? `cardRise 850ms ${EASE} var(--d, 0ms) backwards` : 'none',
+        '@keyframes cardRise': { from: { opacity: 0, transform: 'translateY(26px) scale(0.97)' }, to: { opacity: 1, transform: 'translateY(0) scale(1)' } },
+        '@keyframes photoSettle': { from: { transform: 'scale(1.14)' }, to: { transform: 'scale(1)' } },
+        '& .food-photo img': {
+          transition: 'transform 0.6s cubic-bezier(0.22, 1, 0.36, 1)',
+          animation: revealed ? `photoSettle 1300ms ${EASE} var(--d, 0ms) backwards` : 'none',
+        },
+        '@media (prefers-reduced-motion: reduce)': { animation: 'none', opacity: available ? 1 : 0.75, '& .food-photo img': { animation: 'none' } },
         '&:hover': onClick && available
           ? {
             transform: 'translateY(-3px)',
@@ -91,7 +155,7 @@ export default function FoodCard({
         sx={{
           position: 'relative',
           width: '100%',
-          aspectRatio: '1 / 1',
+          aspectRatio: '1 / 1.04',
           overflow: 'hidden',
           background: 'linear-gradient(135deg, #F4EBDD 0%, #EADFCB 100%)',
         }}
@@ -130,41 +194,53 @@ export default function FoodCard({
           }}
         />
 
-        {/* Item type chip (combo / sizes) */}
-        {itemType && itemType !== 'simple' && (
-          <Tooltip
-            title={itemType === 'combo' ? 'Combo Item' : 'Portions Available'}
-            arrow
-            placement="top"
-          >
-            <Box
-              sx={{
-                position: 'absolute',
-                top: 10,
-                left: 10,
-                px: 1,
-                py: 0.25,
-                borderRadius: 999,
-                backgroundColor: 'rgba(255, 252, 245, 0.82)',
-                backdropFilter: 'blur(8px)',
-                WebkitBackdropFilter: 'blur(8px)',
-                border: '1px solid rgba(255, 255, 255, 0.6)',
-                color: '#3A2A14',
-                fontSize: '0.6875rem',
-                fontWeight: 600,
-                letterSpacing: '0.04em',
-                lineHeight: 1.5,
-                zIndex: 2,
-                userSelect: 'none',
-              }}
-            >
-              {itemType === 'combo' ? 'Combo' : 'Sizes'}
-            </Box>
-          </Tooltip>
+        {/* One badge group, top left: veg mark, then the item type */}
+        {(veg !== undefined || (itemType && itemType !== 'simple')) && (
+          <Box sx={{ position: 'absolute', top: 10, left: 10, display: 'flex', alignItems: 'center', gap: 0.75, zIndex: 2 }}>
+            {veg !== undefined && (
+              <Box
+                role="img"
+                aria-label={veg ? 'Vegetarian' : 'Non-vegetarian'}
+                sx={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: '7px',
+                  backgroundColor: 'rgba(255, 252, 245, 0.92)',
+                  display: 'grid',
+                  placeItems: 'center',
+                  boxShadow: '0 4px 10px rgba(20, 10, 0, 0.22)',
+                }}
+              >
+                <Box sx={{ width: 14, height: 14, borderRadius: '4px', border: `1.5px solid ${veg ? '#2E8B4F' : '#C0392B'}`, display: 'grid', placeItems: 'center' }}>
+                  <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: veg ? '#2E8B4F' : '#C0392B' }} />
+                </Box>
+              </Box>
+            )}
+            {itemType && itemType !== 'simple' && (
+              <Box
+                sx={{
+                  height: 22,
+                  px: 1,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  borderRadius: 999,
+                  backgroundColor: 'rgba(255, 252, 245, 0.92)',
+                  boxShadow: '0 4px 10px rgba(20, 10, 0, 0.22)',
+                  color: '#3A2A14',
+                  fontSize: '0.6875rem',
+                  fontWeight: 600,
+                  letterSpacing: '0.04em',
+                  userSelect: 'none',
+                }}
+              >
+                {itemType === 'combo' ? 'Combo' : 'Sizes'}
+              </Box>
+            )}
+          </Box>
         )}
 
         {/* Cart indicator - shown when the item is in the cart */}
-        {badgeCount > 0 && (
+        {badgeCount > 0 && !showStepper && (
           <Tooltip title="View in cart" arrow placement="top">
             <Box
               onClick={(e) => {
@@ -203,33 +279,61 @@ export default function FoodCard({
           </Tooltip>
         )}
 
-        {/* Veg / Non-veg mark */}
-        {veg !== undefined && (
+        {/* The add control floats on the photo: a round + , or a − n + pill once added */}
+        {available && (
           <Box
-            sx={{
-              position: 'absolute',
-              bottom: 10,
-              left: 10,
-              width: 18,
-              height: 18,
-              borderRadius: '4px',
-              backgroundColor: '#FFFEFB',
-              border: `1.5px solid ${veg ? '#2E8B4F' : '#C0392B'}`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 2px 6px rgba(20, 10, 0, 0.2)',
-              zIndex: 2,
-            }}
+            onClick={(e) => e.stopPropagation()}
+            sx={{ position: 'absolute', right: 10, bottom: 10, zIndex: 2 }}
           >
-            <Box
-              sx={{
-                width: 8,
-                height: 8,
-                borderRadius: '50%',
-                backgroundColor: veg ? '#2E8B4F' : '#C0392B',
-              }}
-            />
+            {showStepper ? (
+              <Box
+                sx={{
+                  ...glass,
+                  display: 'flex',
+                  alignItems: 'center',
+                  borderRadius: 999,
+                  p: '2px',
+                  animation: `cardPop 420ms ${EASE}`,
+                  '@keyframes cardPop': { from: { transform: 'scale(0.86)', opacity: 0.4 }, to: { transform: 'scale(1)', opacity: 1 } },
+                }}
+              >
+                <Box component="button" type="button" aria-label={quantity <= 1 ? `Remove ${name}` : `Remove one ${name}`} onClick={onDecrement} disabled={isLoading?.decrement} sx={roundBtn}>
+                  {isLoading?.decrement ? <CircularProgress size={16} sx={{ color: '#1F1712' }} /> : quantity <= 1 ? <IconTrash size={17} stroke={1.8} /> : <IconMinus size={18} stroke={2} />}
+                </Box>
+                <Typography
+                  aria-live="polite"
+                  sx={{ minWidth: 22, textAlign: 'center', fontWeight: 700, fontSize: '0.9375rem', fontVariantNumeric: 'tabular-nums' }}
+                >
+                  {quantity}
+                </Typography>
+                <Box component="button" type="button" aria-label={`Add one more ${name}`} onClick={(e) => {
+                  flyToCart(e.currentTarget, imageUrl);
+                  onIncrement?.();
+                }} disabled={isLoading?.increment || atStockLimit} sx={roundBtn}>
+                  {isLoading?.increment ? <CircularProgress size={16} sx={{ color: '#1F1712' }} /> : <IconPlus size={18} stroke={2} />}
+                </Box>
+              </Box>
+            ) : (
+              <Box
+                component="button"
+                type="button"
+                aria-label={`Add ${name}`}
+                onClick={(e) => {
+                  if (!alwaysShowAdd) flyToCart(e.currentTarget, imageUrl);
+                  onAdd?.();
+                }}
+                disabled={isLoading?.add}
+                sx={{
+                  ...roundBtn,
+                  ...glass,
+                  width: 40,
+                  height: 40,
+                  '&:hover:not(:disabled)': { background: '#fff', transform: 'scale(1.08)' },
+                }}
+              >
+                {isLoading?.add ? <CircularProgress size={18} sx={{ color: '#1F1712' }} /> : <IconPlus size={22} stroke={2} />}
+              </Box>
+            )}
           </Box>
         )}
 
@@ -326,49 +430,6 @@ export default function FoodCard({
             {price != null ? `$${price.toFixed(2)}` : 'Price not available'}
           </Typography>
 
-          <Box
-            sx={{
-              display: 'flex',
-              justifyContent: 'flex-end',
-              flex: '1 1 auto',
-              // Add button and stepper restyled for this card only
-              '& .MuiButton-root': {
-                minWidth: isMobile ? 58 : 66,
-                height: 30,
-                borderRadius: 999,
-                backgroundColor: '#1F1712',
-                color: '#F6D58E',
-                fontWeight: 600,
-                fontSize: '0.8125rem',
-                letterSpacing: '0.02em',
-                px: 1.75,
-                transition: 'background-color 0.2s ease, transform 0.15s ease',
-                '&:hover': { backgroundColor: '#3A2A14' },
-                '&:active': { transform: 'scale(0.96)' },
-                '&:disabled': { backgroundColor: '#E6DED1', color: '#9A8F80' },
-              },
-              '& .MuiBox-root': {
-                height: 30,
-                borderRadius: 999,
-                backgroundColor: '#F7F0E3',
-                borderColor: '#E4D6BC',
-              },
-              '& .MuiIconButton-root': { color: '#1F1712' },
-            }}
-            onClick={(e) => e.stopPropagation()} // Prevent card click when interacting with buttons
-          >
-            <QuantitySelector
-              quantity={alwaysShowAdd ? 0 : quantity}
-              alwaysShowAdd={alwaysShowAdd}
-              onAdd={onAdd}
-              onIncrement={onIncrement}
-              onDecrement={onDecrement}
-              isLoading={isLoading}
-              size="small"
-              incrementDisabled={atStockLimit}
-              disabled={!available}
-            />
-          </Box>
         </Box>
       </CardContent>
     </Card>
