@@ -171,7 +171,7 @@ function dayCards(order: Order): string {
         <div style="font-size:17px;font-weight:800;color:${C.text};line-height:24px;">${esc(day.day)}</div>
         <div style="font-size:13px;color:${C.muted};line-height:18px;">Deliver on <strong style="color:${C.text};">${esc(weekday)}</strong>, ${esc(full)}</div>
       </td>
-      <td valign="middle" align="right" width="92">${block({ w: 84, h: 30, bg: C.tile, border: C.brand, radius: 16, inner: `<span style="font-size:12px;font-weight:800;line-height:26px;color:${C.brandText};white-space:nowrap;">${n} item${n === 1 ? '' : 's'}</span>` })}</td>
+      <td valign="middle" align="right" width="92"><div style="display:inline-block;height:26px;padding:0 14px;background:${C.tile};border:2px solid ${C.brand};border-radius:16px;font-size:12px;font-weight:800;line-height:26px;color:${C.brandText};white-space:nowrap;">${n} item${n === 1 ? '' : 's'}</div></td>
     </tr></table>
   </td></tr>
   <tr><td class="dpx" style="padding:0 18px 2px;">

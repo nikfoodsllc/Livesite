@@ -131,7 +131,7 @@ export function getStockAlertEmailTemplate(info: StockAlertInfo): string {
   <tr><td class="px" align="center" bgcolor="${C.card}" style="padding:14px 32px 12px;background:${C.card};">
     <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:0 auto 6px;"><tr><td>
       <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:separate;"><tr>
-        <td width="44" height="44" align="center" valign="middle" bgcolor="${tile}" style="width:44px;height:44px;background:${tile};border:2px solid ${accent};border-radius:26px;"><span style="font-size:${out ? 26 : 24}px;font-weight:800;line-height:44px;color:${accentText};">${out ? '&times;' : '!'}</span></td>
+        <td align="center"><div style="width:44px;height:44px;margin:0 auto;background:${tile};border:2px solid ${accent};border-radius:26px;text-align:center;font-size:${out ? 26 : 24}px;font-weight:800;line-height:44px;color:${accentText};">${out ? '&times;' : '!'}</div></td>
       </tr></table>
     </td></tr></table>
     <div style="font-size:12px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:${accentText};margin-bottom:4px;">${label}</div>
