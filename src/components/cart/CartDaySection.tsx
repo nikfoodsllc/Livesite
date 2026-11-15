@@ -5,7 +5,9 @@ import { IconCalendar } from '@tabler/icons-react';
 import { CartDay } from '@/types/cart';
 import CartItemCard from './CartItemCard';
 import DeliveryMessageBadge from './DeliveryMessageBadge';
-import { calculateDayTotal } from '@/lib/cartLogic';
+import DayMinimumCard from './DayMinimumCard';
+import { calculateDayTotal, DEFAULT_MIN_CART_VALUE } from '@/lib/cartLogic';
+import { useCart } from '@/contexts/CartContext';
 import { PST_TIMEZONE } from '@/lib/timezone';
 
 interface CartDaySectionProps {
@@ -20,28 +22,40 @@ export default function CartDaySection({ cartDay, hasAddress = false, onClose }:
 
   const dayTotal = calculateDayTotal(cartDay.items);
 
+  // the minimum is per delivery day: a day under it gets its own card (also before an address is chosen, with the minimum in use)
+  const { cart, minOrderValue } = useCart();
+  const minValue = minOrderValue && minOrderValue > 0 ? minOrderValue : DEFAULT_MIN_CART_VALUE;
+  const lastDay = cart?.days.reduce((a, d) => (new Date(d.date).getTime() > new Date(a.date).getTime() ? d : a), cart.days[0]);
+  const dayLabel = cartDay.formattedDate || String(cartDay.day);
+  const dayName = dayLabel.split(',')[0];
+  const isLastDay = Boolean(lastDay && lastDay._id === cartDay._id);
+  // an earlier day under the minimum always gets the card; the last day (delivered on its own day) gets it only while the cart cannot be checked out yet
+  const showMinimum = Boolean(cart && lastDay && cartDay.items.length > 0 && dayTotal < minValue && (!isLastDay || !cart.canCheckout));
+
   return (
-    <Box sx={{ mb: 4 }}>
+    <Box sx={{ mb: 3 }}>
       {/* Day Header */}
       <Box
         sx={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          mb: 2,
-          pb: 1.5,
-          borderBottom: `2px solid ${theme.palette.primary.main}`,
+          mb: 1.5,
+          pb: 1,
+          borderBottom: '1px solid rgba(184, 137, 59, 0.4)',
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <IconCalendar size={24} color={theme.palette.primary.main} />
+          <IconCalendar size={22} stroke={1.6} color="#8A6420" />
           <Box>
             <Typography
               variant="h6"
               sx={{
-                fontWeight: 700,
-                fontSize: isMobile ? '1.1rem' : '1.25rem',
-                color: theme.palette.text.primary,
+                fontFamily: 'var(--font-display), Georgia, serif',
+                fontWeight: 600,
+                fontSize: isMobile ? '1.1rem' : '1.2rem',
+                lineHeight: 1.25,
+                color: '#1F1712',
               }}
             >
               {/*
@@ -81,8 +95,9 @@ export default function CartDaySection({ cartDay, hasAddress = false, onClose }:
             variant="h6"
             sx={{
               fontWeight: 700,
-              fontSize: isMobile ? '1.1rem' : '1.25rem',
-              color: theme.palette.primary.main,
+              fontSize: isMobile ? '1.05rem' : '1.15rem',
+              color: '#8A6420',
+              fontVariantNumeric: 'tabular-nums',
             }}
           >
             ${dayTotal.toFixed(2)}
@@ -90,8 +105,22 @@ export default function CartDaySection({ cartDay, hasAddress = false, onClose }:
         </Box>
       </Box>
 
-      {/* Delivery Message - Only show when address is selected */}
-      {hasAddress && cartDay.deliveryMessage && <DeliveryMessageBadge message={cartDay.deliveryMessage} onClose={onClose} />}
+      {/* This day's minimum: how far it is, and what it means for the delivery */}
+      {showMinimum && lastDay && (
+        <DayMinimumCard
+          dayName={dayName}
+          dayTotal={dayTotal}
+          minValue={minValue}
+          deliveryDate={lastDay.formattedDate || String(lastDay.day)}
+          isLastDay={isLastDay}
+          canCheckout={Boolean(cart?.canCheckout)}
+        />
+      )}
+
+      {/* Any other delivery message (the two above are covered by the card) waits for an address */}
+      {hasAddress && cartDay.deliveryMessage && !showMinimum && cartDay.deliveryMessage.type !== 'warning' && cartDay.deliveryMessage.type !== 'error' && (
+        <DeliveryMessageBadge message={cartDay.deliveryMessage} onClose={onClose} />
+      )}
 
       {/* Cart Items */}
       <Box>

@@ -13,7 +13,7 @@ import {
   useMediaQuery,
 } from '@mui/material';
 import Image from 'next/image';
-import { IconTrash, IconPlus, IconMinus, IconLeaf } from '@tabler/icons-react';
+import { IconTrash, IconPlus, IconMinus, IconX } from '@tabler/icons-react';
 import VegIndicator from '@/components/common/VegIndicator';
 import { CartItem } from '@/types/cart';
 import { useCart } from '@/contexts/CartContext';
@@ -51,7 +51,11 @@ export default function CartItemCard({ item }: CartItemCardProps) {
   };
 
   const handleDecrement = async () => {
-    if (item.quantity <= 1) return;
+    // on the last unit the minus removes the item (it shows a trash icon then)
+    if (item.quantity <= 1) {
+      await handleRemove();
+      return;
+    }
 
     try {
       setLoadingAction('decrement');
@@ -88,25 +92,22 @@ export default function CartItemCard({ item }: CartItemCardProps) {
   return (
     <Card
       sx={{
-        mb: 2,
-        borderRadius: 2,
-        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-        border: '1px solid #f0f0f0',
-        transition: 'box-shadow 0.2s',
-        '&:hover': {
-          boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
-        },
+        mb: 1.5,
+        borderRadius: '20px',
+        backgroundColor: '#FFFEFB',
+        boxShadow: '0 1px 2px rgba(60, 35, 10, 0.05), 0 12px 24px -16px rgba(60, 35, 10, 0.22)',
+        border: '1px solid rgba(60, 35, 10, 0.07)',
       }}
     >
-      <CardContent sx={{ p: isMobile ? 2 : 2.5, '&:last-child': { pb: isMobile ? 2 : 2.5 } }}>
-        <Box sx={{ display: 'flex', gap: 2 }}>
+      <CardContent sx={{ p: isMobile ? 1.5 : 2, '&:last-child': { pb: isMobile ? 1.5 : 2 } }}>
+        <Box sx={{ display: 'flex', gap: isMobile ? 1.5 : 2 }}>
           {/* Food Image */}
           <Box
             sx={{
-              width: isMobile ? 80 : 100,
-              height: isMobile ? 80 : 100,
+              width: isMobile ? 76 : 92,
+              height: isMobile ? 76 : 92,
               flexShrink: 0,
-              borderRadius: 2,
+              borderRadius: '14px',
               overflow: 'hidden',
               backgroundColor: '#f5f5f5',
               position: 'relative',
@@ -115,10 +116,12 @@ export default function CartItemCard({ item }: CartItemCardProps) {
             <Image
               src={item.foodItem.url || '/placeholder-food.png'}
               alt={item.foodItem.name}
-              width={isMobile ? 80 : 100}
-              height={isMobile ? 80 : 100}
+              width={isMobile ? 76 : 92}
+              height={isMobile ? 76 : 92}
               style={{
                 objectFit: 'cover',
+                width: '100%',
+                height: '100%',
               }}
             />
             {/* Veg Indicator */}
@@ -129,14 +132,15 @@ export default function CartItemCard({ item }: CartItemCardProps) {
 
           {/* Item Details */}
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            {/* Name and Delete Button */}
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mb: 0.5 }}>
+            {/* Name, and a one-tap remove for the whole line once there is more than one (at 1 the stepper's trash does it) */}
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1, mb: 0.75 }}>
               <Typography
                 variant="subtitle1"
                 sx={{
                   fontWeight: 600,
                   fontSize: isMobile ? '0.95rem' : '1rem',
-                  color: theme.palette.text.primary,
+                  lineHeight: 1.3,
+                  color: '#1F1712',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   display: '-webkit-box',
@@ -146,61 +150,46 @@ export default function CartItemCard({ item }: CartItemCardProps) {
               >
                 {item.foodItem.name}
               </Typography>
-              <IconButton
-                onClick={handleRemove}
-                disabled={loadingAction === 'remove'}
-                size="small"
-                sx={{
-                  color: theme.palette.error.main,
-                  flexShrink: 0,
-                  '&:hover': {
-                    backgroundColor: 'rgba(244, 67, 54, 0.08)',
-                  },
-                }}
-              >
-                {loadingAction === 'remove' ? (
-                  <CircularProgress size={20} color="error" />
-                ) : (
-                  <IconTrash size={20} />
-                )}
-              </IconButton>
+              {item.quantity > 1 && (
+                <IconButton
+                  onClick={handleRemove}
+                  disabled={loadingAction !== null}
+                  aria-label={`Remove all ${item.foodItem.name}`}
+                  size="small"
+                  sx={{
+                    flexShrink: 0,
+                    mt: -0.5,
+                    mr: -0.5,
+                    width: 30,
+                    height: 30,
+                    color: '#8B8378',
+                    transition: 'background-color 300ms ease, color 300ms ease, transform 300ms cubic-bezier(0.32, 0.72, 0, 1)',
+                    '&:hover': { backgroundColor: '#F7F0E3', color: '#A12A14' },
+                    '&:active': { transform: 'scale(0.9)' },
+                  }}
+                >
+                  {loadingAction === 'remove' ? <CircularProgress size={16} sx={{ color: '#8B8378' }} /> : <IconX size={17} stroke={1.8} />}
+                </IconButton>
+              )}
             </Box>
-
-            {/* Description */}
-            {item.foodItem.description && (
-              <Typography
-                variant="body2"
-                sx={{
-                  color: theme.palette.text.secondary,
-                  fontSize: '0.85rem',
-                  mb: 1,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  display: '-webkit-box',
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: 'vertical',
-                }}
-              >
-                {item.foodItem.description}
-              </Typography>
-            )}
 
             {/* Customizations */}
             {(item.selectedPortion ||
               item.selectedSpiceLevel ||
               item.isEcoFriendlyContainer ||
               (item.selectedCustomizations && item.selectedCustomizations.length > 0)) && (
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mb: 1.5 }}>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1 }}>
                 {/* Portion */}
                 {item.selectedPortion && (
                   <Chip
                     label={`${item.selectedPortion}${portionPrice > 0 ? ` (+$${(portionPrice || 0).toFixed(2)})` : ''}`}
                     size="small"
                     sx={{
-                      height: 24,
-                      fontSize: '0.75rem',
-                      backgroundColor: '#F7F0E3',
-                      color: theme.palette.text.primary,
+                      height: 22,
+                      fontSize: '0.7188rem',
+                      fontWeight: 600,
+                      backgroundColor: '#FBF1DA',
+                      color: '#6B4A12',
                       border: '1px solid #EBD9B4',
                     }}
                   />
@@ -209,14 +198,15 @@ export default function CartItemCard({ item }: CartItemCardProps) {
                 {/* Spice Level */}
                 {item.foodItem.hasSpiceLevel && item.selectedSpiceLevel && (
                   <Chip
-                    label={`Spice: ${formatSpiceLevel(item.selectedSpiceLevel)}`}
+                    label={`🌶️ ${formatSpiceLevel(item.selectedSpiceLevel)}`}
                     size="small"
                     sx={{
-                      height: 24,
-                      fontSize: '0.75rem',
-                      backgroundColor: '#FFE4E4',
-                      color: theme.palette.text.primary,
-                      border: '1px solid #FFCCCB',
+                      height: 22,
+                      fontSize: '0.7188rem',
+                      fontWeight: 600,
+                      backgroundColor: '#FDE7E2',
+                      color: '#A12A14',
+                      border: '1px solid #F8CFC6',
                     }}
                   />
                 )}
@@ -224,18 +214,15 @@ export default function CartItemCard({ item }: CartItemCardProps) {
                 {/* Eco-Friendly Container */}
                 {item.isEcoFriendlyContainer && (
                   <Chip
-                    icon={<IconLeaf size={14} />}
-                    label={`Eco-Friendly${ecoCharge > 0 ? ` (+$${(ecoCharge || 0).toFixed(2)})` : ''}`}
+                    label={`♻️ Eco${ecoCharge > 0 ? ` (+$${(ecoCharge || 0).toFixed(2)})` : ''}`}
                     size="small"
                     sx={{
-                      height: 24,
-                      fontSize: '0.75rem',
-                      backgroundColor: '#E8F5E9',
-                      color: '#2e7d32',
+                      height: 22,
+                      fontSize: '0.7188rem',
+                      fontWeight: 600,
+                      backgroundColor: '#E2F4E7',
+                      color: '#126B2C',
                       border: '1px solid #C8E6C9',
-                      '& .MuiChip-icon': {
-                        color: '#2e7d32',
-                      },
                     }}
                   />
                 )}
@@ -247,8 +234,8 @@ export default function CartItemCard({ item }: CartItemCardProps) {
                     label={`${custom.optionName}${custom.price && custom.price > 0 ? ` (+$${custom.price.toFixed(2)})` : ''}`}
                     size="small"
                     sx={{
-                      height: 24,
-                      fontSize: '0.75rem',
+                      height: 22,
+                      fontSize: '0.7188rem',
                       backgroundColor: '#F3F4F6',
                       color: theme.palette.text.primary,
                       border: '1px solid #E5E7EB',
@@ -260,19 +247,8 @@ export default function CartItemCard({ item }: CartItemCardProps) {
 
             {/* Combo Selections */}
             {item.comboSelections && Object.keys(item.comboSelections).length > 0 && item.foodItem.sections && (
-              <Box sx={{ mb: 1.5 }}>
-                <Typography
-                  variant="caption"
-                  sx={{
-                    color: theme.palette.text.secondary,
-                    fontWeight: 600,
-                    display: 'block',
-                    mb: 0.5,
-                  }}
-                >
-                  Combo Selections:
-                </Typography>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+              <Box sx={{ mb: 1 }}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
                   {Object.entries(item.comboSelections).map(([sectionId, itemIds]) => {
                     const section = item.foodItem.sections?.find((s) => s._id === sectionId);
                     if (!section) return null;
@@ -292,12 +268,12 @@ export default function CartItemCard({ item }: CartItemCardProps) {
                           key={`${sectionId}-${itemId}`}
                           variant="caption"
                           sx={{
-                            color: theme.palette.text.primary,
+                            color: '#1F1712',
                             fontSize: '0.75rem',
-                            pl: 1,
+                            lineHeight: 1.4,
                           }}
                         >
-                          • <strong>{section.title}:</strong> {selectedItem.item.name}{portionText}{comboSpiceText(item.comboSelections, section, selectedItem)}{itemPrice}
+                          <Box component="span" sx={{ color: '#8B8378' }}>{section.title}: </Box><strong>{selectedItem.item.name}{portionText}</strong>{comboSpiceText(item.comboSelections, section, selectedItem)}{itemPrice}
                         </Typography>
                       );
                     });
@@ -347,15 +323,16 @@ export default function CartItemCard({ item }: CartItemCardProps) {
                   alignItems: 'center',
                   gap: 0.5,
                   backgroundColor: '#F7F0E3',
-                  border: '1px solid #E0CAB6',
-                  borderRadius: 1,
+                  border: '1px solid #E4D6BC',
+                  borderRadius: 999,
                   px: 0.5,
-                  height: 36,
+                  height: 38,
                 }}
               >
                 <IconButton
                   onClick={handleDecrement}
-                  disabled={loadingAction !== null || item.quantity <= 1}
+                  disabled={loadingAction !== null}
+                  aria-label={item.quantity <= 1 ? `Remove ${item.foodItem.name}` : 'Remove one'}
                   size="small"
                   sx={{
                     color: theme.palette.primary.main,
@@ -368,8 +345,10 @@ export default function CartItemCard({ item }: CartItemCardProps) {
                     },
                   }}
                 >
-                  {loadingAction === 'decrement' ? (
+                  {loadingAction === 'decrement' || loadingAction === 'remove' ? (
                     <CircularProgress size={18} sx={{ color: theme.palette.primary.main }} />
+                  ) : item.quantity <= 1 ? (
+                    <IconTrash size={18} />
                   ) : (
                     <IconMinus size={18} />
                   )}
@@ -390,6 +369,7 @@ export default function CartItemCard({ item }: CartItemCardProps) {
                 <IconButton
                   onClick={handleIncrement}
                   disabled={loadingAction !== null || stockLeftFor(item.foodItem as unknown as FoodItem, item.selectedPortion) === 0}
+                  aria-label="Add one more"
                   size="small"
                   sx={{
                     color: theme.palette.primary.main,

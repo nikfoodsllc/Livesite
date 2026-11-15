@@ -22,10 +22,12 @@ import { useCart } from '@/contexts/CartContext';
 import { useHeader } from '@/contexts/HeaderContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { DayOption } from '@/lib/dayAvailabilityClient';
-import { useNotifications, showSuccessNotification, showErrorNotification } from '@/components/common/NotificationSystem';
+import { useNotifications, showErrorNotification } from '@/components/common/NotificationSystem';
 import { PST_TIMEZONE, getPSTWeekday, createPSTDate } from '@/lib/timezone';
 import MenuSubscriptionSection from '@/components/home/MenuSubscriptionSection';
 import AppStoreSection from '@/components/home/AppStoreSection';
+import StickyCartBar from '@/components/home/StickyCartBar';
+import DayChips, { dayAnchorId, DAY_SCROLL_MARGIN } from '@/components/home/DayChips';
 import CategoryRail from '@/components/home/CategoryRail';
 import StickyCategoryNav, { HEADER_H, STRIP_H, SIDE_MIN } from '@/components/home/StickyCategoryNav';
 import BrandLoader from '@/components/common/BrandLoader';
@@ -115,6 +117,15 @@ const subCategoryHeadingBoxSx = {
     flex: 1,
     height: '1px',
     background: 'linear-gradient(90deg, rgba(184, 137, 59, 0.45), rgba(184, 137, 59, 0))',
+    transformOrigin: 'left center',
+  },
+  // where the browser can tie animations to scrolling (no script needed), the gold line draws itself out as the heading
+  // scrolls into view; elsewhere the line is simply there
+  '@supports (animation-timeline: view())': {
+    '@media (prefers-reduced-motion: no-preference)': {
+      '&::after': { animation: 'headingLine linear both', animationTimeline: 'view()', animationRange: 'entry 0% entry 70%' },
+      '@keyframes headingLine': { from: { transform: 'scaleX(0)', opacity: 0.2 }, to: { transform: 'scaleX(1)', opacity: 1 } },
+    },
   },
 } as const;
 
@@ -930,11 +941,6 @@ export default function HomeClient({ initialMenu = null }: { initialMenu?: HomeM
         );
 
         // Show success message with formatted date
-        showSuccessNotification(
-          showNotification,
-          `${foodItem.name} has been added to your cart for ${displayName}`,
-          'Added to Cart'
-        );
 
         // Refresh cart context
         refreshCart();
@@ -997,11 +1003,6 @@ export default function HomeClient({ initialMenu = null }: { initialMenu?: HomeM
           } else {
             localCart.addItem(dayType, dateString, foodItem, 1, ecoPreselected(foodItem, ecoPreselect));
           }
-          showSuccessNotification(
-            showNotification,
-            `${foodItem.name} quantity increased to ${existingQuantity + 1} for ${displayName}`,
-            'Cart Updated'
-          );
         } else {
           // Item doesn't exist in designated date, add it there
           localCart.addItem(
@@ -1010,11 +1011,6 @@ export default function HomeClient({ initialMenu = null }: { initialMenu?: HomeM
             foodItem,
             1, // Default quantity of 1
             ecoPreselected(foodItem, ecoPreselect) // quick add: only the eco container when that switch is on
-          );
-          showSuccessNotification(
-            showNotification,
-            `${foodItem.name} has been added to your cart for ${displayName}`,
-            'Added to Cart'
           );
         }
 
@@ -1145,6 +1141,11 @@ export default function HomeClient({ initialMenu = null }: { initialMenu?: HomeM
     },
     gap: { xs: 2, md: 3.5 },
     justifyItems: 'center',
+    // cards in one row rise one after the other (each card reads its own --d)
+    '& > *:nth-of-type(5n+2)': { '--d': '70ms' },
+    '& > *:nth-of-type(5n+3)': { '--d': '140ms' },
+    '& > *:nth-of-type(5n+4)': { '--d': '210ms' },
+    '& > *:nth-of-type(5n+5)': { '--d': '280ms' },
   } as const;
 
   // choosing a category from the sticky strip / side list: show it, then bring the top of the menu up to the sticky bar (the wrapper starts one strip-height above the first heading, so the strip pins right above it)
@@ -1328,6 +1329,7 @@ export default function HomeClient({ initialMenu = null }: { initialMenu?: HomeM
 
    return (
   <Box>
+    <DayChips dates={dates} anchorKey={category._id} />
     {dates.map((date) => {
       const parentDg = category.dayGroups.find((g) => g.date === date);
 
@@ -1337,7 +1339,7 @@ export default function HomeClient({ initialMenu = null }: { initialMenu?: HomeM
         date;
 
       return (
-        <Box key={date} sx={{ mb: 6 }}>
+        <Box key={date} id={dayAnchorId(category._id, date)} sx={{ mb: 6, scrollMarginTop: DAY_SCROLL_MARGIN }}>
 
           {/* DATE HEADING: sticks just below the fixed site header (64px mobile / 72px desktop) and the thin category strip
               under it (the strip is not there on screens that show the side list instead) while this day's items scroll,
@@ -1824,6 +1826,9 @@ export default function HomeClient({ initialMenu = null }: { initialMenu?: HomeM
         </Container>
         </Box>
       </Box>
+
+      {/* Items, subtotal and one tap to the cart, pinned to the bottom once something is in it */}
+      <StickyCartBar />
 
       {/* Footer */}
       <Footer />
