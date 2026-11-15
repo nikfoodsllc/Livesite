@@ -8,12 +8,13 @@ import {
   MenuItem,
   FormControl,
   CircularProgress,
-  TextField,
-  Button,
+  InputBase,
   useTheme,
   useMediaQuery,
 } from '@mui/material';
-import { IconMapPin } from '@tabler/icons-react';
+import { IconMapPin, IconArrowRight } from '@tabler/icons-react';
+
+const EASE = 'cubic-bezier(0.32, 0.72, 0, 1)';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
 import { IAddress } from '@/types/auth';
@@ -48,6 +49,28 @@ export default function DeliveryLocationBar({
   const [isValidatingZipcode, setIsValidatingZipcode] = useState(false);
   const [zipcodeError, setZipcodeError] = useState('');
   const hasAutoSelectedRef = useRef(false);
+
+  // the card rises in the first time it scrolls into view (transform + opacity only)
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [revealed, setRevealed] = useState(false);
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      setRevealed(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setRevealed(true);
+          io.disconnect();
+        }
+      },
+      { threshold: 0.2 }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
 
   const fetchAddresses = useCallback(async () => {
     if (!user) return;
@@ -155,6 +178,15 @@ export default function DeliveryLocationBar({
       if (data.success && data.data) {
         await updateZipcode(trimmedZipcode);
         // Zipcode and cart will be automatically updated by CartContext
+        // then draw the customer down to the menu (after the page has settled with the new zip)
+        window.setTimeout(() => {
+          const target = document.getElementById('menu-sections') ?? document.getElementById('menu-search');
+          if (!target) return;
+          const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+          const header = (document.querySelector('header') as HTMLElement | null)?.offsetHeight ?? 0;
+          const top = target.getBoundingClientRect().top + window.scrollY - header - 8;
+          window.scrollTo({ top: Math.max(0, top), behavior: reduce ? 'auto' : 'smooth' });
+        }, 350);
       } else {
         // Handle zipcode rejection from API
         const errorMessage = data.message || data.error || 'This zipcode is not serviceable';
@@ -186,59 +218,102 @@ export default function DeliveryLocationBar({
     : 'To get best delivery experience, provide your zip code';
 
   const fieldBorder = {
-    '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(184, 137, 59, 0.45)' },
+    '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(184, 137, 59, 0.4)', transition: `border-color 400ms ${EASE}` },
     '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#B8893B' },
-    '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#B8893B' },
+    '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#B8893B', borderWidth: 1 },
   };
 
+  // One pill: the zip box and its Set button live together; the button is a dark island flush with the pill's end
   const zipcodeControl = (
-    <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', width: '100%', maxWidth: { md: 360 } }}>
-      <TextField
-        id="delivery-zipcode"
-        size="small"
-        placeholder="Enter zipcode"
-        value={zipcodeInput}
-        onChange={(e) => {
-          setZipcodeInput(e.target.value);
-          setZipcodeError('');
-        }}
-        onKeyPress={handleKeyPress}
-        error={!!zipcodeError}
-        helperText={zipcodeError}
-        disabled={isValidatingZipcode}
-        sx={{ flex: 1, minWidth: 0, bgcolor: '#fff', borderRadius: 2, ...fieldBorder }}
-        slotProps={{ htmlInput: { inputMode: 'numeric', 'aria-label': 'Delivery zipcode' } }}
-      />
-      <Button
-        variant="contained"
-        onClick={handleZipcodeSubmit}
-        disabled={isValidatingZipcode || !zipcodeInput.trim()}
+    <Box sx={{ width: '100%', maxWidth: { md: 380 } }}>
+      <Box
         sx={{
-          bgcolor: '#1F1712',
-          minWidth: 72,
-          height: 40,
-          borderRadius: 2,
-          boxShadow: 'none',
-          textTransform: 'none',
-          fontWeight: 600,
-          '&:hover': { bgcolor: '#3A2A14', boxShadow: 'none' },
-          '&:disabled': { bgcolor: '#E6E6E6', color: '#9A9A9A' },
+          display: 'flex',
+          alignItems: 'center',
+          height: 52,
+          pl: 2.25,
+          pr: '5px',
+          borderRadius: 999,
+          bgcolor: '#fff',
+          border: `1px solid ${zipcodeError ? '#C0392B' : 'rgba(184, 137, 59, 0.4)'}`,
+          boxShadow: 'inset 0 1px 2px rgba(60, 35, 10, 0.05)',
+          transition: `border-color 400ms ${EASE}, box-shadow 400ms ${EASE}`,
+          '&:focus-within': { borderColor: zipcodeError ? '#C0392B' : '#B8893B', boxShadow: '0 0 0 4px rgba(184, 137, 59, 0.16)' },
         }}
       >
-        {isValidatingZipcode ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : 'Set'}
-      </Button>
+        <InputBase
+          id="delivery-zipcode"
+          fullWidth
+          placeholder="Enter zipcode"
+          value={zipcodeInput}
+          onChange={(e) => {
+            setZipcodeInput(e.target.value);
+            setZipcodeError('');
+          }}
+          onKeyDown={handleKeyPress}
+          disabled={isValidatingZipcode}
+          error={!!zipcodeError}
+          inputProps={{ inputMode: 'numeric', 'aria-label': 'Delivery zipcode', 'aria-invalid': !!zipcodeError, style: { fontSize: '1rem' } }}
+          sx={{ color: '#1F1712', '& input::placeholder': { color: '#8C7E6C', opacity: 1 } }}
+        />
+        <Box
+          component="button"
+          type="button"
+          onClick={handleZipcodeSubmit}
+          disabled={isValidatingZipcode || !zipcodeInput.trim()}
+          sx={{
+            flexShrink: 0,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 0.75,
+            height: 42,
+            px: 2.5,
+            border: 0,
+            borderRadius: 999,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            fontSize: 14.5,
+            fontWeight: 600,
+            color: '#FBF1DA',
+            background: 'linear-gradient(135deg, #2B1F14 0%, #14100C 100%)',
+            boxShadow: 'inset 0 1px 0 rgba(255,236,196,0.16)',
+            transition: `transform 400ms ${EASE}, opacity 300ms ${EASE}, background 300ms ${EASE}`,
+            '&:hover:not(:disabled)': { '& .setArrow': { transform: 'translateX(3px)' } },
+            '&:active:not(:disabled)': { transform: 'scale(0.97)' },
+            '&:disabled': { cursor: 'default', background: '#ECE6DA', color: '#A39682', boxShadow: 'none' },
+            ...(!isValidatingZipcode && /^\d{5}(-\d{4})?$/.test(zipcodeInput.trim()) ? { animation: 'setReady 1.8s ease-out infinite' } : {}),
+            '&:focus-visible': { outline: '2px solid #C9A24B', outlineOffset: 2 },
+          }}
+        >
+          {isValidatingZipcode ? (
+            <CircularProgress size={16} sx={{ color: '#FBF1DA' }} />
+          ) : (
+            <>
+              Set
+              <Box className="setArrow" component="span" sx={{ display: 'inline-flex', transition: `transform 400ms ${EASE}` }}>
+                <IconArrowRight size={16} stroke={1.75} />
+              </Box>
+            </>
+          )}
+        </Box>
+      </Box>
+      {zipcodeError && (
+        <Typography role="alert" sx={{ mt: 0.75, ml: 2, fontSize: '0.78rem', color: '#C0392B' }}>
+          {zipcodeError}
+        </Typography>
+      )}
     </Box>
   );
 
   const addressControl = (
-    <FormControl size="small" fullWidth sx={{ maxWidth: { md: 560 } }}>
+    <FormControl fullWidth sx={{ maxWidth: { md: 560 } }}>
       <Select
         value={selectedAddressId || ''}
         onChange={(e) => handleAddressSelect(e.target.value as string)}
         displayEmpty
         inputProps={{ 'aria-label': 'Delivery address' }}
-        sx={{ bgcolor: '#fff', borderRadius: 2, ...fieldBorder }}
-        MenuProps={{ slotProps: { paper: { sx: { borderRadius: 2, mt: 0.5 } } } }}
+        sx={{ bgcolor: '#fff', borderRadius: 999, height: 52, pl: 0.75, boxShadow: 'inset 0 1px 2px rgba(60, 35, 10, 0.05)', ...fieldBorder }}
+        MenuProps={{ slotProps: { paper: { sx: { borderRadius: 3, mt: 0.75, border: '1px solid rgba(184,137,59,0.3)', boxShadow: '0 18px 36px -16px rgba(60,35,10,0.35)' } } } }}
       >
         <MenuItem value="" disabled>
           Select delivery address
@@ -263,14 +338,31 @@ export default function DeliveryLocationBar({
   );
 
   return (
-    <Box className={className} sx={{ width: '100%' }}>
+    <Box
+      ref={cardRef}
+      className={className}
+      sx={{
+        width: '100%',
+        opacity: revealed ? 1 : 0,
+        transform: revealed ? 'none' : 'translateY(22px)',
+        transition: `opacity 900ms ${EASE}, transform 900ms ${EASE}`,
+        '@keyframes locPing': { '0%': { opacity: 0.55, transform: 'scale(1)' }, '80%,100%': { opacity: 0, transform: 'scale(1.9)' } },
+        '@keyframes locBob': { '0%,100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(-2.5px)' } },
+        '@keyframes setReady': { '0%,100%': { boxShadow: 'inset 0 1px 0 rgba(255,236,196,0.16), 0 0 0 0 rgba(226,188,106,0.55)' }, '60%': { boxShadow: 'inset 0 1px 0 rgba(255,236,196,0.16), 0 0 0 9px rgba(226,188,106,0)' } },
+        '@media (prefers-reduced-motion: reduce)': { opacity: 1, transform: 'none', transition: 'none', '& *, & *::before': { animation: 'none !important' } },
+        // outer shell: a tinted tray with a hairline gold edge; the card below sits inside it
+        p: '5px',
+        borderRadius: { xs: '30px', md: '34px' },
+        background: 'linear-gradient(145deg, rgba(226,188,106,0.35) 0%, rgba(184,137,59,0.12) 50%, rgba(226,188,106,0.3) 100%)',
+        boxShadow: '0 22px 40px -22px rgba(60, 35, 10, 0.4)',
+      }}
+    >
       <Box
         sx={{
           bgcolor: '#FFFEFB',
-          border: '1px solid rgba(184, 137, 59, 0.35)',
-          boxShadow: '0 1px 2px rgba(60, 35, 10, 0.05), 0 14px 28px -16px rgba(60, 35, 10, 0.2)',
-          borderRadius: 3,
-          p: { xs: 1.5, sm: 2 },
+          boxShadow: 'inset 0 1px 0 #fff, 0 1px 2px rgba(60, 35, 10, 0.06)',
+          borderRadius: { xs: '25px', md: '29px' },
+          p: { xs: 1.75, sm: 2.25 },
           display: 'grid',
           gridTemplateColumns: { xs: '1fr', sm: '1fr auto', md: 'auto minmax(0, 1fr) auto' },
           gridTemplateAreas: {
@@ -288,10 +380,22 @@ export default function DeliveryLocationBar({
           <Box
             aria-hidden
             sx={{
-              width: 40,
-              height: 40,
+              width: 44,
+              height: 44,
               borderRadius: '50%',
-              bgcolor: '#1F1712',
+              background: 'linear-gradient(135deg, #2B1F14 0%, #14100C 100%)',
+              boxShadow: '0 0 0 3px rgba(226,188,106,0.35), inset 0 1px 0 rgba(255,236,196,0.2)',
+              position: 'relative',
+              '&::before': {
+                content: '""',
+                position: 'absolute',
+                inset: 0,
+                borderRadius: '50%',
+                border: '1.5px solid rgba(201,162,75,0.7)',
+                animation: 'locPing 2.8s cubic-bezier(0.2, 0.6, 0.3, 1) 1s infinite',
+                pointerEvents: 'none',
+              },
+              '& svg': { animation: 'locBob 3.2s ease-in-out infinite' },
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -301,7 +405,7 @@ export default function DeliveryLocationBar({
             <IconMapPin size={22} color="#F6D58E" />
           </Box>
           <Box sx={{ minWidth: 0 }}>
-            <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1F1F1F', lineHeight: 1.3 }}>
+            <Typography sx={{ fontFamily: 'var(--font-display), Georgia, serif', fontWeight: 600, fontSize: '1.15rem', letterSpacing: '0.005em', color: '#1F1712', lineHeight: 1.25 }}>
               {title}
             </Typography>
             <Typography
@@ -338,11 +442,11 @@ export default function DeliveryLocationBar({
             sx={{
               gridArea: 'pill',
               justifySelf: { xs: 'start', sm: 'end' },
-              bgcolor: '#fff',
-              border: '1px solid rgba(184, 137, 59, 0.35)',
+              bgcolor: 'rgba(246,227,180,0.35)',
+              border: '1px solid rgba(184, 137, 59, 0.3)',
               borderRadius: 999,
               px: 1.75,
-              py: 0.5,
+              py: 0.6,
             }}
           >
             <Typography
