@@ -66,10 +66,12 @@ export default function CartDaySection({ cartDay, hasAddress = false, onClose }:
       const riders = days.filter((d) => d.date !== cartDay.date && plan.get(d.date) === cartDay.date).map((d) => `${nameOf(d.date)}'s`);
       if (riders.length) includesText = `Also delivered here: ${riders.length === 1 ? riders[0] : `${riders.slice(0, -1).join(', ')} and ${riders[riders.length - 1]}`} items.`;
     }
-    return { deliveredOn: actual ? labelOf(actual) : undefined, fixText, reasonText, includesText };
+    return { deliveredOn: actual ? labelOf(actual) : undefined, fixText, reasonText, includesText, moved };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cart, minValue, cartDay]);
-  const showBar = Boolean(note && dayTotal < minValue);
+  // a card for every day that is under the minimum OR delivered on a different day (a day that meets the minimum but travels with
+  // a later one gets the same box, so the customer sees it)
+  const showBar = Boolean(note && (dayTotal < minValue || note.moved));
 
   return (
     <Box sx={{ mb: 3 }}>
