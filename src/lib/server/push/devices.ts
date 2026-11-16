@@ -1,5 +1,6 @@
 import { db } from '@/lib/server/db';
 import { removeToken } from './store';
+import { recordAppOpen } from './activity';
 
 /**
  * What the app tells us about each install: whether the phone allows notifications, so the admin can see customers who said No
@@ -60,6 +61,7 @@ export async function reportDevice(
     } as never,
     { upsert: true }
   );
+  await recordAppOpen(userId, input.installId, input.appVersion);
   if (input.permission !== 'granted' && input.token) await removeToken(input.token, userId);
 }
 
