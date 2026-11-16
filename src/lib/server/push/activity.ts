@@ -38,9 +38,10 @@ async function activity() {
 }
 
 /** The business runs on Pacific time: a "day" is a Pacific calendar day (YYYY-MM-DD). */
+// one formatter for every call: building a new one each time is very slow when thousands of orders are bucketed
+const DAY_FORMAT = new Intl.DateTimeFormat('en-CA', { timeZone: ZONE, year: 'numeric', month: '2-digit', day: '2-digit' });
 export function pacificDay(date: Date | string): string {
-  const d = date instanceof Date ? date : new Date(date);
-  return new Intl.DateTimeFormat('en-CA', { timeZone: ZONE, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+  return DAY_FORMAT.format(date instanceof Date ? date : new Date(date));
 }
 
 export function addDays(day: string, n: number): string {
@@ -136,7 +137,12 @@ export function buildAppActivity(input: {
   const activeSince = (from: string) => new Set(input.devices.filter((d) => dayOf(d.lastSeenAt) >= from).map((d) => d.userId)).size;
   const active = { today: activeSince(today), last7: activeSince(addDays(today, -6)), last30: activeSince(addDays(today, -29)) };
 
-  const newInstalls = days.map((day) => ({ day, installs: input.devices.filter((d) => dayOf(d.firstSeenAt) === day).length }));
+  const firstByDay = new Map<string, number>();
+  for (const d of input.devices) {
+    const day = dayOf(d.firstSeenAt);
+    firstByDay.set(day, (firstByDay.get(day) ?? 0) + 1);
+  }
+  const newInstalls = days.map((day) => ({ day, installs: firstByDay.get(day) ?? 0 }));
 
   const perDay = new Map<string, Set<string>>();
   for (const r of input.rows) {
@@ -160,10 +166,22 @@ export function buildAppActivity(input: {
     returning7 = [...daysByUser.values()].filter((s) => s.size >= 2).length;
   }
 
+  // each order's day is worked out once (not once per day shown)
+  const byDay = new Map<string, { app: number; all: number; appUsers: Set<string> }>();
+  for (const o of input.orders) {
+    const day = dayOf(o.createdAt);
+    if (!inWindow.has(day)) continue;
+    const b = byDay.get(day) ?? { app: 0, all: 0, appUsers: new Set<string>() };
+    b.all += 1;
+    if (o.channel === 'mobile') {
+      b.app += 1;
+      b.appUsers.add(o.user ?? '');
+    }
+    byDay.set(day, b);
+  }
   const orders = days.map((day) => {
-    const ofDay = input.orders.filter((o) => inWindow.has(dayOf(o.createdAt)) && dayOf(o.createdAt) === day);
-    const app = ofDay.filter((o) => o.channel === 'mobile');
-    return { day, app: app.length, all: ofDay.length, appCustomers: new Set(app.map((o) => o.user ?? '')).size };
+    const b = byDay.get(day);
+    return { day, app: b?.app ?? 0, all: b?.all ?? 0, appCustomers: b?.appUsers.size ?? 0 };
   });
 
   const recent = input.devices.filter((d) => dayOf(d.lastSeenAt) >= addDays(today, -29));
