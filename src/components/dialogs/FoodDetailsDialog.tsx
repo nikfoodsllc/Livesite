@@ -14,6 +14,10 @@ import {
   useMediaQuery,
   useTheme,
 } from '@mui/material';
+import { forwardRef } from 'react';
+import type { ReactElement, Ref } from 'react';
+import Slide from '@mui/material/Slide';
+import type { TransitionProps } from '@mui/material/transitions';
 import Image from 'next/image';
 import { FoodItem } from '@/types/food';
 import { DayType, SpiceLevel } from '@/types/cart';
@@ -32,7 +36,7 @@ import ComboSectionComponent from './ComboSectionComponent';
 import ItemImageGallery from './ItemImageGallery';
 import { comboNeedsOverallSpice, getSectionSpice, optionsMissingSpice, pickedSpiceOptions, pruneComboSpice, sectionsMissingSpice, withOptionSpice, withSectionSpice } from '@/lib/comboSpice';
 import { trackViewItem } from '@/lib/analytics';
-import { useNotifications, showSuccessNotification, showErrorNotification } from '@/components/common/NotificationSystem';
+import { useNotifications, showErrorNotification } from '@/components/common/NotificationSystem';
 
 // Define types for the category display structure (matching main page)
 interface CategoryDisplay {
@@ -77,6 +81,11 @@ interface FoodDetailsDialogProps {
   dayGroup?: any; // Add dayGroup to receive the correct day context from the parent
   availableDates?: DayOption[];
 }
+
+/** the sheet rises from the bottom on phones */
+const SheetSlide = forwardRef(function SheetSlide(props: TransitionProps & { children: ReactElement }, ref: Ref<unknown>) {
+  return <Slide direction="up" ref={ref} easing={{ enter: 'cubic-bezier(0.32, 0.72, 0, 1)', exit: 'cubic-bezier(0.32, 0.72, 0, 1)' }} {...props} />;
+});
 
 export default function FoodDetailsDialog({
   open,
@@ -288,20 +297,10 @@ export default function FoodDetailsDialog({
         refreshCart?.();
 
         const action = newQuantity > currentQuantity ? 'increased' : 'decreased';
-        showSuccessNotification(
-          showNotification,
-          `${foodItem.name} quantity ${action} to ${newQuantity} for ${dayName}`,
-          'Cart Updated'
-        );
       } else if (newQuantity === 0 && existingLine) {
         localCart.removeItem(dayName, existingLine.lineId);
         refreshCart?.();
 
-        showSuccessNotification(
-          showNotification,
-          `${foodItem.name} has been removed from your cart`,
-          'Item Removed'
-        );
       } else if (!existingLine && newQuantity > 0) {
         // Item doesn't exist in cart for this day, but user wants to add it
         // This can happen when user clicks "+" on an item that exists for another day
@@ -318,11 +317,6 @@ export default function FoodDetailsDialog({
         localCart.addItem(dayName, dayGroup.date, foodItem, newQuantity, customizations);
         refreshCart?.();
 
-        showSuccessNotification(
-          showNotification,
-          `${foodItem.name} has been added to your cart for ${dayName}`,
-          'Added to Cart'
-        );
       }
       // If newQuantity === 0 and item doesn't exist, do nothing (already at 0)
     } else {
@@ -348,22 +342,12 @@ export default function FoodDetailsDialog({
         }
 
         const action = newQuantity > currentQuantity ? 'increased' : 'decreased';
-        showSuccessNotification(
-          showNotification,
-          `${foodItem.name} quantity ${action} to ${newQuantity} for ${firstDay.day}`,
-          'Cart Updated'
-        );
       } else if (newQuantity === 0 && existingDays.length > 0) {
         existingDays.forEach(({ day }) => {
           localCart.removeAllLinesForFood(day, foodItem._id);
         });
         refreshCart?.();
 
-        showSuccessNotification(
-          showNotification,
-          `${foodItem.name} has been removed from your cart`,
-          'Item Removed'
-        );
       }
     }
   };
@@ -415,11 +399,6 @@ export default function FoodDetailsDialog({
       );
 
       // Show success message with formatted date
-      showSuccessNotification(
-        showNotification,
-        `${foodItem.name} has been added to your cart for ${dayOption.formattedDate}`,
-        'Added to Cart'
-      );
 
       // Close dialog
       onClose();
@@ -576,13 +555,17 @@ export default function FoodDetailsDialog({
       open={open}
       onClose={handleClose}
       maxWidth={false}
-      fullScreen={isMobile}
+      // phones: a rounded sheet that slides up from the bottom and leaves a strip of the menu showing above it
+      TransitionComponent={isMobile ? SheetSlide : undefined}
+      sx={{ '& .MuiDialog-container': { alignItems: { xs: 'flex-end', sm: 'center' } } }}
       PaperProps={{
         sx: {
           width: isMobile ? '100%' : '700px',
           maxWidth: '100vw',
-          maxHeight: '85vh',
-          borderRadius: isMobile ? 0 : '24px',
+          height: isMobile ? '92dvh' : undefined,
+          maxHeight: isMobile ? '92dvh' : '85vh',
+          borderRadius: isMobile ? '28px 28px 0 0' : '24px',
+          overflow: 'hidden',
           m: 0,
           backgroundColor: '#FFFEFB',
           boxShadow: '0 40px 80px -24px rgba(31, 23, 18, 0.45)',
@@ -598,6 +581,11 @@ export default function FoodDetailsDialog({
           overflow: 'hidden',
         }}
       >
+        {/* grab handle: tells phone users this is a sheet they can dismiss */}
+        {isMobile && (
+          <Box aria-hidden sx={{ position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', width: 40, height: 4, borderRadius: 2, background: 'rgba(255,252,245,0.85)', boxShadow: '0 1px 4px rgba(20,10,0,0.35)', zIndex: 11 }} />
+        )}
+
         {/* Close Button */}
         <IconButton
           onClick={handleClose}
@@ -677,13 +665,14 @@ export default function FoodDetailsDialog({
 
           {/* Spice Level Selector */}
           {comboNeedsOverallSpice(foodItem) && (
-            <Box sx={foodItem.hasCombo ? { mb: 2.5 } : undefined}>
+            <Box sx={{ mb: 2.5 }}>
               <SpiceLevelSelector
                 spiceLevels={foodItem.spiceLevel}
                 selectedSpiceLevel={selectedSpiceLevel}
                 onSpiceLevelChange={setSelectedSpiceLevel}
-                variant={foodItem.hasCombo ? 'chips' : 'list'}
-                label={foodItem.hasCombo ? 'Spice' : undefined}
+                variant="chips"
+                prominentLabel
+                label="Spice"
               />
             </Box>
           )}

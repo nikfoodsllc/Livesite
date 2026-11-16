@@ -240,6 +240,10 @@ export default function DeliveryLocationBar({
           transition: `border-color 400ms ${EASE}, box-shadow 400ms ${EASE}`,
           '&:focus-within': { borderColor: zipcodeError ? '#C0392B' : '#B8893B', boxShadow: '0 0 0 4px rgba(184, 137, 59, 0.16)' },
         }}
+        onClick={(e) => {
+          // a tap anywhere in the pill (not on the Set button) puts the cursor in the zip box
+          if (!(e.target as HTMLElement).closest('button')) document.getElementById('delivery-zipcode')?.focus();
+        }}
       >
         <InputBase
           id="delivery-zipcode"
@@ -254,7 +258,7 @@ export default function DeliveryLocationBar({
           disabled={isValidatingZipcode}
           error={!!zipcodeError}
           inputProps={{ inputMode: 'numeric', 'aria-label': 'Delivery zipcode', 'aria-invalid': !!zipcodeError, style: { fontSize: '1rem' } }}
-          sx={{ color: '#1F1712', '& input::placeholder': { color: '#8C7E6C', opacity: 1 } }}
+          sx={{ alignSelf: 'stretch', color: '#1F1712', '& .MuiInputBase-input': { height: '100%', py: 0 }, '& input::placeholder': { color: '#8C7E6C', opacity: 1 } }}
         />
         <Box
           component="button"
