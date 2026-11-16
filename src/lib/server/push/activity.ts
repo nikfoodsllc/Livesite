@@ -1,3 +1,4 @@
+import { ObjectId } from 'mongodb';
 import { db } from '@/lib/server/db';
 import { allDevices } from './devices';
 
@@ -116,6 +117,34 @@ export interface AppActivity {
   orders: Array<{ day: string; app: number; all: number; appCustomers: number }>;
   /** the app versions on phones opened in the last 30 days */
   versions: Array<{ version: string; customers: number }>;
+  /** who is behind each number (customer ids; the details of each are in `people`) */
+  lists: {
+    have: string[];
+    today: string[];
+    last7: string[];
+    last30: string[];
+    returning7: string[];
+    /** openers per day, only for days with a record */
+    byDay: Record<string, string[]>;
+    /** customers whose phone signed in for the first time that day */
+    newByDay: Record<string, string[]>;
+  };
+  people: Record<string, ActivityPerson>;
+}
+
+export interface ActivityPerson {
+  name: string;
+  email: string;
+  phone: string;
+  /** the last time any of their phones opened the app */
+  lastSeenAt: string | null;
+  /** how many days (of the days shown) they opened the app, from the daily records */
+  daysOpened: number;
+}
+export interface ActivityUser {
+  name?: string;
+  email?: string;
+  phone?: string;
 }
 
 export function buildAppActivity(input: {
@@ -125,6 +154,7 @@ export function buildAppActivity(input: {
   rows: ActivityRow[];
   recordingSince: string | null;
   orders: ActivityOrder[];
+  users?: Map<string, ActivityUser>;
 }): AppActivity {
   const today = pacificDay(input.now);
   const n = Math.max(1, Math.floor(input.days));
@@ -193,6 +223,49 @@ export function buildAppActivity(input: {
   }
   const versions = [...byVersion.entries()].map(([version, set]) => ({ version, customers: set.size })).sort((a, b) => b.customers - a.customers || b.version.localeCompare(a.version, undefined, { numeric: true }));
 
+  // who is behind each number
+  const idsWhere = (test: (d: ActivityDevice) => boolean) => [...new Set(input.devices.filter(test).map((d) => d.userId))];
+  const lastSeenOf = new Map<string, string>();
+  for (const d of input.devices) {
+    const t = new Date(d.lastSeenAt).toISOString();
+    if (!lastSeenOf.has(d.userId) || t > lastSeenOf.get(d.userId)!) lastSeenOf.set(d.userId, t);
+  }
+  const byDayLists: Record<string, string[]> = {};
+  const daysOpenedBy = new Map<string, number>();
+  for (const day of days) {
+    if (!since || day < since) continue;
+    byDayLists[day] = [...(perDay.get(day) ?? [])];
+    for (const u of byDayLists[day]) daysOpenedBy.set(u, (daysOpenedBy.get(u) ?? 0) + 1);
+  }
+  const newByDay: Record<string, string[]> = {};
+  for (const day of days) newByDay[day] = idsWhere((d) => dayOf(d.firstSeenAt) === day);
+  const returningIds: string[] = [];
+  if (returning7 !== null) {
+    const last7set = new Set(Array.from({ length: 7 }, (_, i) => addDays(today, -i)));
+    const seen = new Map<string, Set<string>>();
+    for (const r of input.rows) {
+      if (!last7set.has(r.day)) continue;
+      if (!seen.has(r.userId)) seen.set(r.userId, new Set());
+      seen.get(r.userId)!.add(r.day);
+    }
+    for (const [u, set] of seen) if (set.size >= 2) returningIds.push(u);
+  }
+  const lists = {
+    have: [...customers],
+    today: idsWhere((d) => dayOf(d.lastSeenAt) >= today),
+    last7: idsWhere((d) => dayOf(d.lastSeenAt) >= addDays(today, -6)),
+    last30: idsWhere((d) => dayOf(d.lastSeenAt) >= addDays(today, -29)),
+    returning7: returningIds,
+    byDay: byDayLists,
+    newByDay,
+  };
+  const everyone = new Set<string>([...lists.have, ...Object.values(byDayLists).flat(), ...returningIds]);
+  const people: Record<string, ActivityPerson> = {};
+  for (const id of everyone) {
+    const u = input.users?.get(id);
+    people[id] = { name: String(u?.name ?? '').trim(), email: String(u?.email ?? '').trim(), phone: String(u?.phone ?? '').trim(), lastSeenAt: lastSeenOf.get(id) ?? null, daysOpened: daysOpenedBy.get(id) ?? 0 };
+  }
+
   return {
     generatedAt: input.now.toISOString(),
     today,
@@ -205,6 +278,8 @@ export function buildAppActivity(input: {
     returning7,
     orders,
     versions,
+    lists,
+    people,
   };
 }
 
@@ -229,5 +304,14 @@ export async function loadAppActivity(daysWanted: number): Promise<AppActivity> 
     .find({ createdAt: { $gte: start }, paymentStatus: 'paid', source: { $ne: 'admin' } } as never, { projection: { createdAt: 1, user: 1, channel: 1 } })
     .toArray()) as unknown as ActivityOrder[];
 
-  return buildAppActivity({ now, days, devices, rows, recordingSince, orders });
+  // names for the lists: only customers who have the app
+  const users = new Map<string, ActivityUser>();
+  const objectIds = [...new Set(devices.map((d) => d.userId))].filter((id) => ObjectId.isValid(id)).map((id) => new ObjectId(id));
+  if (objectIds.length > 0) {
+    const userCol = await db.getCollectionForOperations<Record<string, unknown>>('users');
+    const found = await userCol.find({ _id: { $in: objectIds } } as never, { projection: { name: 1, email: 1, phone: 1 } }).toArray();
+    for (const u of found) users.set(String(u._id), { name: u.name as string, email: u.email as string, phone: u.phone as string });
+  }
+
+  return buildAppActivity({ now, days, devices, rows, recordingSince, orders, users });
 }
