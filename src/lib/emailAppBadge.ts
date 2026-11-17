@@ -148,3 +148,17 @@ export const EMAIL_BADGE_PNG_BASE64 =
   'a9cqQRCElgzZf8Qwd+zYUT/zoKYzleksM4bN7EiWDoo059fKLTtVR+8pU6b0iQT1BdHLA5UgCIKQmEhjnhkJ8xsj+/NDSX+TSkAb'+
   'IrPHrtEI0CsS1mSzdI9e7x49b6kEQRAEhPEbkVx8Onq5gEdDQ8OcSDAvVCn5PwAAAP//l1KyCQAAAAZJREFUAwB9OByLmVKg8gAA'+
   'AABJRU5ErkJggg==';
+
+
+/** The badge as a centred block (a link to the App Store listing around the attached picture). */
+export const APP_BADGE_BLOCK =
+  `<div style="padding:10px 12px 6px;text-align:center;"><a href="${APP_STORE_URL}" style="display:inline-block;"><img src="cid:${EMAIL_BADGE_CID}" alt="Download on the App Store" width="120" height="40" style="display:inline-block;border:0;width:120px;height:40px;"></a></div>`;
+
+/**
+ * Every Communication email carries the "Download on the App Store" badge. A design that already has it (the picture or a link to
+ * the App Store) is left alone; otherwise the badge is added just above the end of the page.
+ */
+export function withAppBadge(html: string): string {
+  if (html.includes(`cid:${EMAIL_BADGE_CID}`) || html.includes('apps.apple.com')) return html;
+  return /<\/body>/i.test(html) ? html.replace(/<\/body>/i, `${APP_BADGE_BLOCK}</body>`) : html + APP_BADGE_BLOCK;
+}
