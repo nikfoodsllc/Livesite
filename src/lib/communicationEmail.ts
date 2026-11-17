@@ -2,7 +2,7 @@ import { Resend } from 'resend';
 import { MailtrapClient } from 'mailtrap';
 import { getCommunicationEmailTemplate } from '@/templates/communication';
 import { EMAIL_LOGO_CID, EMAIL_LOGO_FILENAME, EMAIL_LOGO_PNG_BASE64 } from '@/lib/emailLogo';
-import { EMAIL_BADGE_CID, EMAIL_BADGE_FILENAME, EMAIL_BADGE_PNG_BASE64 } from '@/lib/emailAppBadge';
+import { EMAIL_BADGE_CID, EMAIL_BADGE_FILENAME, EMAIL_BADGE_PNG_BASE64, withAppBadge } from '@/lib/emailAppBadge';
 import { markTestSubject } from '@/lib/emailSubject';
 import { getReplyTo } from '@/lib/replyTo';
 import { htmlToText, wrapHtmlDocument } from '@/lib/communications/rules';
@@ -41,11 +41,12 @@ export async function sendCommunicationEmail(args: { to: string; subject: string
   try {
     const subject = markTestSubject(args.subject);
     // 'html': the admin's own HTML goes out as written (wrapped in a page if it is only a snippet) with a plain-text twin;
-    // the logo and the App Store badge are attached only when the HTML uses them (cid:nikfoods-logo, cid:app-store-badge)
+    // the logo and the App Store badge are attached when the HTML uses them (cid:nikfoods-logo, cid:app-store-badge); the badge is added to every design
     const custom = args.format === 'html';
     // every email carries an Unsubscribe link: the template has it; a custom design uses {unsubscribeUrl}, else one is added at the bottom
     const unsubscribe = args.unsubscribeUrl ?? unsubscribeUrlFor(args.to);
-    const html = custom ? withUnsubscribe(wrapHtmlDocument(args.text, args.subject), unsubscribe) : getCommunicationEmailTemplate(args.subject, args.text, unsubscribe);
+    // every email also carries the App Store badge (a custom design that has its own is left alone)
+    const html = custom ? withUnsubscribe(withAppBadge(wrapHtmlDocument(args.text, args.subject)), unsubscribe) : getCommunicationEmailTemplate(args.subject, args.text, unsubscribe);
     const headers = { 'List-Unsubscribe': `<${unsubscribe}>, <mailto:${getReplyTo()}?subject=unsubscribe>` };
     const plain = custom ? htmlToText(html) : undefined;
     const pictures = communicationAttachments(html, custom);
