@@ -38,6 +38,9 @@ export interface StopDoc {
   /** The address text and coordinates this stop had in OptimoRoute when we last looked (see pinRules.ts) */
   pin?: Pin;
   pinFixedAt?: Date;
+  /** Set when OptimoRoute accepted the stop: it only counts as 'in OptimoRoute' once a read-back shows it (verifiedAt). */
+  verifyNeeded?: boolean;
+  verifiedAt?: Date;
   lock?: { at: Date };
   createdAt?: Date;
   updatedAt?: Date;
@@ -46,7 +49,7 @@ export interface StopDoc {
 export interface StopOutcome {
   date: string;
   stopKey: string;
-  result: 'sent' | 'adopted' | 'already' | 'in_progress' | 'failed' | 'would_create' | 'would_adopt' | 'past' | 'removed' | 'remove_failed' | 'kept' | 'would_remove' | 'updated' | 'would_update';
+  result: 'sent' | 'pending' | 'adopted' | 'already' | 'in_progress' | 'failed' | 'would_create' | 'would_adopt' | 'past' | 'removed' | 'remove_failed' | 'kept' | 'would_remove' | 'updated' | 'would_update';
   orderNo?: string;
   error?: string;
 }
@@ -118,7 +121,8 @@ export async function syncOrder(orderId: string, options: { now?: Date; lookup?:
       { upsert: true, returnDocument: 'after' }
     );
     if (doc && (doc.state === 'sent' || doc.state === 'adopted')) {
-      outcomes.push({ date: day.date, stopKey, result: 'already', orderNo: doc.optimoOrderNo });
+      // a stop OptimoRoute accepted but that has not shown up there yet is still pending for this order too
+      outcomes.push({ date: day.date, stopKey, result: doc.verifyNeeded && !doc.verifiedAt ? 'pending' : 'already', orderNo: doc.optimoOrderNo });
       continue;
     }
     const claimed = await stops.findOneAndUpdate(
@@ -146,8 +150,15 @@ export async function syncOrder(orderId: string, options: { now?: Date; lookup?:
     }
     const created = await createStop(payload);
     if (created.ok || created.code === 'ERR_ORD_EXISTS') {
-      await stops.updateOne({ stopKey }, { $set: { state: created.ok ? 'sent' : 'adopted', optimoId: created.data?.id, optimoOrderNo: payload.orderNo, updatedAt: new Date() }, $unset: { lock: '', lastError: '' } });
-      outcomes.push({ date: day.date, stopKey, result: created.ok ? 'sent' : 'adopted', orderNo: payload.orderNo });
+      // OptimoRoute said yes: only call it sent once a fresh read-back shows the stop there (otherwise it is checked again every few minutes)
+      let visible = !created.ok;
+      if (created.ok) {
+        const back = await searchOrdersForDate(day.date);
+        visible = back.ok && (back.data ?? []).some((o) => o.orderNo === payload.orderNo || (created.data?.id && o.id === created.data.id));
+      }
+      const when = new Date();
+      await stops.updateOne({ stopKey }, { $set: { state: created.ok ? 'sent' : 'adopted', optimoId: created.data?.id, optimoOrderNo: payload.orderNo, updatedAt: when, ...(created.ok ? { verifyNeeded: true, ...(visible ? { verifiedAt: when } : {}) } : {}) }, $unset: { lock: '', lastError: '' } });
+      outcomes.push({ date: day.date, stopKey, result: created.ok ? (visible ? 'sent' : 'pending') : 'adopted', orderNo: payload.orderNo });
     } else {
       const error = trim(`${created.code ?? ''} ${created.message ?? ''}`.trim());
       await stops.updateOne({ stopKey }, { $set: { state: 'failed', lastError: error, updatedAt: new Date() }, $inc: { attempts: 1 }, $unset: { lock: '' } });
@@ -164,7 +175,9 @@ async function recordOnOrder(orderId: string, outcomes: StopOutcome[], now: Date
   const relevant = outcomes.filter((o) => o.result !== 'past');
   if (relevant.length === 0) return;
   const failed = relevant.some((o) => o.result === 'failed' || o.result === 'remove_failed');
-  const state = failed ? 'failed' : relevant.every((o) => o.result === 'removed') ? 'removed' : 'sent';
+  // 'pending' = OptimoRoute accepted it (or another order is still making the shared stop) but it is not showing there yet
+  const pending = relevant.some((o) => o.result === 'pending' || o.result === 'in_progress');
+  const state = failed ? 'failed' : relevant.every((o) => o.result === 'removed') ? 'removed' : pending ? 'pending' : 'sent';
   await db.updateOne(
     'orders',
     { orderId } as never,
@@ -448,6 +461,12 @@ export async function reconcile(options: { now?: Date; budgetMs?: number } = {})
     // 3c. a stop whose address text was changed but whose pin was not (see pinRules.ts)
     if (mode === 'on') summary.pinsFixed = await checkPins(live, lookup, { now, started, budget, today });
   }
+  // 3d. stops OptimoRoute accepted: confirm they show there (the 5-minute job does this too)
+  try {
+    await verifyPendingStops({ now });
+  } catch (error) {
+    console.error('[optimoroute] verify failed', error instanceof Error ? error.message : String(error));
+  }
   // 4. summaries on orders that still say a shared stop is in progress
   try {
     summary.summariesRefreshed = (await refreshStaleSummaries()).fixed;
@@ -529,7 +548,7 @@ export async function checkPins(
 export async function refreshStaleSummaries(options: { dryRun?: boolean; limit?: number } = {}): Promise<{ checked: number; fixed: number }> {
   const orders = await db.getCollectionForOperations<Record<string, unknown>>('orders');
   const stops = await stopsCollection();
-  const stale = await orders.find({ 'optimo.stops.result': 'in_progress' }).project({ orderId: 1, optimo: 1 }).limit(options.limit ?? 300).toArray();
+  const stale = await orders.find({ 'optimo.stops.result': { $in: ['in_progress', 'pending'] } }).project({ orderId: 1, optimo: 1 }).limit(options.limit ?? 300).toArray();
   let fixed = 0;
   for (const order of stale) {
     const orderId = String(order.orderId);
@@ -537,10 +556,10 @@ export async function refreshStaleSummaries(options: { dryRun?: boolean; limit?:
     const docs = await stops.find({ orderIds: orderId }).toArray();
     let changed = false;
     const next = current.map((entry) => {
-      if (entry.result !== 'in_progress') return entry;
+      if (entry.result !== 'in_progress' && entry.result !== 'pending') return entry;
       const doc = docs.find((d) => d.date === entry.date);
-      const result = doc?.state === 'sent' ? 'sent' : doc?.state === 'adopted' ? 'adopted' : doc?.state === 'failed' ? 'failed' : doc?.state === 'removed' ? 'removed' : undefined;
-      if (!doc || !result) return entry;
+      const result = doc?.state === 'sent' ? (doc.verifyNeeded && !doc.verifiedAt ? 'pending' : 'sent') : doc?.state === 'adopted' ? 'adopted' : doc?.state === 'failed' ? 'failed' : doc?.state === 'removed' ? 'removed' : undefined;
+      if (!doc || !result || result === entry.result) return entry;
       changed = true;
       return { date: entry.date, result, orderNo: doc.optimoOrderNo || entry.orderNo, ...(result === 'failed' && doc.lastError ? { error: String(doc.lastError).slice(0, 200) } : {}) };
     });
@@ -549,10 +568,64 @@ export async function refreshStaleSummaries(options: { dryRun?: boolean; limit?:
     if (options.dryRun) continue;
     const relevant = next.filter((e) => e.result !== 'past');
     const failed = relevant.some((e) => e.result === 'failed' || e.result === 'remove_failed');
-    const state = failed ? 'failed' : relevant.length > 0 && relevant.every((e) => e.result === 'removed') ? 'removed' : 'sent';
+    const pending = relevant.some((e) => e.result === 'pending' || e.result === 'in_progress');
+    const state = failed ? 'failed' : relevant.length > 0 && relevant.every((e) => e.result === 'removed') ? 'removed' : pending ? 'pending' : 'sent';
     await orders.updateOne({ orderId }, { $set: { 'optimo.stops': next, 'optimo.state': state } });
   }
   return { checked: stale.length, fixed };
+}
+
+/** A stop OptimoRoute accepted but that is still not visible there after this long is treated as failed (it is retried, and support hears about it). */
+const NOT_VISIBLE_AFTER_MS = 15 * 60 * 1000;
+
+/**
+ * Confirms the stops OptimoRoute accepted: reads each day once, marks the ones it can see as verified (the order then says "In
+ * OptimoRoute"), and turns the ones still missing after 15 minutes into failures so they are retried and support is told.
+ */
+export async function verifyPendingStops(options: { now?: Date } = {}): Promise<{ checked: number; verified: number; missing: number }> {
+  const out = { checked: 0, verified: 0, missing: 0 };
+  if (optimoMode() !== 'on') return out;
+  const now = options.now ?? new Date();
+  const stops = await stopsCollection();
+  const pending = await stops.find({ state: 'sent', verifyNeeded: true, verifiedAt: { $exists: false }, date: { $gte: pacificToday(now) } }).limit(200).toArray();
+  out.checked = pending.length;
+  const lookup = dayLookup();
+  for (const date of [...new Set(pending.map((p) => p.date))]) {
+    const seen = await lookup(date);
+    if (!seen.ok) continue;
+    for (const doc of pending.filter((p) => p.date === date)) {
+      const visible = seen.list.some((o) => (doc.optimoOrderNo && o.orderNo === doc.optimoOrderNo) || (doc.optimoId && o.id === doc.optimoId));
+      if (visible) {
+        await stops.updateOne({ stopKey: doc.stopKey }, { $set: { verifiedAt: now, updatedAt: now } });
+        out.verified++;
+      } else if (now.getTime() - (doc.updatedAt ?? doc.createdAt ?? now).getTime() > NOT_VISIBLE_AFTER_MS) {
+        await stops.updateOne({ stopKey: doc.stopKey }, { $set: { state: 'failed', lastError: 'Accepted by OptimoRoute but not showing there after 15 minutes', updatedAt: now }, $inc: { attempts: 1 }, $unset: { verifyNeeded: '' } });
+        out.missing++;
+      }
+    }
+  }
+  if (out.verified > 0 || out.missing > 0) await refreshStaleSummaries().catch(() => undefined);
+  return out;
+}
+
+/** Tries again, within minutes, the stops that failed (the 30-minute check used to be the only retry). */
+export async function retryFailedStops(options: { now?: Date; limit?: number } = {}): Promise<{ orders: number }> {
+  if (optimoMode() !== 'on') return { orders: 0 };
+  const now = options.now ?? new Date();
+  const stops = await stopsCollection();
+  const failed = await stops.find({ state: 'failed', date: { $gte: pacificToday(now) }, attempts: { $lt: 8 }, updatedAt: { $lt: new Date(now.getTime() - 2 * 60 * 1000) } }).limit(options.limit ?? 20).toArray();
+  const orderIds = [...new Set(failed.flatMap((f) => f.orderIds))].slice(0, options.limit ?? 20);
+  const lookup = dayLookup();
+  for (const orderId of orderIds) await syncOrder(orderId, { now, lookup });
+  return { orders: orderIds.length };
+}
+
+/** Everything the 5-minute job does for OptimoRoute stops: confirm the new ones, retry the failed ones, refresh the order summaries. */
+export async function runStopChecks(options: { now?: Date } = {}): Promise<{ verified: number; missing: number; retried: number; refreshed: number }> {
+  const verify = await verifyPendingStops(options);
+  const retry = await retryFailedStops(options);
+  const refreshed = optimoMode() === 'on' ? (await refreshStaleSummaries()).fixed : 0;
+  return { verified: verify.verified, missing: verify.missing, retried: retry.orders, refreshed };
 }
 
 export interface DatePreview {
