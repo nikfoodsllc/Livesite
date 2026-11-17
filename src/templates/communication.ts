@@ -1,5 +1,6 @@
 import { EMAIL_LOGO_CID } from '@/lib/emailLogo';
 import { bodyToHtml } from '@/lib/communications/rules';
+import { EMAIL_BADGE_CID, APP_STORE_URL } from '@/lib/emailAppBadge';
 
 const C = {
   page: '#F3EBDD',
@@ -57,6 +58,7 @@ export function getCommunicationEmailTemplate(subject: string, bodyText: string,
     <div class="h" style="font-size:26px;line-height:32px;font-weight:800;color:${C.text};margin:0 0 14px 0;">${escapeHtml(subject)}</div>
     ${bodyToHtml(bodyText)}
   </td></tr>
+  <tr><td class="px" align="center" bgcolor="${C.card}" style="padding:10px 32px 4px;background:${C.card};"><a href="${APP_STORE_URL}" style="display:inline-block;"><img src="cid:${EMAIL_BADGE_CID}" alt="Download on the App Store" width="120" height="40" style="display:inline-block;border:0;width:120px;height:40px;"></a></td></tr>
   <tr><td class="px" bgcolor="${C.card}" style="padding:6px 32px 22px;background:${C.card};">
     <div style="border-top:1px solid ${C.line};padding-top:12px;font-size:13px;line-height:19px;color:${C.muted};">Questions? Write to <a href="mailto:${SUPPORT}" style="color:${C.brandText};font-weight:700;">${SUPPORT}</a>.<br><a href="${escapeHtml(unsubscribeUrl)}" style="color:${C.muted};text-decoration:underline;">Unsubscribe</a></div>
   </td></tr>
