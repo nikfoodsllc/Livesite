@@ -282,6 +282,11 @@ export async function notificationPreferences(ids: string[]): Promise<OptimoResu
 }
 
 /** The drivers and their stops, in route order, of one day (read only). */
+/** The raw routes of a day (driver, planned duration in minutes, stops), for the Dashboard's driver pay */
+export async function getRoutesRaw(date: string): Promise<OptimoResult<{ routes?: Array<{ driverName?: unknown; driverSerial?: unknown; duration?: unknown; stops?: unknown[] }> }>> {
+  return getCall('get_routes', { date });
+}
+
 export async function routesForDate(date: string): Promise<OptimoResult<RosterRoute[]>> {
   const result = await getCall<{ routes?: Parameters<typeof normalizeRoutes>[0] }>('get_routes', { date });
   if (!result.ok) return { ok: false, code: result.code, message: result.message };
