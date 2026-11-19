@@ -58,7 +58,8 @@ export async function POST(request: NextRequest) {
       results.push({ orderId, result: 'already has a fee', stripeFee: order.stripeFee });
       continue;
     }
-    if (order.paymentStatus !== 'paid' || !order.stripePaymentIntentId) {
+    // refunded orders too: Stripe keeps its fee when a payment is refunded, so the fee was really paid
+    if ((order.paymentStatus !== 'paid' && order.paymentStatus !== 'refunded') || !order.stripePaymentIntentId) {
       results.push({ orderId, result: 'not a paid Stripe order' });
       continue;
     }

@@ -3,6 +3,7 @@ export type PaymentErrorStage =
   | 'create_payment_intent'
   | 'create_order'
   | 'submit_form'
+  | 'create_token'
   | 'confirm_payment'
   | 'confirm_incomplete'
   | 'unexpected';

@@ -24,7 +24,8 @@ import { rememberUserPhone } from '@/lib/server/userPhone';
 import { cleanInstructions, saveInstructionsOnAddress } from '@/lib/server/deliveryInstructions';
 import { sendWelcomeText, setSmsConsent } from '@/lib/server/smsService';
 import { creditForCheckout } from '@/lib/server/checkoutCredit';
-import { feeRegionForStore } from '@/lib/cartLogic';
+import { combineFeeRegions, feeRegionForCard, feeRegionForStore } from '@/lib/cartLogic';
+import { cardCountryFromToken } from '@/lib/server/cardCountry';
 import { addCredit, spendCredit } from '@/lib/server/storeCredit';
 import { toDollars } from '@/lib/storeCredit';
 import { sendOrderConfirmationEmail } from '@/lib/email';
@@ -55,6 +56,8 @@ interface CreateOrderRequest {
   tipAmount?: number;
   /** The App Store country of the mobile app (3-letter code); missing on the website. A country other than the US means the international fee. */
   storeCountry?: string;
+  /** Stripe's token of the card the customer is paying with: a card from outside the US gets the international fee */
+  confirmationTokenId?: string;
   paymentMethod: PaymentMethod;
   currency: string;
   /** Reuse PaymentIntent created at checkout load (inline payment form) */
@@ -236,7 +239,8 @@ export async function POST(request: NextRequest) {
 
     // Store credit pays first. It is taken off the balance right now (one atomic update that only works while the balance
     // covers it), so a second checkout at the same moment cannot spend it again.
-    const feeRegion = feeRegionForStore(body.storeCountry);
+    const cardCountry = await cardCountryFromToken(body.confirmationTokenId);
+    const feeRegion = combineFeeRegions(feeRegionForStore(body.storeCountry), feeRegionForCard(cardCountry));
     const credit = await creditForCheckout({
       userId,
       region: feeRegion,
@@ -276,6 +280,7 @@ export async function POST(request: NextRequest) {
       // the app's App Store country is kept on its orders (so the admin can see where they came from); the rate is only marked for the international one
       ...(typeof body.storeCountry === 'string' && /^[A-Za-z]{2,3}$/.test(body.storeCountry.trim()) ? { storeCountry: body.storeCountry.trim().toUpperCase() } : {}),
       ...(feeRegion === 'intl' ? { feeRegion } : {}),
+      ...(cardCountry ? { cardCountry } : {}),
       deliveryFee: cart.deliveryFee,
       taxes: credit.tax,
       tip: tipAmount,
