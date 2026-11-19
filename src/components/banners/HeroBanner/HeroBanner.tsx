@@ -3,13 +3,38 @@
 import { useEffect, useRef } from 'react';
 import { Box, Typography } from '@mui/material';
 import { IconArrowDown } from '@tabler/icons-react';
+import { RangoliInner, RangoliOuter } from './Rangoli';
 
 const EASE = 'cubic-bezier(0.32, 0.72, 0, 1)';
 const GOLD = '#B8893B';
 
+/** Fine gold dust in the plate column: position, size (px), depth (how much it moves with cursor and scroll), twinkle timing */
+const DUST = [
+  { x: '8%', y: '18%', size: 4, depth: 1.4, dur: 9, delay: 0, phone: true },
+  { x: '18%', y: '72%', size: 3, depth: 0.7, dur: 11, delay: 2.5, phone: false },
+  { x: '30%', y: '8%', size: 2, depth: 0.5, dur: 8, delay: 1.2, phone: false },
+  { x: '26%', y: '44%', size: 5, depth: 1.8, dur: 10, delay: 4, phone: true },
+  { x: '52%', y: '90%', size: 3, depth: 1.1, dur: 12, delay: 0.6, phone: true },
+  { x: '62%', y: '4%', size: 4, depth: 1.5, dur: 9.5, delay: 3.1, phone: false },
+  { x: '84%', y: '14%', size: 2.5, depth: 0.6, dur: 10.5, delay: 5, phone: true },
+  { x: '92%', y: '48%', size: 4.5, depth: 1.7, dur: 8.5, delay: 1.8, phone: false },
+  { x: '78%', y: '84%', size: 3, depth: 0.9, dur: 11.5, delay: 3.8, phone: true },
+  { x: '40%', y: '96%', size: 2, depth: 0.5, dur: 9, delay: 6, phone: false },
+  { x: '96%', y: '78%', size: 3.5, depth: 1.3, dur: 10, delay: 2.2, phone: false },
+  { x: '12%', y: '94%', size: 2.5, depth: 1, dur: 12.5, delay: 4.6, phone: false },
+];
+
+/** Soft steam clouds over the curries: position on the plate, size, timing, sideways drift */
+const STEAM = [
+  { left: '18%', top: '8%', w: '26%', dur: 6.5, delay: 0, drift: '-14%' },
+  { left: '42%', top: '0%', w: '30%', dur: 7.5, delay: 2.2, drift: '12%' },
+  { left: '64%', top: '12%', w: '24%', dur: 7, delay: 4.1, drift: '-10%' },
+];
+
 /**
  * Home hero. Warm editorial look: a large serif headline that rises in line by line, a gold shimmer on the italic line,
- * a plate that settles in and then floats and follows the cursor a little, orbiting gold rings, soft steam and fine grain.
+ * a steel thali that spins in, floats over its own shadow, turns slowly, tilts toward the cursor (sways on phones) and turns
+ * further as you scroll; soft steam, a glint around the rim, drifting gold dust, a gold rangoli turning behind the plate and fine grain.
  * Motion is transform and opacity only, and switches off for people who ask for reduced motion.
  */
 export default function HeroBanner() {
@@ -45,6 +70,36 @@ export default function HeroBanner() {
     };
   }, []);
 
+  // Scroll progress through the hero (0 at the top, 1 once it has scrolled away), only while it is on screen
+  useEffect(() => {
+    const el = stage.current;
+    if (!el || typeof window === 'undefined') return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    let raf = 0;
+    let visible = true;
+    const update = () => {
+      raf = 0;
+      const r = el.getBoundingClientRect();
+      const p = Math.min(1, Math.max(0, -r.top / Math.max(1, r.height)));
+      el.style.setProperty('--sy', p.toFixed(3));
+    };
+    const onScroll = () => {
+      if (visible && !raf) raf = requestAnimationFrame(update);
+    };
+    const io = new IntersectionObserver(([e]) => {
+      visible = e.isIntersecting;
+      if (visible) onScroll();
+    });
+    io.observe(el);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    update();
+    return () => {
+      io.disconnect();
+      window.removeEventListener('scroll', onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
+
   const scrollToMenu = () => {
     const el = document.getElementById('menu-search');
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -65,6 +120,7 @@ export default function HeroBanner() {
       sx={{
         '--px': 0,
         '--py': 0,
+        '--sy': 0,
         position: 'relative',
         isolation: 'isolate',
         overflow: 'hidden',
@@ -81,13 +137,30 @@ export default function HeroBanner() {
         '@keyframes plateFloat': { '0%,100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(-10px)' } },
         '@keyframes orbit': { to: { transform: 'rotate(360deg)' } },
         '@keyframes shimmer': { to: { backgroundPosition: '-200% 0' } },
-        '@keyframes steam': {
-          '0%': { opacity: 0, transform: 'translateY(26px) scaleX(0.8)' },
-          '30%': { opacity: 0.55 },
-          '100%': { opacity: 0, transform: 'translateY(-70px) scaleX(1.25)' },
+        '@keyframes plateSpin': { to: { transform: 'rotate(360deg)' } },
+        '@keyframes steamRise': {
+          '0%': { opacity: 0, transform: 'translate3d(0, 20%, 0) scale(0.6, 0.5)' },
+          '30%': { opacity: 0.85 },
+          '65%': { opacity: 0.5, transform: 'translate3d(var(--drift), -30%, 0) scale(1, 0.95)' },
+          '100%': { opacity: 0, transform: 'translate3d(calc(var(--drift) * -0.5), -78%, 0) scale(1.45, 1.3)' },
         },
+        '@keyframes dustFloat': {
+          '0%,100%': { opacity: 0.15, transform: 'translate3d(0, 0, 0) scale(0.8)' },
+          '50%': { opacity: 1, transform: 'translate3d(6px, -22px, 0) scale(1.1)' },
+        },
+        '@keyframes rimGlint': { '0%': { transform: 'rotate(0deg)', opacity: 0 }, '8%': { opacity: 1 }, '30%': { opacity: 1 }, '38%,100%': { transform: 'rotate(250deg)', opacity: 0 } },
+        '@keyframes shadowFloat': { '0%,100%': { transform: 'scale(1)', opacity: 0.55 }, '50%': { transform: 'scale(0.88)', opacity: 0.38 } },
+        '@keyframes lineUp': { from: { transform: 'translateY(105%)' }, to: { transform: 'translateY(0)' } },
+        '@keyframes discIn': { from: { transform: 'rotate(-150deg)' }, to: { transform: 'rotate(0deg)' } },
+        '@keyframes tiltSway': {
+          '0%,100%': { transform: 'rotateX(6deg) rotateY(-8deg)' },
+          '50%': { transform: 'rotateX(-5deg) rotateY(9deg)' },
+        },
+        '@media (hover: none), (pointer: coarse)': { '& .heroTilt': { animation: 'tiltSway 9s ease-in-out infinite' } },
+        '@keyframes glowBreath': { '0%,100%': { opacity: 0.75 }, '50%': { opacity: 1 } },
         '@media (prefers-reduced-motion: reduce)': {
           '& *': { animation: 'none !important', opacity: '1 !important', transform: 'none !important', filter: 'none !important' },
+          '& .heroSteam': { display: 'none' },
         },
       }}
     >
@@ -126,7 +199,17 @@ export default function HeroBanner() {
         }}
       >
         {/* Words */}
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 1.25, md: 2.25 }, position: 'relative', zIndex: 2 }}>
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: { xs: 1.25, md: 2.25 },
+            position: 'relative',
+            zIndex: 2,
+            transform: 'translate3d(0, calc(var(--sy) * -34px), 0)',
+            opacity: 'calc(1 - var(--sy) * 0.5)',
+          }}
+        >
           <Typography
             component="h1"
             sx={{
@@ -138,9 +221,12 @@ export default function HeroBanner() {
               color: '#1F1712',
             }}
           >
-            <Box component="span" sx={{ display: 'block', whiteSpace: { sm: 'nowrap' }, ...rise(160) }}>
-              Your American Source for
+            <Box component="span" sx={{ display: 'block', overflow: 'hidden', pb: '0.06em', mb: '-0.06em' }}>
+              <Box component="span" sx={{ display: 'block', whiteSpace: { sm: 'nowrap' }, transform: 'translateY(105%)', animation: `lineUp 1100ms ${EASE} 150ms forwards` }}>
+                Your American Source for
+              </Box>
             </Box>
+            <Box component="span" sx={{ display: 'block', overflow: 'hidden', pb: '0.1em' }}>
             <Box
               component="span"
               sx={{
@@ -149,7 +235,7 @@ export default function HeroBanner() {
                 fontWeight: 500,
                 textWrap: 'balance',
                 pb: '0.08em',
-                ...rise(300),
+                transform: 'translateY(105%)',
                 // a slow gold light passes over the italic line
                 backgroundImage: 'linear-gradient(100deg, #7A561A 0%, #A9772A 30%, #E2BC6A 48%, #A9772A 66%, #7A561A 100%)',
                 backgroundSize: '200% 100%',
@@ -157,10 +243,11 @@ export default function HeroBanner() {
                 backgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
                 color: '#8A6420',
-                animation: `heroRise 1100ms ${EASE} 300ms forwards, shimmer 7s linear 1.6s infinite`,
+                animation: `lineUp 1100ms ${EASE} 300ms forwards, shimmer 7s linear 1.6s infinite`,
               }}
             >
               Delicious Indian Food.
+            </Box>
             </Box>
           </Typography>
 
@@ -232,7 +319,7 @@ export default function HeroBanner() {
 
         {/* Plate */}
         <Box sx={{ position: 'relative', height: '100%', display: 'grid', placeItems: 'center' }}>
-          {/* slow warm glow */}
+          {/* slow warm glow that breathes */}
           <Box
             aria-hidden
             sx={{
@@ -240,103 +327,201 @@ export default function HeroBanner() {
               width: { xs: 190, sm: 300, md: 520 },
               height: { xs: 190, sm: 300, md: 520 },
               borderRadius: '50%',
-              background: 'radial-gradient(circle, rgba(236,190,98,0.55) 0%, rgba(236,190,98,0) 68%)',
-              right: { xs: -50, md: -20 },
+              right: { xs: -40, sm: -25, md: -40 },
               transform: 'translate3d(calc(var(--px) * -18px), calc(var(--py) * -14px), 0)',
               transition: `transform 900ms ${EASE}`,
             }}
-          />
-          {/* orbiting gold rings with a bead on each */}
-          {[
-            { size: { xs: 170, sm: 270, md: 440 }, dur: 46, alpha: 0.5, dir: 'normal' },
-            { size: { xs: 214, sm: 336, md: 540 }, dur: 70, alpha: 0.26, dir: 'reverse' },
-          ].map((r, i) => (
+          >
+            <Box
+              sx={{
+                width: '100%',
+                height: '100%',
+                borderRadius: '50%',
+                background: 'radial-gradient(circle, rgba(236,190,98,0.55) 0%, rgba(236,190,98,0) 68%)',
+                animation: 'glowBreath 6s ease-in-out infinite',
+              }}
+            />
+          </Box>
+          {/* a fine gold rangoli behind the plate, turning slowly the other way */}
+          <Box
+            aria-hidden
+            sx={{
+              position: 'absolute',
+              width: { xs: 236, sm: 360, md: 560 },
+              height: { xs: 236, sm: 360, md: 560 },
+              right: { xs: -63, sm: -55, md: -60 },
+              transform: 'translate3d(calc(var(--px) * -10px), calc(var(--py) * -8px + var(--sy) * 20px), 0)',
+              transition: `transform 1000ms ${EASE}`,
+              opacity: 0,
+              animation: `heroRise 1800ms ${EASE} 500ms forwards`,
+            }}
+          >
+            <Box sx={{ position: 'absolute', inset: 0, animation: 'orbit 200s linear infinite reverse' }}>
+              <RangoliOuter />
+            </Box>
+            <Box sx={{ position: 'absolute', inset: 0, animation: 'orbit 90s linear infinite' }}>
+              <RangoliInner />
+            </Box>
+          </Box>
+
+          {/* gold dust drifting at different depths */}
+          {DUST.map((d, i) => (
             <Box
               key={i}
               aria-hidden
               sx={{
+                display: { xs: d.phone ? 'block' : 'none', sm: 'block' },
                 position: 'absolute',
-                width: r.size,
-                height: r.size,
-                right: { xs: -30, sm: -10, md: i ? -50 : 0 },
-                borderRadius: '50%',
-                border: `1px solid rgba(184,137,59,${r.alpha})`,
-                animation: `orbit ${r.dur}s linear infinite ${r.dir}`,
-                '&::after': {
-                  content: '""',
-                  position: 'absolute',
-                  top: -4,
-                  left: '50%',
-                  width: 8,
-                  height: 8,
-                  marginLeft: -4,
+                left: d.x,
+                top: d.y,
+                width: d.size,
+                height: d.size,
+                zIndex: d.depth > 1.2 ? 3 : 1,
+                transform: `translate3d(calc(var(--px) * ${d.depth * 30}px), calc(var(--py) * ${d.depth * 24}px + var(--sy) * ${-d.depth * 70}px), 0)`,
+                transition: `transform 1000ms ${EASE}`,
+              }}
+            >
+              <Box
+                sx={{
+                  width: '100%',
+                  height: '100%',
                   borderRadius: '50%',
-                  background: 'radial-gradient(circle at 30% 30%, #F4D58A, #B8893B)',
-                  boxShadow: '0 0 12px 2px rgba(226,188,106,0.7)',
-                },
-              }}
-            />
+                  background: 'radial-gradient(circle at 35% 35%, #FFF0C2, #D6A84E 60%, rgba(214,168,78,0) 100%)',
+                  boxShadow: `0 0 ${d.size * 2.5}px ${d.size * 0.6}px rgba(232,192,104,0.55)`,
+                  opacity: 0,
+                  animation: `dustFloat ${d.dur}s ease-in-out ${1.6 + d.delay}s infinite`,
+                }}
+              />
+            </Box>
           ))}
 
-          {/* steam */}
-          {[0, 1, 2].map((i) => (
-            <Box
-              key={i}
-              aria-hidden
-              sx={{
-                display: { xs: 'none', md: 'block' },
-                position: 'absolute',
-                top: '14%',
-                right: `${28 + i * 17}%`,
-                width: 54,
-                height: 120,
-                borderRadius: '50%',
-                background: 'radial-gradient(ellipse, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0) 70%)',
-                filter: 'blur(10px)',
-                opacity: 0,
-                animation: `steam 5.5s ease-out ${1.4 + i * 1.7}s infinite`,
-                zIndex: 3,
-                pointerEvents: 'none',
-              }}
-            />
-          ))}
-
-          {/* the plate: settles in, then floats; the wrapper follows the cursor */}
+          {/* the plate: spins in, floats, tilts toward the cursor (sways by itself on phones) and turns as you scroll */}
           <Box
             sx={{
               position: 'absolute',
-              right: { xs: -14, sm: 0, md: 6 },
-              width: { xs: 196, sm: 300, md: 480 },
-              height: { xs: 196, sm: 300, md: 480 },
-              transform: 'translate3d(calc(var(--px) * 22px), calc(var(--py) * 16px), 0)',
+              right: { xs: -20, sm: 7, md: 40 },
+              width: { xs: 150, sm: 236, md: 360 },
+              height: { xs: 150, sm: 236, md: 360 },
+              perspective: '900px',
+              transform: 'translate3d(calc(var(--px) * 22px), calc(var(--py) * 16px + var(--sy) * 46px), 0) scale(calc(1 - var(--sy) * 0.08))',
               transition: `transform 700ms ${EASE}`,
               zIndex: 2,
             }}
           >
-            <Box sx={{ width: '100%', height: '100%', animation: `plateIn 1500ms ${EASE} 200ms both` }}>
+            {/* contact shadow on the 'table': shrinks and fades as the plate floats up */}
+            <Box
+              aria-hidden
+              sx={{
+                position: 'absolute',
+                left: '12%',
+                right: '12%',
+                bottom: '-9%',
+                height: '14%',
+                borderRadius: '50%',
+                background: 'radial-gradient(closest-side, rgba(70,40,12,0.42), rgba(70,40,12,0))',
+                filter: 'blur(6px)',
+                animation: 'shadowFloat 7s ease-in-out 1.8s infinite',
+                zIndex: -1,
+              }}
+            />
+
+            <Box sx={{ width: '100%', height: '100%', animation: `plateIn 1600ms ${EASE} 150ms both` }}>
               <Box sx={{ width: '100%', height: '100%', animation: 'plateFloat 7s ease-in-out 1.8s infinite' }}>
                 <Box
-                  component="img"
-                  src="/images/thali-plate.png"
-                  alt="Indian thali"
-                  fetchPriority="high"
+                  className="heroTilt"
                   sx={{
-                    display: 'block',
+                    position: 'relative',
                     width: '100%',
                     height: '100%',
-                    objectFit: 'cover',
-                    objectPosition: '62% 42%',
-                    filter: 'drop-shadow(0 34px 34px rgba(60, 35, 10, 0.34))',
-                    // the picture has yellow shapes baked in that stop at its edge: fade them out there
-                    WebkitMaskImage: 'radial-gradient(closest-side at 54% 50%, #000 78%, rgba(0,0,0,0) 100%)',
-                    maskImage: 'radial-gradient(closest-side at 54% 50%, #000 78%, rgba(0,0,0,0) 100%)',
+                    transformStyle: 'preserve-3d',
+                    transform: 'rotateX(calc(var(--py) * -14deg)) rotateY(calc(var(--px) * 16deg))',
+                    transition: `transform 800ms ${EASE}`,
                   }}
-                />
+                >
+                  {/* a glint of light that runs around the rim every few seconds */}
+                  <Box
+                    aria-hidden
+                    sx={{
+                      position: 'absolute',
+                      inset: 0,
+                      borderRadius: '50%',
+                      pointerEvents: 'none',
+                      background: 'conic-gradient(from 0deg, rgba(255,226,170,0) 0deg, rgba(255,226,170,0.9) 14deg, rgba(255,226,170,0) 30deg, rgba(255,226,170,0) 360deg)',
+                      WebkitMask: 'radial-gradient(closest-side, transparent 91%, #000 93%, #000 99%, transparent 100%)',
+                      mask: 'radial-gradient(closest-side, transparent 91%, #000 93%, #000 99%, transparent 100%)',
+                      opacity: 0,
+                      animation: 'rimGlint 9s cubic-bezier(0.45, 0, 0.2, 1) 3s infinite',
+                    }}
+                  />
+                  {/* the thali: spins in on arrival, turns slowly forever, and a little more as you scroll */}
+                  <Box sx={{ position: 'absolute', inset: 0, borderRadius: '50%', overflow: 'hidden', boxShadow: '0 30px 40px -14px rgba(60,35,10,0.45), 0 10px 18px -8px rgba(60,35,10,0.35)' }}>
+                    <Box sx={{ width: '100%', height: '100%', transform: 'rotate(calc(var(--sy) * 110deg))' }}>
+                      <Box sx={{ width: '100%', height: '100%', animation: `discIn 1900ms ${EASE} 150ms both` }}>
+                        <Box
+                          component="img"
+                          src="/images/thali-plate-disc.webp"
+                          alt="Indian thali"
+                          fetchPriority="high"
+                          width={760}
+                          height={760}
+                          sx={{ display: 'block', width: '100%', height: '100%', animation: 'plateSpin 120s linear 2s infinite', willChange: 'transform' }}
+                        />
+                      </Box>
+                    </Box>
+                  </Box>
+                  {/* light: a shine that slides against the tilt, plus the rim's inner shadow */}
+                  <Box
+                    aria-hidden
+                    sx={{
+                      position: 'absolute',
+                      inset: 0,
+                      borderRadius: '50%',
+                      overflow: 'hidden',
+                      pointerEvents: 'none',
+                      background: 'radial-gradient(80% 80% at 75% 85%, rgba(30,14,6,0.16) 0%, rgba(30,14,6,0) 60%)',
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        inset: '-30%',
+                        background: 'radial-gradient(35% 28% at 38% 30%, rgba(255,250,236,0.22) 0%, rgba(255,250,236,0) 70%)',
+                        transform: 'translate3d(calc(var(--px) * -22%), calc(var(--py) * -22%), 0)',
+                        transition: `transform 800ms ${EASE}`,
+                      }}
+                    />
+                  </Box>
+                  {/* steam curling off the hot dishes, lifted toward the viewer */}
+                  {STEAM.map((w, i) => (
+                    <Box
+                      key={i}
+                      className="heroSteam"
+                      aria-hidden
+                      sx={{
+                        '--drift': w.drift,
+                        position: 'absolute',
+                        left: w.left,
+                        top: w.top,
+                        width: w.w,
+                        height: '50%',
+                        opacity: 0,
+                        pointerEvents: 'none',
+                        mixBlendMode: 'screen',
+                        filter: 'blur(9px)',
+                        background:
+                          'radial-gradient(40% 30% at 50% 70%, rgba(255,246,230,0.75) 0%, rgba(255,246,230,0) 70%), radial-gradient(30% 26% at 42% 38%, rgba(255,246,230,0.55) 0%, rgba(255,246,230,0) 72%), radial-gradient(26% 22% at 58% 12%, rgba(255,246,230,0.4) 0%, rgba(255,246,230,0) 75%)',
+                        animation: `steamRise ${w.dur}s cubic-bezier(0.3, 0.1, 0.3, 1) ${2.4 + w.delay}s infinite`,
+                      }}
+                    />
+                  ))}
+                </Box>
               </Box>
             </Box>
+
           </Box>
         </Box>
       </Box>
     </Box>
   );
 }
+
