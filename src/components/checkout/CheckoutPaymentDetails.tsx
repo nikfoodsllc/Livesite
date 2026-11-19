@@ -12,8 +12,13 @@ export interface CheckoutPaymentDetailsHandle {
    * only shows its sheet when this runs straight away in the tap, before any network call.
    */
   submitForm: () => Promise<boolean>;
-  /** Pass { alreadySubmitted: true } after submitForm succeeded, so the form is not submitted twice. */
-  confirmPayment: (orderIdOverride?: string, options?: { alreadySubmitted?: boolean }) => Promise<boolean>;
+  /** Pass { alreadySubmitted: true } after submitForm succeeded, so the form is not submitted twice; pass the token from createToken to pay with exactly that card. */
+  confirmPayment: (orderIdOverride?: string, options?: { alreadySubmitted?: boolean; confirmationTokenId?: string }) => Promise<boolean>;
+  /**
+   * After submitForm: turns the entered card (or Apple Pay / Google Pay) into a Stripe ConfirmationToken without charging it, so the server
+   * can see the card's country and set the right Platform Fee before the payment. Null when it could not be made (the error is shown).
+   */
+  createToken: () => Promise<string | null>;
 }
 
 export interface CheckoutPaymentDetailsProps {
@@ -91,7 +96,38 @@ const CheckoutPaymentDetails = forwardRef<
     }
   };
 
-  const confirmPayment = async (orderIdOverride?: string, options?: { alreadySubmitted?: boolean }): Promise<boolean> => {
+  // The payment form only shows the fields a method needs (for cards: zip and country), so name, email and phone never reached Stripe.
+  // Attach them so charges show the cardholder and Stripe's fraud checks have them.
+  const billingDetails = () => ({
+    ...(name ? { name } : {}),
+    ...(email ? { email } : {}),
+    ...(phone ? { phone } : {}),
+  });
+
+  const createToken = async (): Promise<string | null> => {
+    if (!stripe || !elements) {
+      setLocalError('Payment system is still loading. Please wait a moment.');
+      return null;
+    }
+    try {
+      const { error, confirmationToken } = await stripe.createConfirmationToken({
+        elements,
+        params: { payment_method_data: { billing_details: billingDetails() } },
+      });
+      if (error || !confirmationToken) {
+        const msg = error?.message ?? 'Please check your payment details.';
+        reportPaymentError({ stage: 'create_token', message: msg, code: error?.code, type: error?.type, orderId: orderId ?? undefined, paymentIntentId: paymentIntentIdFromClientSecret(clientSecret) });
+        setLocalError(msg);
+        return null;
+      }
+      return confirmationToken.id;
+    } catch (e) {
+      setLocalError(e instanceof Error ? e.message : 'Something went wrong');
+      return null;
+    }
+  };
+
+  const confirmPayment = async (orderIdOverride?: string, options?: { alreadySubmitted?: boolean; confirmationTokenId?: string }): Promise<boolean> => {
     const resolvedOrderId = orderIdOverride ?? orderId;
     if (!stripe || !elements) {
       setLocalError('Payment system is still loading. Please wait a moment.');
@@ -124,24 +160,19 @@ const CheckoutPaymentDetails = forwardRef<
           ? `${window.location.origin}/checkout/return`
           : '/checkout/return';
 
-      const { error, paymentIntent } = await stripe.confirmPayment({
-        elements,
-        clientSecret,
-        confirmParams: {
-          return_url: returnUrl,
-          // The payment form only shows the fields a method needs (for cards: zip and country), so
-          // name, email and phone never reached Stripe. Attach them so charges show the cardholder
-          // and Stripe's fraud checks have them.
-          payment_method_data: {
-            billing_details: {
-              ...(name ? { name } : {}),
-              ...(email ? { email } : {}),
-              ...(phone ? { phone } : {}),
-            },
-          },
-        },
-        redirect: 'if_required',
-      });
+      // with a token: pay with exactly the card whose country set the fee; without one (older path): straight from the form
+      const { error, paymentIntent } = options?.confirmationTokenId
+        ? await stripe.confirmPayment({
+            clientSecret,
+            confirmParams: { return_url: returnUrl, confirmation_token: options.confirmationTokenId },
+            redirect: 'if_required',
+          })
+        : await stripe.confirmPayment({
+            elements,
+            clientSecret,
+            confirmParams: { return_url: returnUrl, payment_method_data: { billing_details: billingDetails() } },
+            redirect: 'if_required',
+          });
 
       if (error) {
         const msg = error.message ?? 'Payment failed';
@@ -194,10 +225,13 @@ const CheckoutPaymentDetails = forwardRef<
     }
   };
 
-  useImperativeHandle(ref, () => ({ submitForm, confirmPayment }), [
+  useImperativeHandle(ref, () => ({ submitForm, confirmPayment, createToken }), [
     stripe,
     elements,
     clientSecret,
+    name,
+    email,
+    phone,
     orderId,
     onPaymentSuccess,
     onPaymentError,

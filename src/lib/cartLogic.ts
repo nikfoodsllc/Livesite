@@ -52,6 +52,22 @@ export function feeRegionForStore(country: unknown): FeeRegion {
   return code === 'US' || code === 'USA' ? 'us' : 'intl';
 }
 
+/**
+ * 'intl' for a card issued outside the US (Stripe's card country, 2 letters): Stripe charges about 4.4% + 30 cents for those instead of
+ * 2.9% + 30 cents, so the customer pays the international Platform Fee. Unknown (no card yet, or Link, which hides the card) stays 'us'.
+ */
+export function feeRegionForCard(country: unknown): FeeRegion {
+  if (typeof country !== 'string') return 'us';
+  const code = country.trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(code)) return 'us';
+  return code === 'US' ? 'us' : 'intl';
+}
+
+/** The higher of the two: an App Store outside the US OR a card from outside the US means the international fee */
+export function combineFeeRegions(...regions: FeeRegion[]): FeeRegion {
+  return regions.includes('intl') ? 'intl' : 'us';
+}
+
 // The region the totals in THIS program use when none is given. The customer site and the server never change it ('us'; the server
 // passes the region it works out for each request). The mobile app sets it once at start from its App Store country.
 let defaultFeeRegion: FeeRegion = 'us';

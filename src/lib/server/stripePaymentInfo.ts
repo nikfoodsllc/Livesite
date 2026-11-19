@@ -130,6 +130,7 @@ const CLIENT_ERROR_STAGES = [
   'create_payment_intent',
   'create_order',
   'submit_form',
+  'create_token',
   'confirm_payment',
   'confirm_incomplete',
   /** the app: the customer closed the payment screen without paying (not an error) */
