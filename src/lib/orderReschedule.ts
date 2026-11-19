@@ -14,8 +14,8 @@
  * Pure functions with no database access, so they can be tested on their own. Dates are 'YYYY-MM-DD' strings.
  */
 
-/** Orders that can still be moved: paid and not yet out for delivery. */
-export const RESCHEDULABLE_STATUSES = ['confirmed', 'preparing', 'ready'] as const;
+/** Orders that can still be moved: paid and not yet out for delivery, or partly delivered (the days still to come can move). */
+export const RESCHEDULABLE_STATUSES = ['confirmed', 'preparing', 'ready', 'partially_delivered'] as const;
 /** An admin may move a delivery date to any day up to a year before or after today (a guard against typing the wrong year). */
 export const MAX_DAYS_AWAY = 365;
 /** Most items one request may move. */
@@ -45,6 +45,13 @@ export interface OrderLike {
   status?: string;
   paymentStatus?: string;
   items?: DayLike[];
+  /** per delivery day, how the route went (written by the OptimoRoute completion step) */
+  optimo?: { deliveries?: Array<{ date?: string; status?: string }> } | null;
+}
+
+/** Delivery dates of an order that the driver has already completed. */
+export function deliveredDates(order: OrderLike): Set<string> {
+  return new Set((order.optimo?.deliveries ?? []).filter((d) => d?.status === 'delivered' && typeof d.date === 'string').map((d) => d.date as string));
 }
 
 /** One item picked by its position: the day line, and the item inside that line. */
@@ -108,7 +115,7 @@ export function whyNotReschedulable(order: OrderLike): string | null {
   if (!order.status || !(RESCHEDULABLE_STATUSES as readonly string[]).includes(order.status)) {
     return order.status === 'cancelled'
       ? 'This order is cancelled.'
-      : order.status === 'delivered' || order.status === 'out_for_delivery' || order.status === 'partially_delivered'
+      : order.status === 'delivered' || order.status === 'out_for_delivery'
         ? 'This order is already out for delivery or delivered.'
         : 'This order cannot be moved in its current status.';
   }
@@ -158,12 +165,14 @@ export function planItemReschedule(order: OrderLike, selections: ItemSelection[]
 
   const lines = order.items as DayLike[];
   const picked = new Set<string>();
+  const delivered = deliveredDates(order);
   for (const s of selections) {
     const line = s?.line;
     const item = s?.item;
     if (!Number.isInteger(line) || !Number.isInteger(item) || line < 0 || line >= lines.length) return { ok: false, code: 'bad_input', error: 'That item is not part of this order.' };
     const list = lines[line].items;
     if (!Array.isArray(list) || item < 0 || item >= list.length) return { ok: false, code: 'bad_input', error: 'That item is not part of this order.' };
+    if (delivered.has(lineDeliveryDate(lines[line]))) return { ok: false, code: 'bad_input', error: 'Items that have already been delivered cannot be moved.' };
     const key = `${line}:${item}`;
     if (picked.has(key)) return { ok: false, code: 'bad_input', error: 'The same item was chosen twice.' };
     picked.add(key);
