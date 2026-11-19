@@ -196,6 +196,8 @@ export async function POST(request: NextRequest) {
           platformFee: credit.platformFee,
           taxes: credit.tax,
           feeRegion,
+          // the card the customer is retrying with (a declined card before it may have been from another country)
+          cardCountry,
         });
         if (sync === 'updated') console.log('[payment-intent] pending order amounts updated', { orderId: pendingOrderId });
       } catch (syncError) {
