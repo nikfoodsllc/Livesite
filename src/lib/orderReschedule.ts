@@ -16,8 +16,8 @@
 
 /** Orders that can still be moved: paid and not yet out for delivery. */
 export const RESCHEDULABLE_STATUSES = ['confirmed', 'preparing', 'ready'] as const;
-/** How far ahead a delivery may be moved. */
-export const MAX_DAYS_AHEAD = 120;
+/** An admin may move a delivery date to any day up to a year before or after today (a guard against typing the wrong year). */
+export const MAX_DAYS_AWAY = 365;
 /** Most items one request may move. */
 export const MAX_ITEMS_PER_MOVE = 200;
 
@@ -151,8 +151,10 @@ export function planItemReschedule(order: OrderLike, selections: ItemSelection[]
   if (!isRealDate(today)) return { ok: false, code: 'bad_input', error: 'Could not work out today’s date.' };
   const target = typeof newDate === 'string' ? newDate.trim() : '';
   if (!isRealDate(target)) return { ok: false, code: 'bad_input', error: 'Choose a valid date.' };
-  if (target < today) return { ok: false, code: 'bad_input', error: 'The new date cannot be in the past.' };
-  if (target > addDays(today, MAX_DAYS_AHEAD)) return { ok: false, code: 'bad_input', error: `The new date cannot be more than ${MAX_DAYS_AHEAD} days away.` };
+  // past days are allowed (user decision 2026-11-19): OptimoRoute makes no stop for a day that is over
+  if (target < addDays(today, -MAX_DAYS_AWAY) || target > addDays(today, MAX_DAYS_AWAY)) {
+    return { ok: false, code: 'bad_input', error: 'Choose a date within a year of today.' };
+  }
 
   const lines = order.items as DayLike[];
   const picked = new Set<string>();
