@@ -18,6 +18,7 @@ export const INTERNAL_ORDER_FIELDS = [
   'stripeFee',
   'feeRegion',
   'storeCountry',
+  'cardCountry',
   'stripeRefunds',
   'preCreditTotals',
   'stripeNet',

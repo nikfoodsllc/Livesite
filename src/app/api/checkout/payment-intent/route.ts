@@ -12,7 +12,8 @@ import { closedLinesMessage, legacyClosedDates } from '@/lib/server/orderCutoff'
 import { saveCheckoutDraft } from '@/lib/server/checkoutDrafts';
 import { creditForCheckout } from '@/lib/server/checkoutCredit';
 import { syncPendingOrderAmounts } from '@/lib/server/pendingOrderAmounts';
-import { feeRegionForStore } from '@/lib/cartLogic';
+import { combineFeeRegions, feeRegionForCard, feeRegionForStore } from '@/lib/cartLogic';
+import { cardCountryFromToken } from '@/lib/server/cardCountry';
 import { toDollars } from '@/lib/storeCredit';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
@@ -37,6 +38,8 @@ interface PaymentIntentRequest {
   storeCountry?: string;
   /** The order already created for this payment (a retry): it keeps the credit it was created with */
   orderId?: string;
+  /** Sent when the customer pressed Pay: Stripe's token of the card they entered, so a card from outside the US gets the international fee before it is charged */
+  confirmationTokenId?: string;
 }
 
 function calculateCheckoutTotal(cart: Cart, tipPercentage: number, customTip?: number): number {
@@ -131,10 +134,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Invalid order total' }, { status: 400 });
     }
 
+    // a card from outside the US (known once the customer pressed Pay) or an App Store outside the US: the international fee
+    const cardCountry = await cardCountryFromToken(body.confirmationTokenId);
+    const feeRegion = combineFeeRegions(feeRegionForStore(body.storeCountry), feeRegionForCard(cardCountry));
+
     // store credit pays first; the card is only asked for what is left, and the Platform Fee follows the card part only
     const credit = await creditForCheckout({
       userId,
-      region: feeRegionForStore(body.storeCountry),
+      region: feeRegion,
       cart,
       tipAmount: resolveTipAmount(cart.subtotal, tipPercentage ?? 0, body.tipAmount),
       discount: cart.appliedCoupon?.discountAmount || 0,
@@ -144,7 +151,7 @@ export async function POST(request: NextRequest) {
     const totalPaid = credit.total;
     const amountCents = credit.cardCents;
     const creditApplied = toDollars(credit.creditCents);
-    const creditFields = { creditApplied, cardAmount: toDollars(credit.cardCents), balance: toDollars(credit.balanceCents), platformFee: credit.platformFee, tax: credit.tax, total: credit.total };
+    const creditFields = { creditApplied, cardAmount: toDollars(credit.cardCents), balance: toDollars(credit.balanceCents), platformFee: credit.platformFee, tax: credit.tax, total: credit.total, feeRegion, cardCountry };
 
     if (amountCents <= 0) {
       // the credit pays for everything: there is no card payment. An earlier card session for this checkout is closed.
@@ -188,6 +195,7 @@ export async function POST(request: NextRequest) {
           total: totalPaid,
           platformFee: credit.platformFee,
           taxes: credit.tax,
+          feeRegion,
         });
         if (sync === 'updated') console.log('[payment-intent] pending order amounts updated', { orderId: pendingOrderId });
       } catch (syncError) {

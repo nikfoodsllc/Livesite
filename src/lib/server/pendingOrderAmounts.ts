@@ -19,14 +19,17 @@ export function sameCents(a: number | undefined, b: number): boolean {
   return Math.round(Number(a ?? NaN) * 100) === Math.round(b * 100);
 }
 
-export async function syncPendingOrderAmounts(args: { orderId: string; userId: string; tip: number; total: number; platformFee: number; taxes: number }): Promise<PendingOrderSync> {
+export async function syncPendingOrderAmounts(args: { orderId: string; userId: string; tip: number; total: number; platformFee: number; taxes: number; feeRegion?: 'us' | 'intl' }): Promise<PendingOrderSync> {
   const orders = await db.getCollectionForOperations<Record<string, unknown>>('orders');
-  const order = (await orders.findOne({ orderId: args.orderId, user: args.userId, status: { $in: PENDING_STATES }, paymentStatus: { $in: UNPAID_STATES } } as never, { projection: { tip: 1, totalPaid: 1, platformFee: 1, taxes: 1, storeCreditUsed: 1 } })) as { tip?: number; totalPaid?: number; platformFee?: number; taxes?: number; storeCreditUsed?: number } | null;
+  const order = (await orders.findOne({ orderId: args.orderId, user: args.userId, status: { $in: PENDING_STATES }, paymentStatus: { $in: UNPAID_STATES } } as never, { projection: { tip: 1, totalPaid: 1, platformFee: 1, taxes: 1, storeCreditUsed: 1, feeRegion: 1 } })) as { tip?: number; totalPaid?: number; platformFee?: number; taxes?: number; storeCreditUsed?: number; feeRegion?: string } | null;
   if (!order || (order.storeCreditUsed ?? 0) > 0) return 'skipped';
-  if (sameCents(order.tip, args.tip) && sameCents(order.totalPaid, args.total) && sameCents(order.platformFee, args.platformFee) && sameCents(order.taxes, args.taxes)) return 'unchanged';
+  const regionSame = args.feeRegion === undefined || (args.feeRegion === 'intl') === (order.feeRegion === 'intl');
+  if (regionSame && sameCents(order.tip, args.tip) && sameCents(order.totalPaid, args.total) && sameCents(order.platformFee, args.platformFee) && sameCents(order.taxes, args.taxes)) return 'unchanged';
+  // the international fee is marked on the order (the admin shows it); going back to a US card removes the mark
+  const region = args.feeRegion === undefined ? {} : args.feeRegion === 'intl' ? { $set: { feeRegion: 'intl' } } : { $unset: { feeRegion: '' } };
   const r = await orders.updateOne(
     { orderId: args.orderId, user: args.userId, status: { $in: PENDING_STATES }, paymentStatus: { $in: UNPAID_STATES } } as never,
-    { $set: { tip: Number(args.tip.toFixed(2)), totalPaid: Number(args.total.toFixed(2)), platformFee: args.platformFee, taxes: args.taxes, updatedAt: new Date() } } as never
+    { ...('$unset' in region ? { $unset: region.$unset } : {}), $set: { tip: Number(args.tip.toFixed(2)), totalPaid: Number(args.total.toFixed(2)), platformFee: args.platformFee, taxes: args.taxes, updatedAt: new Date(), ...('$set' in region ? region.$set : {}) } } as never
   );
   return r.modifiedCount > 0 ? 'updated' : 'skipped';
 }

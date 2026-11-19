@@ -9,6 +9,9 @@ import {
   CircularProgress,
   Alert,
   Paper,
+  Dialog,
+  DialogContent,
+  DialogActions,
 } from '@mui/material';
 import { useRouter } from 'next/navigation';
 import { loadStripe } from '@stripe/stripe-js';
@@ -570,6 +573,12 @@ export default function CheckoutPage() {
   const [creditLoaded, setCreditLoaded] = useState(false);
   const [useCredit, setUseCredit] = useState(true);
   const [serverCredit, setServerCredit] = useState<{ applied: number; covered: boolean; platformFee?: number; tax?: number; total?: number } | null>(null);
+  // a card issued outside the US (found when Pay was pressed): the server's higher Platform Fee, tax and total, shown instead of the cart's
+  const [foreignTotals, setForeignTotals] = useState<{ platformFee: number; tax: number; total: number } | null>(null);
+  const foreignTotalsRef = useRef(foreignTotals);
+  foreignTotalsRef.current = foreignTotals;
+  // the box asking the customer to pay the new total (nothing is charged until they press Pay again)
+  const [foreignNotice, setForeignNotice] = useState(false);
   const paidWithCreditRef = useRef(false);
   const [isInitializingPayment, setIsInitializingPayment] = useState(false);
   const [isPaymentSubmitting, setIsPaymentSubmitting] = useState(false);
@@ -1071,7 +1080,7 @@ export default function CheckoutPage() {
     [refreshCart]
   );
 
-  const initializePaymentIntent = useCallback(async (): Promise<boolean> => {
+  const initializePaymentIntent = useCallback(async (confirmationTokenId?: string): Promise<false | { feeRegion: 'us' | 'intl' }> => {
     if (!cart || cart.days.length === 0) {
       return false;
     }
@@ -1094,6 +1103,7 @@ export default function CheckoutPage() {
           paymentIntentId: paymentIntentId ?? undefined,
           useStoreCredit: useCredit && creditBalance > 0,
           orderId: pendingOrderId ?? undefined,
+          confirmationTokenId,
         }),
       });
 
@@ -1118,12 +1128,18 @@ export default function CheckoutPage() {
         tax: typeof data.data.tax === 'number' ? data.data.tax : undefined,
         total: typeof data.data.total === 'number' ? data.data.total : undefined,
       });
+      const feeRegion: 'us' | 'intl' = data.data.feeRegion === 'intl' ? 'intl' : 'us';
+      setForeignTotals(
+        feeRegion === 'intl' && typeof data.data.platformFee === 'number' && typeof data.data.tax === 'number' && typeof data.data.total === 'number'
+          ? { platformFee: data.data.platformFee, tax: data.data.tax, total: data.data.total }
+          : null
+      );
 
       if (data.data.coveredByCredit === true) {
         // the store credit pays for everything: no card form
         setPaymentIntentId(null);
         setPaymentClientSecret(null);
-        return true;
+        return { feeRegion };
       }
 
       if (!clientSecret || !intentId) {
@@ -1134,7 +1150,7 @@ export default function CheckoutPage() {
       setPaymentIntentId(intentId);
       setPaymentClientSecret(clientSecret);
       setPaymentAmountVersion((v) => v + 1);
-      return true;
+      return { feeRegion };
     } catch (err) {
       console.error('Payment intent error:', err);
       setError(err instanceof Error ? err.message : 'Failed to load payment options.');
@@ -1160,7 +1176,7 @@ export default function CheckoutPage() {
     creditBalance,
   ]);
 
-  const createPendingOrder = useCallback(async (): Promise<string | null> => {
+  const createPendingOrder = useCallback(async (confirmationTokenId?: string): Promise<string | null> => {
     if (!cart || cart.days.length === 0) {
       setError('Your cart is empty');
       return null;
@@ -1181,6 +1197,7 @@ export default function CheckoutPage() {
         // only ever sent when the customer ticked the box themselves (an existing agreement is never changed here)
         smsOptIn: smsChecked ? true : undefined,
         useStoreCredit: useCredit && creditBalance > 0,
+        confirmationTokenId: confirmationTokenId ?? undefined,
       };
       sentInstructionsRef.current = cleanInstructionsText(deliveryInstructions);
 
@@ -1392,6 +1409,22 @@ export default function CheckoutPage() {
       if (!formSubmitted) throw new Error('Payment details need attention');
     }
 
+    // Which card is it? Stripe tells us the card's country without charging it. A card issued outside the US costs us more at Stripe, so it
+    // pays the international Platform Fee: the server works out the new total, the page shows it, and the customer presses Pay again.
+    let confirmationTokenId: string | undefined;
+    if (formSubmitted && paymentFormRef.current) {
+      const tokenId = await paymentFormRef.current.createToken();
+      if (!tokenId) throw new Error('Payment details need attention');
+      confirmationTokenId = tokenId;
+      const sawForeignTotal = foreignTotalsRef.current !== null;
+      const checked = await initializePaymentIntent(tokenId);
+      if (!checked) throw new Error('Payment session not ready');
+      if (checked.feeRegion === 'intl' && !sawForeignTotal) {
+        setForeignNotice(true);
+        throw new Error('Card fee changed');
+      }
+    }
+
     let orderIdForPayment = pendingOrderId;
 
     if (!paymentClientSecret && !coveredByCredit) {
@@ -1401,7 +1434,7 @@ export default function CheckoutPage() {
     }
 
     if (!orderIdForPayment) {
-      orderIdForPayment = await createPendingOrder();
+      orderIdForPayment = await createPendingOrder(confirmationTokenId);
       if (!orderIdForPayment) throw new Error('Order not created');
     }
 
@@ -1431,7 +1464,7 @@ export default function CheckoutPage() {
       }
     }
 
-    await paymentFormRef.current.confirmPayment(orderIdForPayment, { alreadySubmitted: formSubmitted });
+    await paymentFormRef.current.confirmPayment(orderIdForPayment, { alreadySubmitted: formSubmitted, confirmationTokenId });
   };
 
   if (closedNotice && (!cart || cart.days.length === 0)) {
@@ -1585,10 +1618,35 @@ export default function CheckoutPage() {
             creditApplied={creditApplied}
             coveredByCredit={coveredByCredit}
             creditLocked={creditLocked}
-            creditedTotals={creditedTotals}
+            creditedTotals={foreignTotals ?? creditedTotals}
           />
         </Box>
       </Container>
+
+      {/* A card issued outside the US: show the new total and charge nothing until the customer presses Pay again */}
+      <Dialog open={foreignNotice && foreignTotals !== null} onClose={() => setForeignNotice(false)} maxWidth="xs" fullWidth>
+        <DialogContent sx={{ pb: 1 }}>
+          <Typography sx={{ fontWeight: 700, fontSize: 18, mb: 1 }}>Card issued outside the US</Typography>
+          <Typography sx={{ color: 'text.secondary' }}>
+            These cards have a higher processing fee. New total: <strong>${Math.max(0, (foreignTotals?.total ?? 0) - creditApplied).toFixed(2)}</strong>
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5, gap: 1, flexWrap: 'wrap' }}>
+          <Button onClick={() => setForeignNotice(false)} sx={{ textTransform: 'none', color: '#1F1712' }}>
+            Use another card
+          </Button>
+          <Button
+            variant="contained"
+            onClick={() => {
+              setForeignNotice(false);
+              void handlePlaceOrder().catch(() => undefined);
+            }}
+            sx={{ textTransform: 'none', bgcolor: '#1F1712', color: '#F6D58E', fontWeight: 600, '&:hover': { bgcolor: '#8A6420' } }}
+          >
+            Pay ${Math.max(0, (foreignTotals?.total ?? 0) - creditApplied).toFixed(2)}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Address Selection Dialog */}
       <AddressSelectionDialog

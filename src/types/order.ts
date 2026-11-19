@@ -196,8 +196,10 @@ export interface Order {
   /** Which push notifications were already sent for this order (event -> when), so none goes out twice */
   pushLog?: Record<string, Date>;
   offlinePaymentNote?: string; // How an order was paid outside the website (cash, Zelle, ...)
-  /** 'intl' when the customer ordered in the mobile app from an App Store outside the US (6% + $0.30 Platform Fee); missing = the ordinary fee. Business only. */
+  /** 'intl' = the 6% + $0.30 Platform Fee: the customer ordered in the mobile app from an App Store outside the US, or paid with a card issued outside the US; missing = the ordinary fee. Business only. */
   feeRegion?: 'us' | 'intl';
+  /** The country of the card the customer paid with, as Stripe reported it when they pressed Pay (missing for Link and older orders). Business only. */
+  cardCountry?: string;
   /** That App Store's country (3-letter code), for the same orders. Business only. */
   storeCountry?: string;
   platformFeeWaived?: boolean; // The admin dropped the Platform Fee on this order
