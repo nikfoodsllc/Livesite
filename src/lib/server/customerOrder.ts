@@ -35,6 +35,7 @@ export const INTERNAL_ORDER_FIELDS = [
   'offlinePaymentNote',
   'platformFeeWaived',
   'reschedules',
+  'noteChanges',
   'offlineFollowUp',
   'rebuiltFromOrderId',
   'addressChanges',
@@ -73,16 +74,18 @@ export function toCustomerOrder<T extends object>(order: T): Omit<T, (typeof INT
       return rest;
     });
   }
-  // items an admin moved to another delivery date carry the date they started with: business only
+  // items an admin moved to another delivery date carry the date they started with, and an admin's note on an item is for the
+  // kitchen and packing team: both business only
   if (Array.isArray(copy.items)) {
     copy.items = (copy.items as Array<Record<string, unknown>>).map((line) =>
       line && Array.isArray(line.items)
         ? {
             ...line,
             items: (line.items as Array<Record<string, unknown>>).map((item) => {
-              if (item && 'originalDeliveryDate' in item) {
-                const { originalDeliveryDate: _original, ...rest } = item;
+              if (item && ('originalDeliveryDate' in item || 'adminNote' in item)) {
+                const { originalDeliveryDate: _original, adminNote: _note, ...rest } = item;
                 void _original;
+                void _note;
                 return rest;
               }
               return item;
