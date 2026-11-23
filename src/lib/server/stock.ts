@@ -50,6 +50,7 @@ export async function orderedAmounts(items: StockedItem[], now: Date = new Date(
 interface FoodDoc {
   _id: unknown;
   name?: unknown;
+  available?: unknown;
   stockThreshold?: unknown;
   stockUnit?: unknown;
   stockResetAt?: unknown;
@@ -102,12 +103,17 @@ export interface OutOfStockLine {
 }
 
 /**
- * The items of an order that ask for more than is left of an item with a limit. Amounts of the same item on several days, lines or
+ * The items of an order that ask for more than is left of an item with a limit, plus items ordered on their own that an admin switched
+ * off (Food Items > Available; shown as sold out on the menu, refused here as sold out). Amounts of the same item on several days, lines or
  * inside combos add up. Fails open: if the stock cannot be read, the order is allowed (a counting problem must not stop sales).
  */
 export async function findOutOfStockLines(lines: Array<StockLineInput & { selectedPortion?: unknown }>, now: Date = new Date()): Promise<OutOfStockLine[]> {
   const wanted = new Map<string, LineAmount>();
+  // items ordered on their own (not as a combo part): these are refused when an admin switched them off (Food Items > Available)
+  const ownIds = new Set<string>();
   for (const line of lines) {
+    const own = (line.food ?? line.foodItem)?._id;
+    if (own !== undefined && own !== null) ownIds.add(String(own));
     for (const [id, a] of lineAmounts(line)) {
       const cur = wanted.get(id) ?? { units: 0, ounces: 0 };
       cur.units += a.units;
@@ -118,12 +124,26 @@ export async function findOutOfStockLines(lines: Array<StockLineInput & { select
   const ids = [...wanted.keys()].filter((id) => ObjectId.isValid(id));
   if (ids.length === 0) return [];
   try {
-    const found = await db.read('fooditems', { _id: { $in: ids.map((id) => new ObjectId(id)) }, stockThreshold: { $gt: 0 } });
+    const own = ids.filter((id) => ownIds.has(id));
+    const found = await db.read('fooditems', {
+      _id: { $in: ids.map((id) => new ObjectId(id)) },
+      $or: [{ stockThreshold: { $gt: 0 } }, ...(own.length > 0 ? [{ _id: { $in: own.map((id) => new ObjectId(id)) }, available: false }] : [])],
+    });
     const docs = (found.success && found.data ? found.data : []) as FoodDoc[];
     if (docs.length === 0) return [];
-    const counts = await orderedAmounts(docs.map((d) => toItem(d, now)), now);
     const out: OutOfStockLine[] = [];
+    // switched off by an admin: the menu shows it as sold out, so checkout refuses it the same way (a cart or open page may still have it)
+    const switchedOff = new Set(docs.filter((d) => d.available === false && ownIds.has(String(d._id))).map((d) => String(d._id)));
     for (const d of docs) {
+      const id = String(d._id);
+      if (!switchedOff.has(id)) continue;
+      const unit = unitOf(d);
+      out.push({ foodItemId: id, name: String(d.name ?? 'This item'), wantedText: formatAmount(amountIn(wanted.get(id), unit), unit), remainingText: formatAmount(0, unit), remainingBase: 0 });
+    }
+    const limited = docs.filter((d) => !switchedOff.has(String(d._id)) && limitOf(d) !== null);
+    if (limited.length === 0) return out;
+    const counts = await orderedAmounts(limited.map((d) => toItem(d, now)), now);
+    for (const d of limited) {
       const id = String(d._id);
       const unit = unitOf(d);
       const state = stockState(d.stockThreshold, counts.get(id) ?? 0, unit);
