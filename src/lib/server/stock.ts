@@ -127,7 +127,7 @@ export async function findOutOfStockLines(lines: Array<StockLineInput & { select
     const own = ids.filter((id) => ownIds.has(id));
     const found = await db.read('fooditems', {
       _id: { $in: ids.map((id) => new ObjectId(id)) },
-      $or: [{ stockThreshold: { $gt: 0 } }, ...(own.length > 0 ? [{ _id: { $in: own.map((id) => new ObjectId(id)) }, available: false }] : [])],
+      $or: [{ stockThreshold: { $gte: 0 } }, ...(own.length > 0 ? [{ _id: { $in: own.map((id) => new ObjectId(id)) }, available: false }] : [])],
     });
     const docs = (found.success && found.data ? found.data : []) as FoodDoc[];
     if (docs.length === 0) return [];
@@ -175,7 +175,7 @@ export async function markSoldOutOptions(sections: Array<Record<string, unknown>
     for (const section of sections) for (const option of ((section.selectedItems as Array<{ item?: Record<string, unknown> }> | undefined) ?? [])) if (option.item?._id) items.push(option.item);
     const ids = [...new Set(items.map((i) => String(i._id)))].filter((id) => ObjectId.isValid(id));
     if (ids.length === 0) return;
-    const found = await db.read('fooditems', { _id: { $in: ids.map((id) => new ObjectId(id)) }, stockThreshold: { $gt: 0 } });
+    const found = await db.read('fooditems', { _id: { $in: ids.map((id) => new ObjectId(id)) }, stockThreshold: { $gte: 0 } });
     const docs = (found.success && found.data ? found.data : []) as FoodDoc[];
     if (docs.length === 0) return;
     const gone = await soldOutFoodIds(docs, now);
