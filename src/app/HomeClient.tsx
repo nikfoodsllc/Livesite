@@ -374,7 +374,8 @@ function foodItemAllowedOnDate(
   dateString: string,
   availableDates: DayOption[]
 ): boolean {
-  if (item.available === false) {
+  // a sold-out item (order limit reached, or a limit of 0) stays on the menu with its Out of stock card; only other unavailable items are hidden
+  if (item.available === false && !item.soldOut) {
     return false;
   }
   const allowed = item.availableWeekDays;
