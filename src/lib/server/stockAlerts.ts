@@ -97,7 +97,7 @@ export async function checkStockAlerts(
 ): Promise<Array<{ foodItemId: string; kind: 'low' | 'out'; sent: boolean }>> {
   const ids = [...new Set(foodIds)].filter((id) => ObjectId.isValid(id));
   if (ids.length === 0) return [];
-  const found = await db.read('fooditems', { _id: { $in: ids.map((id) => new ObjectId(id)) }, stockThreshold: { $gt: 0 } });
+  const found = await db.read('fooditems', { _id: { $in: ids.map((id) => new ObjectId(id)) }, stockThreshold: { $gte: 0 } });
   const docs = (found.success && found.data ? found.data : []) as FoodDoc[];
   if (docs.length === 0) return [];
   const counts = await orderedAmounts(docs.map((d) => ({ id: String(d._id), since: stockSince(d, now), unit: cleanStockUnit(d.stockUnit) })), now);
