@@ -265,12 +265,15 @@ export async function buildHomeMenu(): Promise<HomeMenuPayload> {
         price: foodItem.price,
         veg: foodItem.veg,
         allergens: cleanAllergens(foodItem.allergens),
-        available: foodItem.available && !soldOut.has(foodItemIdStr),
+        // a sold-out item stays `available` (it is on the menu) and carries `soldOut`: the website and the app (also older app builds,
+        // which drop items with available false from the day lists) show it with the greyed Out of stock card and no add button
+        available: foodItem.available !== false,
         ...(soldOut.has(foodItemIdStr) ? { soldOut: true } : {}),
         // units left of an item with an order limit (the + button stops there); missing when the item has no limit
         ...(stockLeft.has(foodItemIdStr) ? { stockRemaining: stockLeft.get(foodItemIdStr)!.base, stockBase: stockLeft.get(foodItemIdStr)!.baseUnit } : {}),
         // marked in the admin (Food Items > Chef's Pick); the mobile app shows these in its Chef's Pick row, the website does not use it
-        chefsPick: foodItem.chefsPick === true,
+        // the app's Chef's Pick row has no Out of stock look, so a sold-out item leaves that row (it stays greyed in the menu)
+        chefsPick: foodItem.chefsPick === true && !soldOut.has(foodItemIdStr),
         allowInstructions: foodItem.allowInstructions === true,
         url: foodItem.url || foodItem.imageUrl || '',
         ...publicImageFields(foodItem),

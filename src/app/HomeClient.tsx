@@ -1207,7 +1207,7 @@ export default function HomeClient({ initialMenu = null }: { initialMenu?: HomeM
             itemType={itemType}
             veg={item.veg}
             allergens={item.allergens}
-            available={item.available}
+            available={item.available !== false && !item.soldOut}
             atStockLimit={localCart.stockLeftFor(item) === 0}
           />
         );
@@ -1250,7 +1250,7 @@ export default function HomeClient({ initialMenu = null }: { initialMenu?: HomeM
             itemType={itemType}
             veg={item.veg}
             allergens={item.allergens}
-            available={item.available}
+            available={item.available !== false && !item.soldOut}
             atStockLimit={localCart.stockLeftFor(item) === 0}
           />
         );
@@ -1504,7 +1504,7 @@ export default function HomeClient({ initialMenu = null }: { initialMenu?: HomeM
                         itemType={itemType}
                         veg={item.veg}
                         allergens={item.allergens}
-                        available={item.available}
+                        available={item.available !== false && !item.soldOut}
                         atStockLimit={localCart.stockLeftFor(item) === 0}
                       />
                     );
