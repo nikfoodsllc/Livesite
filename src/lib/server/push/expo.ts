@@ -34,7 +34,8 @@ export async function sendExpoMessages(messages: PushMessage[], fetchImpl: typeo
       const response = await fetchImpl(EXPO_PUSH_URL, {
         method: 'POST',
         headers: { Accept: 'application/json', 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify(batch.map((m) => ({ sound: 'default', priority: 'high', ...m }))),
+        // channelId: the Android app's notification channel (sound + pop-up); iPhones ignore it
+        body: JSON.stringify(batch.map((m) => ({ sound: 'default', priority: 'high', channelId: 'default', ...m }))),
         signal: controller.signal,
       }).finally(() => clearTimeout(timer));
       const json = (await response.json().catch(() => ({}))) as { data?: Array<{ status?: string; id?: string; message?: string; details?: { error?: string } }>; errors?: Array<{ message?: string }> };
