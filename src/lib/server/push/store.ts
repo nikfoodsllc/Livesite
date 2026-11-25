@@ -1,3 +1,4 @@
+import { cleanPlatform } from '@/lib/server/appClient';
 import { db } from '@/lib/server/db';
 import { isOlderVersion } from './appVersion';
 import { DEFAULT_PREFS, isExpoToken, type PushPrefs } from './config';
@@ -35,7 +36,7 @@ export async function registerToken(userId: string, token: string, meta: { platf
   await col.updateOne(
     { token: token.trim() } as never,
     {
-      $set: { userId, platform: String(meta.platform ?? 'ios').slice(0, 20), deviceName: String(meta.deviceName ?? '').slice(0, 60), appVersion: String(meta.appVersion ?? '').slice(0, 20), updatedAt: now },
+      $set: { userId, platform: cleanPlatform(meta.platform), deviceName: String(meta.deviceName ?? '').slice(0, 60), appVersion: String(meta.appVersion ?? '').slice(0, 20), updatedAt: now },
       $setOnInsert: { createdAt: now },
     } as never,
     { upsert: true }
@@ -65,10 +66,11 @@ export async function tokensForUsers(userIds: string[]): Promise<Array<{ token: 
   return rows.map((r) => ({ token: String(r.token), userId: String(r.userId) }));
 }
 
-/** Phones of iPhone apps whose version is lower than `latest` (a phone that never reported its version counts as older). */
-export async function phonesOnOlderVersion(latest: string): Promise<Array<{ token: string; userId: string }>> {
+/** Phones of the iPhone (default) or Android app whose version is lower than `latest` (a phone that never reported its version counts as older). */
+export async function phonesOnOlderVersion(latest: string, platform: 'ios' | 'android' = 'ios'): Promise<Array<{ token: string; userId: string }>> {
   const col = await tokens();
-  const rows = await col.find({ platform: { $in: ['ios', '', null] } } as never, { projection: { token: 1, userId: 1, appVersion: 1 } }).toArray();
+  const which = platform === 'android' ? { platform: 'android' } : { platform: { $in: ['ios', '', null] } };
+  const rows = await col.find(which as never, { projection: { token: 1, userId: 1, appVersion: 1 } }).toArray();
   return rows.filter((r) => isOlderVersion(r.appVersion, latest)).map((r) => ({ token: String(r.token), userId: String(r.userId) }));
 }
 

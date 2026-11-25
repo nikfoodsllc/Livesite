@@ -176,7 +176,8 @@ export interface Order {
   stripeNet?: number; // Amount that reached our balance after Stripe's fee, in dollars (business only)
   deliveryMessages?: string[]; // Cart clubbing messages
   hasReview?: boolean; // Whether this order has been reviewed
-  channel?: 'web' | 'mobile'; // Where the customer placed the order: the website or the iPhone app (absent on older orders = website; admin-entered orders have `source`)
+  channel?: 'web' | 'mobile'; // Where the customer placed the order: the website or the app (iPhone or Android) (absent on older orders = website; admin-entered orders have `source`)
+  appPlatform?: 'ios' | 'android'; // Which app, for app orders (absent on app orders from before Android = iPhone)
   source?: 'admin'; // Entered by an admin for the customer (a phone or in-person order); absent for website orders
   createdByAdmin?: string; // Admin user id (business only)
   paymentLinkTokenHash?: string; // SHA-256 of the secret in the customer's pay link (business only)

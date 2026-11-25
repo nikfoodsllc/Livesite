@@ -8,6 +8,7 @@ import { db } from '@/lib/server/db';
 import type { IUser } from '@/types/auth';
 import { buildDraftPaymentMetadata, siteFromHeaders } from '@/lib/server/stripePaymentInfo';
 import { findClosedLines } from '@/lib/server/availableDates';
+import { appPlatformOf, channelOf } from '@/lib/server/appClient';
 import { closedLinesMessage, legacyClosedDates } from '@/lib/server/orderCutoff';
 import { saveCheckoutDraft } from '@/lib/server/checkoutDrafts';
 import { creditForCheckout } from '@/lib/server/checkoutCredit';
@@ -97,7 +98,8 @@ export async function POST(request: NextRequest) {
 
     const userId = verifyResult.payload.userId;
     // the app sends this header (the orders list uses it too): remembered on the checkout so the admin can tell app from website
-    const channel: 'web' | 'mobile' = request.headers.get('x-nikfoods-client') === 'ios' ? 'mobile' : 'web';
+    const channel = channelOf(request.headers);
+    const appPlatform = appPlatformOf(request.headers) ?? undefined;
     const body: PaymentIntentRequest = await request.json();
     const { cart, tipPercentage, currency, paymentIntentId } = body;
     const useStoreCredit = body.useStoreCredit === true;
@@ -214,7 +216,7 @@ export async function POST(request: NextRequest) {
         });
 
         // remember the cart so a customer who never finishes can be followed up (never blocks the payment)
-        await saveCheckoutDraft({ paymentIntentId: updated.id, userId, customer, cart, total: totalPaid, channel });
+        await saveCheckoutDraft({ paymentIntentId: updated.id, userId, customer, cart, total: totalPaid, channel, appPlatform });
 
         return NextResponse.json({
           success: true,
@@ -242,7 +244,7 @@ export async function POST(request: NextRequest) {
       description: customer.email ? `NikFoods checkout (${customer.email})` : 'NikFoods checkout',
     });
 
-    await saveCheckoutDraft({ paymentIntentId: paymentIntent.id, userId, customer, cart, total: totalPaid, channel });
+    await saveCheckoutDraft({ paymentIntentId: paymentIntent.id, userId, customer, cart, total: totalPaid, channel, appPlatform });
 
     return NextResponse.json({
       success: true,
