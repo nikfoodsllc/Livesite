@@ -53,7 +53,7 @@ export function addDays(day: string, n: number): string {
 }
 
 /** Notes that this customer's install opened the app today. Quiet: never throws (a failure must not break the app's report). */
-export async function recordAppOpen(userId: string, installId: string, appVersion?: string): Promise<void> {
+export async function recordAppOpen(userId: string, installId: string, appVersion?: string, platform?: 'ios' | 'android'): Promise<void> {
   try {
     if (!userId || !installId) return;
     const now = new Date();
@@ -62,7 +62,7 @@ export async function recordAppOpen(userId: string, installId: string, appVersio
       { userId, installId, day: pacificDay(now) } as never,
       {
         $inc: { opens: 1 },
-        $set: { lastAt: now, ...(appVersion ? { appVersion: String(appVersion).slice(0, 20) } : {}) },
+        $set: { lastAt: now, ...(appVersion ? { appVersion: String(appVersion).slice(0, 20) } : {}), ...(platform ? { platform } : {}) },
         $setOnInsert: { userId, installId, day: pacificDay(now), firstAt: now },
       } as never,
       { upsert: true }
@@ -80,6 +80,8 @@ export interface ActivityDevice {
   userId: string;
   installId: string;
   appVersion?: string;
+  /** 'ios' or 'android' (phones from before Android count as iPhone) */
+  platform?: string;
   firstSeenAt: Date | string;
   lastSeenAt: Date | string;
 }
@@ -93,6 +95,7 @@ export interface ActivityOrder {
   createdAt: Date | string;
   user?: string;
   channel?: string;
+  appPlatform?: string;
 }
 
 export interface AppActivity {
@@ -103,6 +106,8 @@ export interface AppActivity {
   days: string[];
   /** customers who have the app (signed in on it at least once) and the phones they use it on */
   onApp: { customers: number; installs: number };
+  /** the same, and who opened it in the last 30 days, for the iPhone app and the Android app */
+  platforms: Record<'ios' | 'android', { customers: number; installs: number; last30: number }>;
   /** customers whose app was opened today / in the last 7 days / in the last 30 days (from each phone's last open) */
   active: { today: number; last7: number; last30: number };
   /** new phones that signed in for the first time, per day */
@@ -113,10 +118,10 @@ export interface AppActivity {
   recordingSince: string | null;
   /** customers who opened the app on 2 or more different days within the last 7 days (null until 2 days are recorded) */
   returning7: number | null;
-  /** paid orders per day: placed in the app, and all (website and app); orders an admin entered are left out */
-  orders: Array<{ day: string; app: number; all: number; appCustomers: number }>;
-  /** the app versions on phones opened in the last 30 days */
-  versions: Array<{ version: string; customers: number }>;
+  /** paid orders per day: placed in the app (of which on Android), and all (website and app); orders an admin entered are left out */
+  orders: Array<{ day: string; app: number; appAndroid: number; all: number; appCustomers: number }>;
+  /** the app versions on phones opened in the last 30 days, per app (iPhone / Android) */
+  versions: Array<{ version: string; platform: 'ios' | 'android'; customers: number }>;
   /** who is behind each number (customer ids; the details of each are in `people`) */
   lists: {
     have: string[];
@@ -197,31 +202,39 @@ export function buildAppActivity(input: {
   }
 
   // each order's day is worked out once (not once per day shown)
-  const byDay = new Map<string, { app: number; all: number; appUsers: Set<string> }>();
+  const byDay = new Map<string, { app: number; appAndroid: number; all: number; appUsers: Set<string> }>();
   for (const o of input.orders) {
     const day = dayOf(o.createdAt);
     if (!inWindow.has(day)) continue;
-    const b = byDay.get(day) ?? { app: 0, all: 0, appUsers: new Set<string>() };
+    const b = byDay.get(day) ?? { app: 0, appAndroid: 0, all: 0, appUsers: new Set<string>() };
     b.all += 1;
     if (o.channel === 'mobile') {
       b.app += 1;
+      if (o.appPlatform === 'android') b.appAndroid += 1;
       b.appUsers.add(o.user ?? '');
     }
     byDay.set(day, b);
   }
   const orders = days.map((day) => {
     const b = byDay.get(day);
-    return { day, app: b?.app ?? 0, all: b?.all ?? 0, appCustomers: b?.appUsers.size ?? 0 };
+    return { day, app: b?.app ?? 0, appAndroid: b?.appAndroid ?? 0, all: b?.all ?? 0, appCustomers: b?.appUsers.size ?? 0 };
   });
 
+  const platformOf = (d: ActivityDevice): 'ios' | 'android' => (d.platform === 'android' ? 'android' : 'ios');
   const recent = input.devices.filter((d) => dayOf(d.lastSeenAt) >= addDays(today, -29));
-  const byVersion = new Map<string, Set<string>>();
+  const platforms = { ios: { customers: 0, installs: 0, last30: 0 }, android: { customers: 0, installs: 0, last30: 0 } };
+  for (const p of ['ios', 'android'] as const) {
+    const mine = input.devices.filter((d) => platformOf(d) === p);
+    platforms[p] = { customers: new Set(mine.map((d) => d.userId)).size, installs: mine.length, last30: new Set(recent.filter((d) => platformOf(d) === p).map((d) => d.userId)).size };
+  }
+  const byVersion = new Map<string, { version: string; platform: 'ios' | 'android'; users: Set<string> }>();
   for (const d of recent) {
     const v = (d.appVersion || '').trim() || 'Not reported';
-    if (!byVersion.has(v)) byVersion.set(v, new Set());
-    byVersion.get(v)!.add(d.userId);
+    const key = `${platformOf(d)}|${v}`;
+    if (!byVersion.has(key)) byVersion.set(key, { version: v, platform: platformOf(d), users: new Set() });
+    byVersion.get(key)!.users.add(d.userId);
   }
-  const versions = [...byVersion.entries()].map(([version, set]) => ({ version, customers: set.size })).sort((a, b) => b.customers - a.customers || b.version.localeCompare(a.version, undefined, { numeric: true }));
+  const versions = [...byVersion.values()].map((x) => ({ version: x.version, platform: x.platform, customers: x.users.size })).sort((a, b) => b.customers - a.customers || b.version.localeCompare(a.version, undefined, { numeric: true }));
 
   // who is behind each number
   const idsWhere = (test: (d: ActivityDevice) => boolean) => [...new Set(input.devices.filter(test).map((d) => d.userId))];
@@ -271,6 +284,7 @@ export function buildAppActivity(input: {
     today,
     days,
     onApp: { customers: customers.size, installs: input.devices.length },
+    platforms,
     active,
     newInstalls,
     daily,
@@ -290,7 +304,7 @@ export async function loadAppActivity(daysWanted: number): Promise<AppActivity> 
   const today = pacificDay(now);
   const from = addDays(today, -(days - 1));
 
-  const devices = (await allDevices(20000)).map((d) => ({ userId: d.userId, installId: d.installId, appVersion: d.appVersion, firstSeenAt: d.firstSeenAt, lastSeenAt: d.lastSeenAt }));
+  const devices = (await allDevices(20000)).map((d) => ({ userId: d.userId, installId: d.installId, appVersion: d.appVersion, platform: d.platform, firstSeenAt: d.firstSeenAt, lastSeenAt: d.lastSeenAt }));
 
   const col = await activity();
   const rows = (await col.find({ day: { $gte: from } } as never, { projection: { userId: 1, installId: 1, day: 1, opens: 1 } }).toArray()) as unknown as ActivityRow[];
@@ -301,7 +315,7 @@ export async function loadAppActivity(daysWanted: number): Promise<AppActivity> 
   const ordersCol = await db.getCollectionForOperations<Record<string, unknown>>('orders');
   const start = new Date(`${addDays(from, -1)}T00:00:00Z`);
   const orders = (await ordersCol
-    .find({ createdAt: { $gte: start }, paymentStatus: 'paid', source: { $ne: 'admin' } } as never, { projection: { createdAt: 1, user: 1, channel: 1 } })
+    .find({ createdAt: { $gte: start }, paymentStatus: 'paid', source: { $ne: 'admin' } } as never, { projection: { createdAt: 1, user: 1, channel: 1, appPlatform: 1 } })
     .toArray()) as unknown as ActivityOrder[];
 
   // names for the lists: only customers who have the app

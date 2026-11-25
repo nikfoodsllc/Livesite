@@ -1,3 +1,4 @@
+import { cleanPlatform } from '@/lib/server/appClient';
 import { db } from '@/lib/server/db';
 import { removeToken } from './store';
 import { recordAppOpen } from './activity';
@@ -51,7 +52,7 @@ export async function reportDevice(
     {
       $set: {
         permission: input.permission,
-        platform: String(input.platform ?? 'ios').slice(0, 20),
+        platform: cleanPlatform(input.platform),
         deviceName: String(input.deviceName ?? '').slice(0, 60),
         appVersion: String(input.appVersion ?? '').slice(0, 20),
         lastSeenAt: now,
@@ -61,7 +62,7 @@ export async function reportDevice(
     } as never,
     { upsert: true }
   );
-  await recordAppOpen(userId, input.installId, input.appVersion);
+  await recordAppOpen(userId, input.installId, input.appVersion, cleanPlatform(input.platform));
   if (input.permission !== 'granted' && input.token) await removeToken(input.token, userId);
 }
 

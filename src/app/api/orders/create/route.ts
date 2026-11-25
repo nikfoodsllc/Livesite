@@ -34,6 +34,7 @@ import { clearUserCartSafely } from '@/lib/server/userCart';
 import { markDraftConverted } from '@/lib/server/checkoutDrafts';
 import { keepAllowedInstructions } from '@/lib/server/itemInstructions';
 import { findOutOfStockLines, outOfStockMessage } from '@/lib/server/stock';
+import { appPlatformOf, channelOf } from '@/lib/server/appClient';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 if (!stripeSecretKey) {
@@ -297,8 +298,9 @@ export async function POST(request: NextRequest) {
       paymentStatus: 'unpaid',
       paymentMethod: paidByCreditOnly ? 'Store Credit' : paymentMethod,
       deliveryMessages,
-      // the iPhone app says who it is in this header; the website sends none
-      channel: request.headers.get('x-nikfoods-client') === 'ios' ? ('mobile' as const) : ('web' as const),
+      // the iPhone and Android apps say who they are in this header; the website sends none
+      channel: channelOf(request.headers),
+      ...(appPlatformOf(request.headers) ? { appPlatform: appPlatformOf(request.headers)! } : {}),
       ...(credit.creditCents > 0
         ? {
             storeCreditUsed: toDollars(credit.creditCents),

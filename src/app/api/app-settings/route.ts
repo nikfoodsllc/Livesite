@@ -10,12 +10,14 @@ export async function GET() {
     const col = await db.getCollectionForOperations<Record<string, unknown>>('appSettings');
     const doc = (await col.findOne({ key: 'home' } as never)) as { intro?: unknown } | null;
     const homeIntro = typeof doc?.intro === 'string' ? doc.intro : '';
-    // the newest iPhone app version on the App Store ('' = not set): the app shows "Update available" when it is older
-    const app = (await col.findOne({ key: 'app' } as never)) as { latestVersion?: unknown } | null;
+    // the newest app version in each store ('' = not set): the app shows "Update available" when it is older.
+    // latestVersion = iPhone (App Store; older iPhone builds read only this), latestVersionAndroid = Google Play
+    const app = (await col.findOne({ key: 'app' } as never)) as { latestVersion?: unknown; latestAndroidVersion?: unknown } | null;
     const latestVersion = cleanVersion(app?.latestVersion) ?? '';
-    return NextResponse.json({ success: true, data: { homeIntro, latestVersion } }, { headers: { 'Cache-Control': 'public, s-maxage=15' } });
+    const latestVersionAndroid = cleanVersion(app?.latestAndroidVersion) ?? '';
+    return NextResponse.json({ success: true, data: { homeIntro, latestVersion, latestVersionAndroid } }, { headers: { 'Cache-Control': 'public, s-maxage=15' } });
   } catch (error) {
     console.error('[app-settings] could not load', error instanceof Error ? error.message : error);
-    return NextResponse.json({ success: true, data: { homeIntro: '', latestVersion: '' } }, { headers: { 'Cache-Control': 'no-store' } });
+    return NextResponse.json({ success: true, data: { homeIntro: '', latestVersion: '', latestVersionAndroid: '' } }, { headers: { 'Cache-Control': 'no-store' } });
   }
 }

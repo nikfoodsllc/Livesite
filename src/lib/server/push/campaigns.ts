@@ -110,58 +110,62 @@ export async function sendSelectedCampaign(input: { title: unknown; body: unknow
 
 export const UPDATE_TITLE = 'New NikFoods update';
 export const UPDATE_BODY = 'A new version of the app is ready. Update it in the App Store.';
+export const UPDATE_BODY_ANDROID = 'A new version of the app is ready. Update it in Google Play.';
+export type StorePlatform = 'ios' | 'android';
+const versionField = (platform: StorePlatform) => (platform === 'android' ? 'latestAndroidVersion' : 'latestVersion');
 
 async function appSettingsDoc() {
   return db.getCollectionForOperations<Record<string, unknown>>('appSettings');
 }
 
-/** The newest iPhone app version the admin said is on the App Store, or '' when none is set. */
-export async function getLatestAppVersion(): Promise<string> {
+/** The newest app version the admin said is in the store (App Store for the iPhone app, Google Play for Android), or '' when none is set. */
+export async function getLatestAppVersion(platform: StorePlatform = 'ios'): Promise<string> {
   const col = await appSettingsDoc();
-  const doc = (await col.findOne({ key: 'app' } as never)) as { latestVersion?: unknown } | null;
-  return cleanVersion(doc?.latestVersion) ?? '';
+  const doc = (await col.findOne({ key: 'app' } as never)) as Record<string, unknown> | null;
+  return cleanVersion(doc?.[versionField(platform)]) ?? '';
 }
 
-export async function setLatestAppVersion(input: unknown, adminId: string): Promise<{ ok: true; value: string } | { ok: false; error: string }> {
+export async function setLatestAppVersion(input: unknown, adminId: string, platform: StorePlatform = 'ios'): Promise<{ ok: true; value: string } | { ok: false; error: string }> {
   const raw = typeof input === 'string' ? input.trim() : '';
   const value = raw === '' ? '' : cleanVersion(raw);
   if (value === null) return { ok: false, error: 'Write the version like 1.0.3' };
   const col = await appSettingsDoc();
-  await col.updateOne({ key: 'app' } as never, { $set: { latestVersion: value, updatedAt: new Date(), updatedBy: adminId }, $setOnInsert: { key: 'app' } } as never, { upsert: true });
+  await col.updateOne({ key: 'app' } as never, { $set: { [versionField(platform)]: value, updatedAt: new Date(), updatedBy: adminId }, $setOnInsert: { key: 'app' } } as never, { upsert: true });
   return { ok: true, value };
 }
 
-/** Who is on an older version than `latest`: phones, and the customers behind them. */
-export async function updateAudience(latest: string): Promise<{ phones: number; customers: number; allPhones: number }> {
+/** Who is on an older version than `latest` of that app: phones, and the customers behind them. */
+export async function updateAudience(latest: string, platform: StorePlatform = 'ios'): Promise<{ phones: number; customers: number; allPhones: number }> {
   if (!latest) return { phones: 0, customers: 0, allPhones: 0 };
-  const older = await phonesOnOlderVersion(latest);
+  const older = await phonesOnOlderVersion(latest, platform);
   const allCustomers = await usersWithTokens();
   return { phones: older.length, customers: new Set(older.map((p) => p.userId)).size, allPhones: allCustomers.length };
 }
 
 /** Sends "update the app" to the phones that are on a version older than the one the admin saved. Tapping it opens the App Store. */
-export async function sendUpdateCampaign(input: { title?: unknown; body?: unknown; adminId: string; adminName?: string; confirmAgain?: boolean }): Promise<CampaignResult> {
-  const text = checkText(input.title || UPDATE_TITLE, input.body || UPDATE_BODY);
+export async function sendUpdateCampaign(input: { title?: unknown; body?: unknown; adminId: string; adminName?: string; confirmAgain?: boolean; platform?: StorePlatform }): Promise<CampaignResult> {
+  const platform: StorePlatform = input.platform === 'android' ? 'android' : 'ios';
+  const text = checkText(input.title || UPDATE_TITLE, input.body || (platform === 'android' ? UPDATE_BODY_ANDROID : UPDATE_BODY));
   if (!text.ok) return { ok: false, status: 400, error: text.error };
-  const latest = await getLatestAppVersion();
+  const latest = await getLatestAppVersion(platform);
   if (!latest) return { ok: false, status: 409, error: 'Save the newest app version first.' };
   const mode = pushMode();
   if (mode === 'off') return { ok: false, status: 409, code: 'off', error: 'Notifications are switched off on this site (PUSH).' };
   const c = await campaigns();
   if (!input.confirmAgain) {
-    const last = await c.findOne({ kind: 'update', testOnly: { $ne: true }, mode: 'on' } as never, { sort: { sentAt: -1 } });
+    const last = await c.findOne({ kind: 'update', testOnly: { $ne: true }, mode: 'on', ...(platform === 'android' ? { platform: 'android' } : { platform: { $ne: 'android' } }) } as never, { sort: { sentAt: -1 } });
     const at = last?.sentAt instanceof Date ? last.sentAt.getTime() : 0;
     if (at && Date.now() - at < MIN_GAP_MINUTES * 60_000) {
       return { ok: false, status: 409, code: 'recent', error: `An update notification went out ${Math.max(1, Math.round((Date.now() - at) / 60_000))} minutes ago. Send another anyway?` };
     }
   }
-  const older = await phonesOnOlderVersion(latest);
+  const older = await phonesOnOlderVersion(latest, platform);
   if (older.length === 0) return { ok: false, status: 409, code: 'nobody', error: `Every phone with the app is already on ${latest} or newer.` };
   const userIds = [...new Set(older.map((p) => p.userId))];
   const _id = new ObjectId();
   const campaignId = String(_id);
   const summary = await sendPush({ userIds, kind: 'updates', title: text.title, body: text.body, data: { type: 'update' }, onlyTokens: older.map((p) => p.token), log: { campaignId, event: 'update_campaign' } });
-  await c.insertOne({ _id, kind: 'update', title: text.title, body: text.body, latestVersion: latest, sentAt: new Date(), by: input.adminId, byName: input.adminName ?? '', audience: userIds.length, sent: summary.sent, failed: summary.failed, mode: summary.mode } as never);
+  await c.insertOne({ _id, kind: 'update', platform, title: text.title, body: text.body, latestVersion: latest, sentAt: new Date(), by: input.adminId, byName: input.adminName ?? '', audience: userIds.length, sent: summary.sent, failed: summary.failed, mode: summary.mode } as never);
   return { ok: true, summary, campaignId };
 }
 
